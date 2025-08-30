@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>stasera qui</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+ integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+ integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body>
+<header class="header">
+  <img src="assets/logo.svg" alt="Stasera Qui">
+  <div>
+    <div style="font-weight:700;font-size:22px;margin-bottom:2px">stasera qui</div>
+    <div class="payoff">Scopri cosa fare, dove vuoi, quando vuoi</div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="search">
+    <input placeholder="Cerca città, zona o evento… (facoltativo)" id="searchInput">
+  </div>
+
+  <div class="pills" id="dayPills">
+    <div class="pill">Oggi</div>
+    <div class="pill">Domani</div>
+    <div class="pill">Weekend</div>
+    <div class="pill">Seleziona data</div>
+  </div>
+
+  <div class="chips" id="chips">
+    <div class="chip" data-cat="musica">Musica</div>
+    <div class="chip" data-cat="food">Food & Drink</div>
+    <div class="chip" data-cat="sagre">Sagre & Fiere</div>
+    <div class="chip" data-cat="famiglie">Famiglie & Bambini</div>
+    <div class="chip" data-cat="sport">Sport</div>
+    <div class="chip" data-cat="nightlife">Nightlife</div>
+    <div class="chip" data-cat="cultura">Cultura/Spettacolo</div>
+  </div>
+
+  <div id="map" class="map"></div>
+
+  <div class="cta-row">
+    <a class="cta" href="mission.html">Mission</a>
+    <a class="cta" href="chi-siamo.html">Chi siamo</a>
+  </div>
+
+  <div class="footer small">
+    © <span id="year"></span> Stasera Qui · info@staseraqui.it · eventi@staseraqui.it
+  </div>
+</main>
+
+<script>
+  // toggle multi-select chips
+  document.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', () => ch.classList.toggle('active')))
+
+  // init map with geolocation
+  const map = L.map('map').setView([45.0703, 7.6869], 12); // default Torino zoom (placeholder)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(map);
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const {latitude, longitude} = pos.coords;
+      map.setView([latitude, longitude], 13);
+      L.circle([latitude, longitude], {radius: 200, color:'#22b3f0'}).addTo(map);
+    });
+  }
+  document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

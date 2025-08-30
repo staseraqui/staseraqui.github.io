@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="120" viewBox="0 0 420 120">
+  <defs><style>
+    .t{font:700 64px 'Rubik', system-ui, -apple-system, Segoe UI, Roboto, 'DejaVu Sans', sans-serif; fill:#ffffff;}
+  </style></defs>
+  <g>
+    <path d="M38 10c18 0 32 14 32 32 0 6-2 12-5 17L38 110 16 59c-3-5-6-11-6-17C10 24 24 10 42 10h-4z" fill="#22B3F0"/>
+    <circle cx="38" cy="42" r="12" fill="#fff"/>
+  </g>
+  <text x="80" y="60" class="t">stasera qui</text>
+</svg>
