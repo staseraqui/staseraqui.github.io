@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="420" viewBox="0 0 1600 420" role="img" aria-label="stasera qui logo">
+  <rect x="0" y="0" width="1600" height="420" fill="#0b1828"/>
+  <!-- pin -->
+  <g transform="translate(40,60)">
+    <circle cx="54.0" cy="67.2" r="67.2" fill="#22b3f0"/>
+    <polygon points="-10.0,83.2 118.0,83.2 54.0,160" fill="#22b3f0"/>
+    <circle cx="54.0" cy="67.2" r="24.192" fill="#ffffff"/>
+  </g>
+  <!-- brand text vertically centered with the pin -->
+  <text x="172" y="140.0" fill="#ffffff" font-family="Rubik, -apple-system, Segoe UI, Roboto, 'DejaVu Sans', sans-serif" font-size="160" font-weight="700"
+        dominant-baseline="middle" alignment-baseline="middle">stasera qui</text>
+  <!-- payoff spans from start of pin to end of brand area -->
+  <text x="40" y="254" fill="#b8c2ce" font-family="Rubik, -apple-system, Segoe UI, Roboto, 'DejaVu Sans', sans-serif" font-size="56"
+        textLength="952" lengthAdjust="spacing">Scopri cosa fare, dove vuoi, quando vuoi</text>
+</svg>
