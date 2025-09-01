@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>stasera qui</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body>
+<header class="header"><img src="/assets/logo_lockup_dark_v4.svg" alt="Stasera Qui — logo"></header>
+<main class="container">
+  <div class="claim"><b>Scopri cosa fare, dove vuoi, quando vuoi</b></div>
+  <nav class="top-tabs">
+    <a href="/mission.html">Mission</a>
+    <a href="/chi-siamo.html">Chi siamo</a>
+    <a href="/contatti.html">Contatti</a>
+    <a href="/come-funziona.html">Come funziona</a>
+  </nav>
+  <div class="search"><input placeholder="Cerca città, zona o evento… (facoltativo)" id="searchInput"></div>
+  <div class="pills" id="dayPills">
+    <div class="pill">Oggi</div>
+    <div class="pill">Domani</div>
+    <div class="pill">Weekend</div>
+    <div class="pill" id="selData">Seleziona data</div>
+  </div>
+  <div class="chips" id="chips">
+    <div class="chip" data-cat="Musica">Musica</div>
+    <div class="chip" data-cat="Food & Drink">Food & Drink</div>
+    <div class="chip" data-cat="Sagre & Fiere">Sagre & Fiere</div>
+    <div class="chip" data-cat="Famiglie & Bambini">Famiglie & Bambini</div>
+    <div class="chip" data-cat="Sport">Sport</div>
+    <div class="chip" data-cat="Nightlife">Nightlife</div>
+    <div class="chip" data-cat="Cultura/Spettacolo">Cultura/Spettacolo</div>
+    <div class="chip" data-cat="Mercatini">Mercatini</div>
+  </div>
+  <div id="map" class="map"></div>
+  <div class="cta-row">
+    <a class="cta pubblica" href="/pubblica-evento.html">Pubblica evento</a>
+    <a class="cta lavoro" href="/lavora-con-noi.html">Lavora con noi</a>
+  </div>
+</main>
+<script>
+  document.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', () => ch.classList.toggle('active')));
+  const map = L.map('map').setView([45.0703, 7.6869], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(map);
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const {latitude, longitude} = pos.coords;
+      map.setView([latitude, longitude], 13);
+      L.circle([latitude, longitude], {radius: 200, color:'#22b3f0'}).addTo(map);
+    });
+  }
+  const selBtn = document.getElementById('selData');
+  if(selBtn){
+    const badge = document.createElement('span');
+    badge.className = 'date-badge';
+    badge.style.display = 'none';
+    selBtn.appendChild(badge);
+    selBtn.addEventListener('click', ()=>{
+      const inp = document.createElement('input');
+      inp.type = 'date';
+      inp.style.position='fixed'; inp.style.opacity='0'; inp.style.pointerEvents='none';
+      document.body.appendChild(inp);
+      inp.addEventListener('change', ()=>{
+        if(inp.value){
+          const d = new Date(inp.value);
+          const opts = {day:'2-digit', month:'2-digit', year:'numeric'};
+          badge.textContent = d.toLocaleDateString('it-IT', opts);
+          badge.style.display = 'inline-block';
+        }
+        document.body.removeChild(inp);
+      });
+      inp.showPicker ? inp.showPicker() : inp.click();
+    });
+  }
+</script>
+</body></html>

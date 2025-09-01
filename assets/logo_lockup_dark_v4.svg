@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="80" viewBox="0 0 340 80">
+  <defs>
+    <style>
+      .text{fill:#ffffff;font-family:'Rubik',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif;font-size:44px;font-weight:700;letter-spacing:0.2px}
+    </style>
+  </defs>
+  <g transform="translate(8,8)">
+    <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
+    <circle cx="32" cy="24" r="9" fill="#ffffff"/>
+  </g>
+  <text class="text" x="80" y="52">stasera qui</text>
+</svg>
