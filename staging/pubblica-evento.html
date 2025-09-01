@@ -8,6 +8,7 @@
 </head>
 <body data-page="pubblica">
 <header class="header">
+  <a href="/staging/index.html" class="btn">← Torna alla mappa</a>
   <img src="/assets/logo_lockup_dark_v4.svg" alt="logo">
 </header>
 
@@ -24,7 +25,7 @@
       <div>
         <label for="categorieBtn">Categorie*</label>
         <div class="actions">
-          <button type="button" class="btn secondary" id="categorieBtn">Scegli categorie</button>
+          <a class="btn secondary" id="categorieBtn">Scegli categorie</a>
           <div id="catBadges"></div>
         </div>
       </div>
@@ -41,19 +42,8 @@
       </div>
     </div>
 
-    <div class="grid">
-      <div>
-        <label>Nome referente</label>
-        <input class="ref_name" placeholder="Es. Laura Bianchi">
-      </div>
-      <div>
-        <label>Numero referente</label>
-        <input class="ref_phone" type="tel" placeholder="+39 333 1234567">
-      </div>
-    </div>
-
     <div class="actions">
-      <button type="button" class="btn secondary" id="addContact">Aggiungi contatto</button>
+      <a class="btn secondary" id="addContact">Aggiungi contatto</a>
     </div>
     <div id="contattiWrap"></div>
 
@@ -65,7 +55,7 @@
     <h3 class="block-title">Occorrenze</h3>
     <div id="occWrap"></div>
     <div class="actions" style="margin-top:8px">
-      <button type="button" class="btn" id="addOcc">Aggiungi altra occorrenza</button>
+      <a class="btn primary" id="addOcc">Aggiungi altra occorrenza</a>
     </div>
 
     <hr class="divider">
@@ -79,18 +69,18 @@
       <div><label for="sub_tel">Telefono*</label><input id="sub_tel" type="tel" required></div>
       <div><label for="sub_email">Email*</label><input id="sub_email" type="email" required></div>
     </div>
-    <p class="note">Questi dati restano riservati e non vengono pubblicati. Li useremo solo per contattarti in caso di chiarimenti sull’annuncio.</p>
+    <p class="note">Questi dati rimarranno riservati e non verranno resi pubblici. Li useremo solo per contattarti in caso di chiarimenti sull’annuncio.</p>
 
     <div style="margin-top:8px">
       <label for="partner_code">Codice partner</label>
       <input id="partner_code" placeholder="Se hai un codice partner, inseriscilo qui">
-      <p class="small">Se sei stato seguito da un partner “Stasera Qui”, inserisci il suo codice per riconoscergli il 50% della commissione sull’ordine.</p>
+      <p class="small">Se sei stato contattato da un partner “Stasera Qui”, inserisci nella casella di testo qui sopra il suo codice identificativo a 6 cifre.</p>
     </div>
 
     <div class="footer-actions">
-      <button class="btn" id="anteprimaBtn">Rivedi anteprima</button>
-      <button class="btn" id="confermaFooterBtn">Conferma pubblicazione evento</button>
-      <button type="button" class="btn secondary" id="azzeraBtn">Azzera tutto</button>
+      <a class="btn primary" id="anteprimaBtn">Rivedi anteprima</a>
+      <a class="btn primary" id="confermaFooterBtn">Conferma pubblicazione evento</a>
+      <a class="btn secondary" id="azzeraBtn" onclick="location.reload()">Azzera tutto</a>
     </div>
     <div id="err" class="err"></div>
   </form>
@@ -104,6 +94,9 @@
     <p id="pv_descr" style="margin-top:8px"></p>
     <div><b class="small">Occorrenze:</b> <span id="pv_occ"></span></div>
     <div id="pv_list" style="margin-top:6px"></div>
+    <div class="actions" style="margin-top:12px">
+      <a class="btn primary" id="confermaBtn" href="#">Conferma pubblicazione evento</a>
+    </div>
   </div>
 
   <p class="small" style="margin-top:16px">In caso di dubbi o problemi durante la pubblicazione di un evento, scrivi a: <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a></p>

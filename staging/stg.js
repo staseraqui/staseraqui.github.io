@@ -2,7 +2,8 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
 // -------- HOME --------
-async function initHome(){
+function initHome(){
+  // Date picker
   const selBtn = document.getElementById('selData');
   if(selBtn){
     const badge = document.createElement('span');
@@ -21,12 +22,23 @@ async function initHome(){
           badge.textContent = d.toLocaleDateString('it-IT', opts);
           badge.style.display = 'inline-block';
           localStorage.setItem('sq_sel_date', inp.value);
-          // refresh markers if present
           renderMarkers();
         }
         document.body.removeChild(inp);
       });
       inp.showPicker ? inp.showPicker() : inp.click();
+    });
+  }
+
+  // Category chips (multi-select)
+  const chipWrap = document.getElementById('chips');
+  if(chipWrap){
+    chipWrap.addEventListener('click', e=>{
+      const el = e.target.closest('.chip'); if(!el) return;
+      el.classList.toggle('active');
+      const active = [...chipWrap.querySelectorAll('.chip.active')].map(c => c.dataset.cat);
+      localStorage.setItem('sq_sel_cats', JSON.stringify(active));
+      renderMarkers();
     });
   }
 
@@ -45,22 +57,21 @@ async function initHome(){
 
 function renderMarkers(){
   if(!window._sq_map) return;
-  // clear existing circleMarkers (simple approach: reload map layer group could be nicer)
-  // For simplicity in staging, we won't remove old markers; it's fine for demo.
-
   const raw = localStorage.getItem('sq_events');
   if(!raw) return;
-  let events;
-  try{ events = JSON.parse(raw); }catch(e){ return; }
+  let events; try{ events = JSON.parse(raw);}catch(e){return;}
   const selDate = localStorage.getItem('sq_sel_date');
+  let selCats = []; try{ selCats = JSON.parse(localStorage.getItem('sq_sel_cats')||'[]'); }catch(e){ selCats=[]; }
+
   events.forEach(ev => {
+    const cats = ev.categorie || [];
+    const catPass = selCats.length===0 || selCats.some(c => cats.includes(c));
     ev.occorrenze.forEach(occ => {
-      if(!selDate || occ.data === selDate){
-        if(occ.lat && occ.lng){
-          L.circleMarker([occ.lat, occ.lng], {radius:8, color:'#22b3f0', fill:true, fillOpacity:0.9})
-            .addTo(_sq_map)
-            .bindPopup(`<b>${ev.titolo}</b><br>${occ.data} ore ${occ.ora}<br>${occ.luogo}, ${occ.citta}`);
-        }
+      const datePass = !selDate || occ.data === selDate;
+      if(catPass && datePass && occ.lat && occ.lng){
+        L.circleMarker([occ.lat, occ.lng], {radius:8, color:'#22b3f0', fill:true, fillOpacity:0.9})
+          .addTo(_sq_map)
+          .bindPopup(`<b>${ev.titolo}</b><br>${occ.data} ore ${occ.ora}<br>${occ.luogo}, ${occ.citta}`);
       }
     });
   });
@@ -70,29 +81,29 @@ function renderMarkers(){
 function initPubblica(){
   const catBtn = $('#categorieBtn');
   const catWrap = $('#catBadges');
-  let categorie = [];
 
-  // Modal categorie semplice
+  // Modal categorie
   const modal = document.createElement('div');
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:50';
   modal.innerHTML = `
     <div style="background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-top-left-radius:16px;border-top-right-radius:16px;padding:16px;width:100%;max-width:1000px">
       <h3 style="margin:0 0 6px">Scegli categorie (multi)</h3>
-      <div id="chips" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px">
+      <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px">
         ${['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini'].map(c => `<div class="chip" data-cat="${c}" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none">${c}</div>`).join('')}
       </div>
       <div class="actions">
-        <button class="btn" id="catOk">Conferma</button>
-        <button class="btn secondary" id="catClear">Azzera</button>
+        <a class="btn primary" id="catOk">Conferma</a>
+        <a class="btn secondary" id="catClear">Azzera</a>
       </div>
     </div>`;
   document.body.appendChild(modal);
 
-  function renderCats(){
-    catWrap.innerHTML=''; categorie.forEach(c => {
+  function renderCats(cats){
+    catWrap.innerHTML=''; cats.forEach(c => {
       const b=document.createElement('span'); b.className='badge'; b.textContent=c; catWrap.appendChild(b);
     });
   }
+  let categorie = [];
   if(catBtn){
     catBtn.addEventListener('click', ()=>{ modal.style.display='flex'; });
     modal.addEventListener('click', e=>{ if(e.target===modal) modal.style.display='none'; });
@@ -105,17 +116,28 @@ function initPubblica(){
     });
     modal.querySelector('#catOk').addEventListener('click', ()=>{
       categorie = [...modal.querySelectorAll('.chip.active')].map(ch => ch.dataset.cat);
-      renderCats(); modal.style.display='none';
+      renderCats(categorie); modal.style.display='none';
     });
-    modal.querySelector('#catClear').addEventListener('click', ()=>{ categorie=[]; renderCats(); modal.querySelectorAll('.chip').forEach(ch => ch.classList.remove('active')); });
+    modal.querySelector('#catClear').addEventListener('click', ()=>{ categorie=[]; renderCats(categorie); modal.querySelectorAll('.chip').forEach(ch => ch.classList.remove('active')); });
   }
 
-  // Occorrenze add/remove
-  const occWrap = document.getElementById('occWrap');
-  function occTpl(){
-    const id='occ_'+Math.random().toString(36).slice(2,7);
+  // Contacts: start with NONE; only after click
+  const contWrap = document.getElementById('contattiWrap');
+  function contTpl(){
     return `
-    <div class="occ card" data-id="${id}">
+    <div class="grid contact">
+      <div><label>Nome referente</label><input class="ref_name" placeholder="Es. Laura Bianchi"></div>
+      <div><label>Numero referente</label><input class="ref_phone" type="tel" placeholder="+39 333 1234567"></div>
+    </div>`;
+  }
+  $('#addContact').addEventListener('click', ()=>{ const d=document.createElement('div'); d.innerHTML=contTpl(); contWrap.appendChild(d.firstElementChild); });
+
+  // Occurrences: first block has NO delete; subsequent ones have delete
+  const occWrap = document.getElementById('occWrap');
+  function occTpl(withDelete){
+    const del = withDelete ? `<div style="display:flex;align-items:flex-end;justify-content:flex-end"><button type="button" class="del-btn">Elimina occorrenza</button></div>` : `<div></div>`;
+    return `
+    <div class="occ card">
       <div class="grid">
         <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>
         <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>
@@ -126,33 +148,20 @@ function initPubblica(){
       </div>
       <div class="grid">
         <div><label>Orario*</label><input class="ora" type="time"></div>
-        <div style="display:flex;align-items:flex-end;justify-content:flex-end"><button type="button" class="del-btn" data-del="${id}">Elimina occorrenza</button></div>
+        ${del}
       </div>
     </div>`;
   }
-  if(occWrap){
-    occWrap.innerHTML = occTpl();
-    $('#addOcc').addEventListener('click', ()=>{ const d=document.createElement('div'); d.innerHTML=occTpl(); occWrap.appendChild(d.firstElementChild); });
-    occWrap.addEventListener('click', e=>{
-      if(e.target.dataset.del){
-        const box = e.target.closest('.occ'); if(box) box.remove();
-      }
-    });
-  }
-
-  // Multipli contatti
-  const contWrap = document.getElementById('contattiWrap');
-  function contTpl(){
-    return `
-    <div class="grid contact">
-      <div><label>Nome referente</label><input class="ref_name" placeholder="Es. Laura Bianchi"></div>
-      <div><label>Numero referente</label><input class="ref_phone" type="tel" placeholder="+39 333 1234567"></div>
-    </div>`;
-  }
-  if(contWrap){
-    contWrap.innerHTML = contTpl();
-    $('#addContact').addEventListener('click', ()=>{ const d=document.createElement('div'); d.innerHTML=contTpl(); contWrap.appendChild(d.firstElementChild); });
-  }
+  // initial block without delete
+  occWrap.innerHTML = occTpl(false);
+  $('#addOcc').addEventListener('click', ()=>{
+    const d=document.createElement('div'); d.innerHTML=occTpl(true); occWrap.appendChild(d.firstElementChild);
+  });
+  occWrap.addEventListener('click', e=>{
+    if(e.target.classList.contains('del-btn')){
+      const box = e.target.closest('.occ'); if(box) box.remove();
+    }
+  });
 
   const err = $('#err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
@@ -174,20 +183,16 @@ function initPubblica(){
     const titolo = clean($('#titolo').value);
     const descr  = clean($('#descrizione').value);
     const file   = $('#locandina').files[0];
-    if(!titolo || !descr || !file || !catWrap){ err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria*.'; return null; }
-    const anyCat = catWrap.children.length>0;
-    if(!anyCat){ err.textContent='Seleziona almeno una categoria.'; return null; }
+    const anyCat = (catWrap.children.length>0);
+    if(!titolo || !descr || !file || !anyCat){ err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria*.'; return null; }
     if(file.size>5*1024*1024){ err.textContent='Immagine troppo pesante (>5MB).'; return null; }
     const occ = collectOcc(); if(!occ){ err.textContent='Completa tutti i campi delle occorrenze e usa "Elimina occorrenza" per quelle non necessarie.'; return null; }
-
     const sub_nome = clean($('#sub_nome').value), sub_cognome = clean($('#sub_cognome').value);
     const sub_tel = $('#sub_tel').value.trim(), sub_email = $('#sub_email').value.trim();
     if(!sub_nome || !sub_cognome || !sub_tel || !sub_email){ err.textContent='Compila Nome, Cognome, Telefono ed Email di chi inserisce l’evento.'; return null; }
-
     const cats = [...catWrap.children].map(b=>b.textContent);
     return { titolo, descr, occ, categorie: cats, sub:{nome:sub_nome,cognome:sub_cognome,tel:sub_tel,email:sub_email}, partner: ($('#partner_code').value||'').trim() };
   }
-
   function renderPreview(data){
     $('#pv_titolo').textContent = data.titolo;
     $('#pv_cats').textContent   = data.categorie.join(', ');
@@ -203,30 +208,25 @@ function initPubblica(){
     $('#preview').style.display='block';
   }
 
-  // Geocode all occurrences via Nominatim (client-side)
+  // Geocode via Nominatim to show pins on Home (staging)
   async function geocodeOcc(occ){
     const q = encodeURIComponent(`${occ.indirizzo}, ${occ.citta}`);
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1`;
     try{
       const res = await fetch(url, {headers:{'Accept':'application/json'}});
       const js = await res.json();
-      if(js && js[0]){
-        return {lat: parseFloat(js[0].lat), lng: parseFloat(js[0].lon)};
-      }
+      if(js && js[0]) return {lat: parseFloat(js[0].lat), lng: parseFloat(js[0].lon)};
     }catch(e){}
     return {lat:null, lng:null};
   }
   async function geocodeAll(occs){
-    const out = [];
+    const out=[];
     for(const o of occs){
-      const g = await geocodeOcc(o);
-      out.push({...o, ...g});
-      // simple polite delay to avoid hammering the service
+      out.push({...o, ...(await geocodeOcc(o))});
       await new Promise(r=>setTimeout(r, 500));
     }
     return out;
   }
-
   function demoSaveToLocalStorage(dataWithGeo){
     const store = JSON.parse(localStorage.getItem('sq_events')||'[]');
     store.push(dataWithGeo);
@@ -238,22 +238,19 @@ function initPubblica(){
     renderPreview(data);
     window.scrollTo({top: $('#preview').offsetTop-10, behavior:'smooth'});
   });
-
   $('#confermaFooterBtn')?.addEventListener('click', async ()=>{
     const data = validate(); if(!data) return;
-    // Add geocoding so the Home map can show pins
     const geo = await geocodeAll(data.occ);
-    const payload = {...data, occ: undefined, occorrenze: geo};
+    const payload = {...data, occorrenze: geo};
     demoSaveToLocalStorage(payload);
     renderPreview(data);
-    alert('Anteprima ok. Nella Home di staging vedrai i pin sulla mappa per testare i filtri per data.\n(Pagamento Stripe verrà collegato nella fase successiva).');
+    alert('Anteprima ok. Nella Home di staging vedrai i pin sulla mappa (filtra per data/categoria).');
   });
-
   $('#confermaBtn')?.addEventListener('click', async (e)=>{
     e.preventDefault();
     const data = validate(); if(!data) return;
     const geo = await geocodeAll(data.occ);
-    const payload = {...data, occ: undefined, occorrenze: geo};
+    const payload = {...data, occorrenze: geo};
     demoSaveToLocalStorage(payload);
     alert('Conferma ok (DEMO). Evento salvato per la mappa in Home di staging.');
   });

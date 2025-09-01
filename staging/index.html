@@ -19,13 +19,14 @@
 </header>
 
 <main class="container">
-  <div class="claim"><b>Scopri</b> cosa fare, dove vuoi, quando vuoi</div>
+  <div class="claim"><b>Scopri cosa fare, dove vuoi, quando vuoi</b></div>
 
   <nav class="top-tabs">
-    <a href="/mission.html" class="secondary">Mission</a>
-    <a href="/chi-siamo.html" class="secondary">Chi siamo</a>
-    <a href="/staging/contatti.html" class="secondary">Contatti</a>
-    <a href="/staging/come-funziona.html" class="secondary">Come funziona</a>
+    <a href="/mission.html" class="btn">← Torna alla mappa</a>
+    <a href="/mission.html">Mission</a>
+    <a href="/chi-siamo.html">Chi siamo</a>
+    <a href="/staging/contatti.html">Contatti</a>
+    <a href="/staging/come-funziona.html">Come funziona</a>
   </nav>
 
   <div class="pills" id="dayPills">
@@ -35,8 +36,16 @@
     <div class="pill" id="selData">Seleziona data</div>
   </div>
 
-  <div class="search">
-    <input placeholder="Cerca città, zona o evento… (facoltativo)" id="searchInput">
+  <!-- Category chips under pills -->
+  <div class="chips" id="chips">
+    <div class="chip" data-cat="Musica">Musica</div>
+    <div class="chip" data-cat="Food & Drink">Food & Drink</div>
+    <div class="chip" data-cat="Sagre & Fiere">Sagre & Fiere</div>
+    <div class="chip" data-cat="Famiglie & Bambini">Famiglie & Bambini</div>
+    <div class="chip" data-cat="Sport">Sport</div>
+    <div class="chip" data-cat="Nightlife">Nightlife</div>
+    <div class="chip" data-cat="Cultura/Spettacolo">Cultura/Spettacolo</div>
+    <div class="chip" data-cat="Mercatini">Mercatini</div>
   </div>
 
   <div id="map" class="map"></div>
