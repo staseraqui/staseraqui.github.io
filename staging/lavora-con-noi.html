@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lavora con noi — STAGING</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/staging/stg.css">
+</head>
+<body data-page="lavora">
+<header class="header">
+  <img src="/assets/logo_lockup_dark_v4.svg" alt="logo">
+</header>
+
+<main class="container">
+  <h1>Lavora con noi</h1>
+  <div class="card">
+    <p class="small"><b>Aiutaci a portare gli eventi giusti alle persone giuste.</b> Diventa partner ufficiale: cerca nuovi inserzionisti, racconta il territorio e contribuisci allo sviluppo della piattaforma. Per ogni evento pubblicato con il tuo codice, <b>il 50% della commissione è tuo</b>. Nessun investimento iniziale: solo impegno, trasparenza e opportunità.</p>
+  </div>
+
+  <form id="workForm" class="card">
+    <div class="grid">
+      <div><label>Nome*</label><input id="w_nome" required></div>
+      <div><label>Cognome*</label><input id="w_cognome" required></div>
+    </div>
+    <div class="grid">
+      <div><label>Email*</label><input id="w_email" type="email" required></div>
+      <div><label>Telefono*</label><input id="w_tel" type="tel" required></div>
+    </div>
+    <div class="grid">
+      <div><label>Città*</label><input id="w_citta" required></div>
+      <div><label>Note (facoltative)</label><input id="w_note"></div>
+    </div>
+    <div class="footer-actions">
+      <button class="btn" type="submit">Invia candidatura</button>
+    </div>
+    <p id="workOut" class="note"></p>
+  </form>
+
+  <div class="card small">
+    <p><b>Come funziona la partnership</b></p>
+    <ul>
+      <li>Alla candidatura approvata, ricevi il tuo <b>codice alfanumerico</b> personale (6 caratteri).</li>
+      <li>Quando un cliente pubblica un evento e inserisce il tuo codice, a te va il <b>50% della commissione</b>.</li>
+      <li>Puoi usare il tuo codice anche nelle tue promozioni personalizzate.</li>
+      <li>Dubbi? Scrivi a <a href="mailto:lavoraconnoi@staseraqui.it">lavoraconnoi@staseraqui.it</a>.</li>
+    </ul>
+  </div>
+</main>
+
+<script src="/staging/stg.js"></script>
+</body>
+</html>

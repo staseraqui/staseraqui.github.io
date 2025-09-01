@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>stasera qui — STAGING Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/staging/stg.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+ integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+ integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body data-page="home">
+<header class="header">
+  <img src="/assets/logo_lockup_dark_v4.svg" alt="Stasera Qui — logo">
+</header>
+
+<main class="container">
+  <div class="claim"><b>Scopri</b> cosa fare, dove vuoi, quando vuoi</div>
+
+  <nav class="top-tabs">
+    <a href="/mission.html" class="secondary">Mission</a>
+    <a href="/chi-siamo.html" class="secondary">Chi siamo</a>
+    <a href="/staging/contatti.html" class="secondary">Contatti</a>
+    <a href="/staging/come-funziona.html" class="secondary">Come funziona</a>
+  </nav>
+
+  <div class="pills" id="dayPills">
+    <div class="pill">Oggi</div>
+    <div class="pill">Domani</div>
+    <div class="pill">Weekend</div>
+    <div class="pill" id="selData">Seleziona data</div>
+  </div>
+
+  <div class="search">
+    <input placeholder="Cerca città, zona o evento… (facoltativo)" id="searchInput">
+  </div>
+
+  <div id="map" class="map"></div>
+
+  <div class="cta-row">
+    <a class="cta pubblica" href="/staging/pubblica-evento.html">Pubblica evento</a>
+    <a class="cta lavoro" href="/staging/lavora-con-noi.html">Lavora con noi</a>
+  </div>
+
+  <section class="card">
+    <h3 style="margin:0 0 8px">Nota</h3>
+    <p class="small">Stai vedendo la modalità <b>STAGING</b>. Qui puoi provare i cambi grafici e le funzioni senza toccare il sito live.</p>
+  </section>
+</main>
+
+<script src="/staging/stg.js"></script>
+</body>
+</html>

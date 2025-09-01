@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pubblica evento — STAGING</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/staging/stg.css">
+</head>
+<body data-page="pubblica">
+<header class="header">
+  <img src="/assets/logo_lockup_dark_v4.svg" alt="logo">
+</header>
+
+<main class="container form">
+  <h1>Pubblica il tuo evento</h1>
+  <p class="small">Compila i dati, aggiungi <b>una o più occorrenze</b> (date/luoghi), rivedi l’anteprima e conferma. Dopo il pagamento l’evento va online in automatico.</p>
+
+  <form id="eventForm" class="card" onsubmit="return false">
+    <div class="grid">
+      <div>
+        <label for="titolo">Titolo evento*</label>
+        <input id="titolo" required maxlength="80" placeholder="Es. Aperitivo jazz in piazza">
+      </div>
+      <div>
+        <label for="categorieBtn">Categorie*</label>
+        <div class="actions">
+          <button type="button" class="btn secondary" id="categorieBtn">Scegli categorie</button>
+          <div id="catBadges"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <label for="prezzo">Prezzo/Ingresso</label>
+        <input id="prezzo" placeholder="Es. Gratis / 10€ con drink">
+      </div>
+      <div>
+        <label for="locandina">Locandina/Foto (JPG/PNG)*</label>
+        <input id="locandina" type="file" accept="image/png,image/jpeg" required>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <label>Nome referente</label>
+        <input class="ref_name" placeholder="Es. Laura Bianchi">
+      </div>
+      <div>
+        <label>Numero referente</label>
+        <input class="ref_phone" type="tel" placeholder="+39 333 1234567">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn secondary" id="addContact">Aggiungi contatto</button>
+    </div>
+    <div id="contattiWrap"></div>
+
+    <div>
+      <label for="descrizione">Descrizione breve (max 400)*</label>
+      <textarea id="descrizione" name="descrizione" maxlength="400" required placeholder="Due righe chiare: cosa succede, per chi è, dettagli utili."></textarea>
+    </div>
+
+    <h3 class="block-title">Occorrenze</h3>
+    <div id="occWrap"></div>
+    <div class="actions" style="margin-top:8px">
+      <button type="button" class="btn" id="addOcc">Aggiungi altra occorrenza</button>
+    </div>
+
+    <hr class="divider">
+
+    <h3 class="block-title">Chi inserisce l’annuncio</h3>
+    <div class="grid">
+      <div><label for="sub_nome">Nome*</label><input id="sub_nome" required></div>
+      <div><label for="sub_cognome">Cognome*</label><input id="sub_cognome" required></div>
+    </div>
+    <div class="grid">
+      <div><label for="sub_tel">Telefono*</label><input id="sub_tel" type="tel" required></div>
+      <div><label for="sub_email">Email*</label><input id="sub_email" type="email" required></div>
+    </div>
+    <p class="note">Questi dati restano riservati e non vengono pubblicati. Li useremo solo per contattarti in caso di chiarimenti sull’annuncio.</p>
+
+    <div style="margin-top:8px">
+      <label for="partner_code">Codice partner</label>
+      <input id="partner_code" placeholder="Se hai un codice partner, inseriscilo qui">
+      <p class="small">Se sei stato seguito da un partner “Stasera Qui”, inserisci il suo codice per riconoscergli il 50% della commissione sull’ordine.</p>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn" id="anteprimaBtn">Rivedi anteprima</button>
+      <button class="btn" id="confermaFooterBtn">Conferma pubblicazione evento</button>
+      <button type="button" class="btn secondary" id="azzeraBtn">Azzera tutto</button>
+    </div>
+    <div id="err" class="err"></div>
+  </form>
+
+  <div id="preview" class="card" style="display:none">
+    <h3>Anteprima</h3>
+    <div class="small">
+      <div><b>Titolo:</b> <span id="pv_titolo"></span></div>
+      <div><b>Categorie:</b> <span id="pv_cats"></span></div>
+    </div>
+    <p id="pv_descr" style="margin-top:8px"></p>
+    <div><b class="small">Occorrenze:</b> <span id="pv_occ"></span></div>
+    <div id="pv_list" style="margin-top:6px"></div>
+  </div>
+
+  <p class="small" style="margin-top:16px">In caso di dubbi o problemi durante la pubblicazione di un evento, scrivi a: <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a></p>
+</main>
+
+<script src="/staging/stg.js"></script>
+</body>
+</html>
