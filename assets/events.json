@@ -1,36 +1,36 @@
 [
   {
-    "id": "740cd7a1",
+    "id": "9067b8cd",
     "title": "Concerto acustico al parco",
     "category": "Musica",
-    "date": "2025-09-01",
+    "date": "2025-09-02",
     "time": "18:00",
     "venue": "Parco del Valentino",
     "address": "Viale Mattioli",
     "city": "Torino",
     "price": "Gratis",
     "coords": {
-      "lat": 45.050960062137335,
-      "lng": 7.68310656350501
+      "lat": 45.05717900083418,
+      "lng": 7.685196298215409
     }
   },
   {
-    "id": "03fdc2cf",
+    "id": "2bd377b6",
     "title": "Street food night",
     "category": "Food & Drink",
-    "date": "2025-09-02",
+    "date": "2025-09-03",
     "time": "19:00",
     "venue": "Piazza Vittorio Veneto",
     "address": "Piazza Vittorio",
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.06391867903534,
-      "lng": 7.696451463027965
+      "lat": 45.06158968106375,
+      "lng": 7.692003172564466
     }
   },
   {
-    "id": "a750b8b6",
+    "id": "10c9db53",
     "title": "DJ set sul fiume",
     "category": "Nightlife",
     "date": "2025-09-05",
@@ -40,12 +40,12 @@
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.06761659217645,
-      "lng": 7.7004148621889374
+      "lat": 45.06594412502867,
+      "lng": 7.7039738540035945
     }
   },
   {
-    "id": "473cec7c",
+    "id": "025fa91c",
     "title": "Cinema all’aperto",
     "category": "Cultura/Spettacolo",
     "date": "2025-09-06",
@@ -55,12 +55,12 @@
     "city": "Torino",
     "price": "Gratis",
     "coords": {
-      "lat": 45.06921205097992,
-      "lng": 7.681029794985694
+      "lat": 45.07202787671968,
+      "lng": 7.682265805819528
     }
   },
   {
-    "id": "b1720314",
+    "id": "335edfa1",
     "title": "Letture per bambini",
     "category": "Famiglie & Bambini",
     "date": "2025-09-07",
@@ -70,42 +70,42 @@
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.07042817688541,
-      "lng": 7.675954789133445
+      "lat": 45.071022686261564,
+      "lng": 7.6792427407675135
     }
   },
   {
-    "id": "40dbb884",
+    "id": "a008718c",
     "title": "Corsa non competitiva",
     "category": "Sport",
-    "date": "2025-09-01",
+    "date": "2025-09-02",
     "time": "19:00",
     "venue": "Parco Ruffini",
     "address": "Corso Trapani",
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.059616600012,
-      "lng": 7.634208932873332
+      "lat": 45.060057153666754,
+      "lng": 7.628661651717965
     }
   },
   {
-    "id": "1e466c00",
+    "id": "0ed1124c",
     "title": "Sagra della nocciola",
     "category": "Sagre & Fiere",
-    "date": "2025-09-02",
+    "date": "2025-09-03",
     "time": "20:00",
     "venue": "Piazza centrale",
     "address": "Via Roma",
     "city": "Alessandria",
     "price": "Gratis",
     "coords": {
-      "lat": 44.9124186320993,
-      "lng": 8.611061449985986
+      "lat": 44.914629303589734,
+      "lng": 8.613629312402587
     }
   },
   {
-    "id": "b145ae3b",
+    "id": "2199667d",
     "title": "Mercatino artigianale",
     "category": "Mercatini",
     "date": "2025-09-05",
@@ -115,8 +115,8 @@
     "city": "Alessandria",
     "price": "10€",
     "coords": {
-      "lat": 44.91327794234529,
-      "lng": 8.60701862970104
+      "lat": 44.91202404260883,
+      "lng": 8.615779856296482
     }
   }
 ]

@@ -1,6 +1,6 @@
 window.SQ_CONFIG = {
-  SUPABASE_URL: "",      // es: https://xxxx.supabase.co
-  SUPABASE_ANON_KEY: "", // chiave anonima
+  SUPABASE_URL: "",
+  SUPABASE_ANON_KEY: "",
   STRIPE_PUBLISHABLE_KEY: "",
   STRIPE_PRICE_ID: ""
 };

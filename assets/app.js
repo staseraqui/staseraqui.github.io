@@ -10,6 +10,11 @@
   const selDataBtn = document.getElementById('selData');
   const dateBadge = selDataBtn?.querySelector('.date-badge');
   const searchInput = document.getElementById('searchInput');
+  const resultCountEl = document.getElementById('resultCount');
+  const dateModal = document.getElementById('dateModal');
+  const dateInput = document.getElementById('dateInput');
+  const dateOk = document.getElementById('dateOk');
+  const dateCancel = document.getElementById('dateCancel');
 
   function parseISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y, m-1, d); }
   function isSame(d1,d2){ return d1.getFullYear()==d2.getFullYear() && d1.getMonth()==d2.getMonth() && d1.getDate()==d2.getDate(); }
@@ -17,6 +22,7 @@
 
   let selectedDate = null;
   let selectedCats = new Set();
+  let prevCount = -1;
 
   chips.forEach(ch => ch.addEventListener('click', () => {
     ch.classList.toggle('active');
@@ -30,7 +36,7 @@
     const t = p.dataset.day;
     if(t === 'oggi'){
       selectedDate = new Date();
-      dateBadge && (dateBadge.textContent = selectedDate.toLocaleDateString('it-IT')); 
+      dateBadge && (dateBadge.textContent = selectedDate.toLocaleDateString('it-IT'));
       dateBadge && (dateBadge.style.display='inline-block');
     } else if(t === 'domani'){
       selectedDate = new Date(Date.now()+86400000);
@@ -46,22 +52,24 @@
 
   if(selDataBtn){
     selDataBtn.addEventListener('click', ()=>{
-      const inp = document.createElement('input');
-      inp.type = 'date'; inp.style.position='fixed'; inp.style.opacity='0'; inp.style.pointerEvents='none';
-      document.body.appendChild(inp);
-      inp.addEventListener('change', ()=>{
-        if(inp.value){
-          const d = parseISO(inp.value);
-          selectedDate = d;
-          dateBadge.textContent = d.toLocaleDateString('it-IT');
-          dateBadge.style.display = 'inline-block';
-          render();
-        }
-        document.body.removeChild(inp);
-      });
-      inp.showPicker ? inp.showPicker() : inp.click();
+      dateModal.style.display='flex';
+      dateInput.value = '';
+      dateInput.focus();
     });
   }
+  dateCancel && dateCancel.addEventListener('click', ()=> dateModal.style.display='none');
+  dateOk && dateOk.addEventListener('click', ()=>{
+    if(dateInput.value){
+      const d = parseISO(dateInput.value);
+      selectedDate = d;
+      dateBadge.textContent = d.toLocaleDateString('it-IT');
+      dateBadge.style.display = 'inline-block';
+      dateModal.style.display='none';
+      render();
+    } else {
+      dateModal.style.display='none';
+    }
+  });
 
   searchInput && searchInput.addEventListener('input', ()=> render());
 
@@ -96,7 +104,7 @@
 
   function passFilters(ev){
     if(selectedCats.size>0 && !selectedCats.has(ev.category)) return false;
-    const evDate = parseISO(ev.date);
+    const evDate = new Date(ev.date);
     if(selectedDate === 'WEEKEND'){ if(!isWeekend(evDate)) return false; }
     else if(selectedDate instanceof Date){ if(!isSame(evDate, selectedDate)) return false; }
     const q = (searchInput && searchInput.value || '').trim().toLowerCase();
@@ -107,21 +115,28 @@
     return true;
   }
 
+  function updateCounter(n){
+    resultCountEl.textContent = n===1 ? '1 evento trovato' : `${n} eventi trovati`;
+  }
+
   function render(){
     clearMarkers();
     const filtered = items.filter(passFilters);
+    filtered.forEach(ev=>{
+      const m = L.circleMarker([ev.coords.lat, ev.coords.lng], {radius:8, color:'#22b3f0', fillColor:'#22b3f0', fillOpacity:0.9});
+      m.bindPopup(`<b>${ev.title}</b><br>${ev.date} ${ev.time}<br>${ev.venue}, ${ev.city}<br><span class="small">${ev.price} · ${ev.category}</span>`);
+      m.addTo(MAP); markers.push(m);
+    });
     if(filtered.length>0){
-      const group = [];
-      filtered.forEach(ev=>{
-        const m = L.circleMarker([ev.coords.lat, ev.coords.lng], {radius:8, color:'#22b3f0', fillColor:'#22b3f0', fillOpacity:0.9});
-        m.bindPopup(`<b>${ev.title}</b><br>${ev.date} ${ev.time}<br>${ev.venue}, ${ev.city}<br><span class="small">${ev.price} · ${ev.category}</span>`);
-        m.addTo(MAP); markers.push(m); group.push([ev.coords.lat, ev.coords.lng]);
-      });
-      if(group.length>0){
-        const bounds = L.latLngBounds(group);
-        MAP.fitBounds(bounds.pad(0.2));
-      }
+      const group = filtered.map(ev => [ev.coords.lat, ev.coords.lng]);
+      const bounds = L.latLngBounds(group);
+      MAP.fitBounds(bounds.pad(0.2));
     }
+    updateCounter(filtered.length);
+    if(filtered.length===0 && prevCount!==0){
+      alert("La combinazione corrente di filtri ha prodotto zero risultati. Prova a cambiare lo zoom o sposta la mappa su un'altra zona, oppure modifica i filtri selezionati.");
+    }
+    prevCount = filtered.length;
   }
 
   if(navigator.geolocation){
