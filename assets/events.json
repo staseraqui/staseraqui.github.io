@@ -1,122 +1,122 @@
 [
   {
-    "id": "9067b8cd",
-    "title": "Concerto acustico al parco",
+    "id": "4a7c3d5f",
+    "title": "Concerto acustico",
     "category": "Musica",
     "date": "2025-09-02",
     "time": "18:00",
-    "venue": "Parco del Valentino",
-    "address": "Viale Mattioli",
+    "venue": "Parco",
+    "address": "Via Roma 1",
     "city": "Torino",
     "price": "Gratis",
     "coords": {
-      "lat": 45.05717900083418,
-      "lng": 7.685196298215409
+      "lat": 45.07673101463931,
+      "lng": 7.645039532389995
     }
   },
   {
-    "id": "2bd377b6",
-    "title": "Street food night",
+    "id": "d7e5c6ba",
+    "title": "Street food",
     "category": "Food & Drink",
     "date": "2025-09-03",
     "time": "19:00",
-    "venue": "Piazza Vittorio Veneto",
-    "address": "Piazza Vittorio",
+    "venue": "Piazza",
+    "address": "Via Roma 1",
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.06158968106375,
-      "lng": 7.692003172564466
+      "lat": 45.07846946537913,
+      "lng": 7.686148943193734
     }
   },
   {
-    "id": "10c9db53",
-    "title": "DJ set sul fiume",
+    "id": "dc3c407d",
+    "title": "DJ set",
     "category": "Nightlife",
-    "date": "2025-09-05",
+    "date": "2025-09-04",
     "time": "20:00",
-    "venue": "Murazzi del Po",
-    "address": "Lungo Po Diaz",
+    "venue": "Murazzi",
+    "address": "Via Roma 1",
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.06594412502867,
-      "lng": 7.7039738540035945
+      "lat": 45.0528140601289,
+      "lng": 7.655551076115553
     }
   },
   {
-    "id": "025fa91c",
+    "id": "768fbabb",
     "title": "Cinema all’aperto",
     "category": "Cultura/Spettacolo",
-    "date": "2025-09-06",
+    "date": "2025-09-05",
     "time": "21:00",
-    "venue": "Cortile Castello",
-    "address": "Piazza Castello",
+    "venue": "Castello",
+    "address": "Via Roma 1",
     "city": "Torino",
     "price": "Gratis",
     "coords": {
-      "lat": 45.07202787671968,
-      "lng": 7.682265805819528
+      "lat": 45.071403225091714,
+      "lng": 7.6950810721411855
     }
   },
   {
-    "id": "335edfa1",
+    "id": "7ea087ba",
     "title": "Letture per bambini",
     "category": "Famiglie & Bambini",
-    "date": "2025-09-07",
+    "date": "2025-09-06",
     "time": "18:00",
-    "venue": "Biblioteca Civica",
-    "address": "Via della Cittadella",
+    "venue": "Biblioteca",
+    "address": "Via Roma 1",
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.071022686261564,
-      "lng": 7.6792427407675135
+      "lat": 45.08594756672838,
+      "lng": 7.702147966511094
     }
   },
   {
-    "id": "a008718c",
+    "id": "a6a2e04f",
     "title": "Corsa non competitiva",
     "category": "Sport",
     "date": "2025-09-02",
     "time": "19:00",
     "venue": "Parco Ruffini",
-    "address": "Corso Trapani",
+    "address": "Via Roma 1",
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.060057153666754,
-      "lng": 7.628661651717965
+      "lat": 45.07920229493012,
+      "lng": 7.716745691956333
     }
   },
   {
-    "id": "0ed1124c",
+    "id": "779cfb94",
     "title": "Sagra della nocciola",
     "category": "Sagre & Fiere",
     "date": "2025-09-03",
     "time": "20:00",
     "venue": "Piazza centrale",
-    "address": "Via Roma",
+    "address": "Via Roma 1",
     "city": "Alessandria",
     "price": "Gratis",
     "coords": {
-      "lat": 44.914629303589734,
-      "lng": 8.613629312402587
+      "lat": 44.90811743463798,
+      "lng": 8.606119114899139
     }
   },
   {
-    "id": "2199667d",
+    "id": "a635685d",
     "title": "Mercatino artigianale",
     "category": "Mercatini",
-    "date": "2025-09-05",
+    "date": "2025-09-04",
     "time": "21:00",
     "venue": "Centro storico",
-    "address": "Via Milano",
+    "address": "Via Roma 1",
     "city": "Alessandria",
     "price": "10€",
     "coords": {
-      "lat": 44.91202404260883,
-      "lng": 8.615779856296482
+      "lat": 44.929867258466366,
+      "lng": 8.624368425915502
     }
   }
 ]
