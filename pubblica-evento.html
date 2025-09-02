@@ -5,11 +5,11 @@
 <title>Pubblica evento — Stasera Qui</title>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://js.stripe.com/v3/"></script>
 </head>
 <body>
-<header class="header">
-  <img src="/assets/logo_lockup_dark_v4.svg" alt="Stasera Qui — logo">
-</header>
+<header class="header"><img src="/assets/logo_lockup_dark_v4.svg" alt="Stasera Qui — logo"></header>
 
 <main class="container">
   <h1>Pubblica il tuo evento</h1>
@@ -42,14 +42,12 @@
     </div>
 
     <h3 class="block-title">Prenotazione / Contatto</h3>
-    <!-- Prima coppia di contatti visibile di default -->
     <div id="contattiWrap">
       <div class="grid contact">
         <div><label>Nome referente</label><input class="ref_name" placeholder="Es. Laura Bianchi"></div>
         <div><label>Numero referente</label><input class="ref_phone" type="tel" placeholder="+39 333 1234567"></div>
       </div>
     </div>
-    <!-- Il pulsante sta nella riga SOTTO -->
     <div class="actions" style="margin-top:6px">
       <a class="btn secondary" id="addContact">Aggiungi contatto</a>
     </div>
@@ -60,7 +58,6 @@
     </div>
 
     <h3 class="block-title">Occorrenze</h3>
-    <!-- PRIMA OCCORRENZA: resa direttamente in HTML (senza JS) -->
     <div id="occWrap">
       <div class="occ card">
         <div class="grid">
@@ -73,11 +70,10 @@
         </div>
         <div class="grid">
           <div><label>Orario*</label><input class="ora" type="time"></div>
-          <div></div><!-- nessun bottone elimina per la prima -->
+          <div></div>
         </div>
       </div>
     </div>
-    <!-- Il pulsante sta SOTTO la prima occorrenza -->
     <div class="actions" style="margin-top:8px">
       <a class="btn primary" id="addOcc">Aggiungi altra occorrenza</a>
     </div>
@@ -123,14 +119,13 @@
   <p class="small" style="margin-top:16px">In caso di dubbi o problemi durante la pubblicazione di un evento, scrivi a: <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a></p>
 </main>
 
-<footer class="page-footer">
-  <a href="/index.html" class="btn">← Torna alla mappa</a>
-</footer>
+<footer class="page-footer"><a href="/index.html" class="btn">← Torna alla mappa</a></footer>
 
+<script src="/assets/config.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 
-// ---------- CATEGORIE (popup semplice) ----------
+// categorie popup
 (function initCategorie(){
   const btn = document.getElementById('categorieBtn'); if(!btn) return;
   const wrap = document.getElementById('catBadges');
@@ -148,11 +143,7 @@ const $ = s => document.querySelector(s);
       </div>
     </div>`;
   document.body.appendChild(modal);
-
-  function renderCats(cats){
-    wrap.innerHTML='';
-    cats.forEach(c => { const b=document.createElement('span'); b.className='badge'; b.textContent=c; wrap.appendChild(b); });
-  }
+  function renderCats(cats){ wrap.innerHTML=''; cats.forEach(c => { const b=document.createElement('span'); b.className='badge'; b.textContent=c; wrap.appendChild(b); }); }
   let cats = [];
   btn.addEventListener('click', ()=>{ modal.style.display='flex'; });
   modal.addEventListener('click', e=>{ if(e.target===modal) modal.style.display='none'; });
@@ -172,7 +163,7 @@ const $ = s => document.querySelector(s);
   });
 })();
 
-// ---------- CONTATTI ----------
+// contatti
 (function initContatti(){
   const wrap = document.getElementById('contattiWrap');
   const addBtn = document.getElementById('addContact');
@@ -186,7 +177,7 @@ const $ = s => document.querySelector(s);
   addBtn.addEventListener('click', addContactRow);
 })();
 
-// ---------- OCCORRENZE ----------
+// occorrenze
 (function initOccorrenze(){
   const wrap = document.getElementById('occWrap');
   function occTpl(){
@@ -217,7 +208,7 @@ const $ = s => document.querySelector(s);
   });
 })();
 
-// ---------- ANTEPRIMA (solo UI) ----------
+// anteprima
 (function initPreview(){
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
@@ -257,6 +248,59 @@ const $ = s => document.querySelector(s);
     const list = document.getElementById('pv_list'); list.innerHTML=''; list.appendChild(ul);
     document.getElementById('preview').style.display='block';
     window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
+  });
+})();
+
+// invio (Supabase se configurato; altrimenti email)
+(function initSubmit(){
+  function clean(t){ return (t||'').trim(); }
+  function collect(){
+    const titolo = clean(document.getElementById('titolo').value);
+    const prezzo = clean(document.getElementById('prezzo').value);
+    const descr  = clean(document.getElementById('descrizione').value);
+    const cats   = [...document.getElementById('catBadges').children].map(b=>b.textContent);
+    const contatti = [...document.querySelectorAll('#contattiWrap .contact')].map(row=>({
+      name: clean(row.querySelector('.ref_name')?.value||''),
+      phone: clean(row.querySelector('.ref_phone')?.value||'')
+    })).filter(x=>x.name||x.phone);
+    const occ = [...document.querySelectorAll('#occWrap .occ')].map(b=>({
+      luogo: clean(b.querySelector('.luogo')?.value||''),
+      indirizzo: clean(b.querySelector('.indirizzo')?.value||''),
+      citta: clean(b.querySelector('.citta')?.value||''),
+      data: b.querySelector('.data')?.value||'',
+      ora: b.querySelector('.ora')?.value||''
+    }));
+    const submitter = {
+      nome: clean(document.getElementById('sub_nome').value),
+      cognome: clean(document.getElementById('sub_cognome').value),
+      tel: clean(document.getElementById('sub_tel').value),
+      email: clean(document.getElementById('sub_email').value)
+    };
+    const partner = clean(document.getElementById('partner_code').value);
+    return { titolo, prezzo, descr, cats, contatti, occ, submitter, partner, created_at: new Date().toISOString() };
+  }
+  function hasSupabase(){ return window.SQ_CONFIG && window.SQ_CONFIG.SUPABASE_URL && window.SQ_CONFIG.SUPABASE_ANON_KEY; }
+  async function sendSupabase(payload){
+    const supa = supabase.createClient(window.SQ_CONFIG.SUPABASE_URL, window.SQ_CONFIG.SUPABASE_ANON_KEY);
+    const { data, error } = await supa.from('events_submissions').insert(payload).select();
+    if(error) throw error; return data?.[0] || null;
+  }
+  document.getElementById('confermaFooterBtn').addEventListener('click', async ()=>{
+    const payload = collect();
+    if(!payload.titolo || !payload.descr || !payload.cats.length || !payload.occ.length){
+      document.getElementById('err').textContent = "Compila tutti i campi obbligatori e almeno una occorrenza."; return;
+    }
+    try{
+      if(hasSupabase()){
+        await sendSupabase(payload);
+        alert("Evento inviato! Riceverai una mail di conferma dopo la verifica.");
+      }else{
+        const body = encodeURIComponent(JSON.stringify(payload, null, 2));
+        window.location.href = `mailto:eventi@staseraqui.it?subject=Nuovo evento — ${encodeURIComponent(payload.titolo)}&body=${body}`;
+      }
+    }catch(e){
+      alert("Errore durante l'invio. Riprova o scrivi a eventi@staseraqui.it");
+    }
   });
 })();
 </script>
