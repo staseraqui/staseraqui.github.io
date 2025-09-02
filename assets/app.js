@@ -1,6 +1,6 @@
 
 (function(){
-  var MAP = L.map('map').setView([45.0703, 7.6869], 11); // ~20km
+  var MAP = L.map('map').setView([45.0703, 7.6869], 11);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(MAP);
 
   var markers = [];
@@ -72,14 +72,9 @@
 
   if(searchInput) searchInput.addEventListener('input', render);
 
-  function loadEventsFromSeed(){
-    return fetch('assets/events.json').then(function(r){ return r.json(); });
-  }
-
   function loadEvents(){
-    return loadEventsFromSeed().then(function(js){
-      items = js;
-      render();
+    return fetch('assets/events.json').then(function(r){ return r.json(); }).then(function(js){
+      items = js; render();
     });
   }
 
@@ -99,10 +94,6 @@
     return true;
   }
 
-  function updateCounter(n){
-    if(resultCountEl){ resultCountEl.textContent = n===1 ? '1 evento trovato' : (n+' eventi trovati'); }
-  }
-
   function render(){
     clearMarkers();
     var filtered = items.filter(passFilters);
@@ -111,17 +102,26 @@
       m.bindPopup('<b>'+ev.title+'</b><br>'+ev.date+' '+ev.time+'<br>'+ev.venue+', '+ev.city+'<br><span class="small">'+ev.price+' · '+ev.category+'</span>');
       m.addTo(MAP); markers.push(m);
     });
-    updateCounter(filtered.length);
-    if(filtered.length===0 && prevCount!==0){
+    updateCounterInView();
+  }
+
+  function updateCounterInView(){
+    var b = MAP.getBounds();
+    var n = markers.filter(function(m){ return b.contains(m.getLatLng()); }).length;
+    resultCountEl.textContent = (n===1? '1 evento trovato' : n+' eventi trovati');
+    if(n===0 && prevCount!==0){
       alert("La combinazione corrente di filtri ha prodotto zero risultati. Prova a cambiare lo zoom o sposta la mappa su un'altra zona, oppure modifica i filtri selezionati.");
     }
-    prevCount = filtered.length;
+    prevCount = n;
   }
+
+  MAP.on('moveend zoomend', updateCounterInView);
 
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(function(pos){
       MAP.setView([pos.coords.latitude, pos.coords.longitude], 11);
       L.circle([pos.coords.latitude, pos.coords.longitude], {radius: 200, color:'#22b3f0'}).addTo(MAP);
+      updateCounterInView();
     });
   }
 

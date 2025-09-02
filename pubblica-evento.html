@@ -37,8 +37,11 @@
         <input id="titolo" required maxlength="80" placeholder="Es. Aperitivo jazz in piazza">
       </div>
       <div>
-        <label for="categorie">Categorie*</label>
-        <input id="categorie" placeholder="Es. Musica; Food & Drink">
+        <label for="categorieBtn">Categorie*</label>
+        <div class="actions">
+          <a class="btn secondary" id="categorieBtn">Scegli categorie</a>
+          <div id="catBadges"></div>
+        </div>
       </div>
     </div>
 
@@ -54,34 +57,79 @@
     </div>
 
     <h3 class="block-title">Prenotazione / Contatto</h3>
-    <div class="grid">
-      <div><label for="ref_name_1">Nome referente</label><input id="ref_name_1" placeholder="Es. Laura Bianchi"></div>
-      <div><label for="ref_phone_1">Numero referente</label><input id="ref_phone_1" type="tel" placeholder="+39 333 1234567"></div>
+    <div id="contattiWrap">
+      <div class="grid contact">
+        <div><label>Nome referente</label><input class="ref_name" placeholder="Es. Laura Bianchi"></div>
+        <div><label>Numero referente</label><input class="ref_phone" type="tel" placeholder="+39 333 1234567"></div>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:6px">
+      <a class="btn secondary" id="addContact">Aggiungi contatto</a>
     </div>
 
     <div style="margin-top:10px">
       <label for="descrizione">Descrizione breve (max 400)*</label>
-      <textarea id="descrizione" maxlength="400" required placeholder="Due righe chiare: cosa succede, per chi è, dettagli utili."></textarea>
+      <textarea id="descrizione" name="descrizione" maxlength="400" required placeholder="Due righe chiare: cosa succede, per chi è, dettagli utili."></textarea>
     </div>
 
     <h3 class="block-title">Occorrenze</h3>
+    <div id="occWrap">
+      <div class="occ card">
+        <div class="grid">
+          <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>
+          <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>
+        </div>
+        <div class="grid">
+          <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>
+          <div><label>Data*</label><input class="data" type="date"></div>
+        </div>
+        <div class="grid">
+          <div><label>Orario*</label><input class="ora" type="time"></div>
+          <div></div>
+        </div>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:8px">
+      <a class="btn primary" id="addOcc">Aggiungi altra occorrenza</a>
+    </div>
+
+    <hr class="divider">
+
+    <h3 class="block-title">Chi inserisce l’annuncio</h3>
     <div class="grid">
-      <div><label for="luogo1">Luogo/Nome locale*</label><input id="luogo1" placeholder="Es. Bar Centrale"></div>
-      <div><label for="indirizzo1">Indirizzo*</label><input id="indirizzo1" placeholder="Via Roma 1"></div>
+      <div><label for="sub_nome">Nome*</label><input id="sub_nome" required></div>
+      <div><label for="sub_cognome">Cognome*</label><input id="sub_cognome" required></div>
     </div>
     <div class="grid">
-      <div><label for="citta1">Città*</label><input id="citta1" placeholder="Es. Torino"></div>
-      <div><label for="data1">Data*</label><input id="data1" type="date"></div>
+      <div><label for="sub_tel">Telefono*</label><input id="sub_tel" type="tel" required></div>
+      <div><label for="sub_email">Email*</label><input id="sub_email" type="email" required></div>
     </div>
-    <div class="grid">
-      <div><label for="ora1">Orario*</label><input id="ora1" type="time"></div>
-      <div></div>
+    <p class="note">Questi dati rimarranno riservati e non verranno resi pubblici. Li useremo solo per contattarti in caso di chiarimenti sull’annuncio.</p>
+
+    <div style="margin-top:8px">
+      <label for="partner_code">Codice partner</label>
+      <input id="partner_code" placeholder="Se hai un codice partner, inseriscilo qui">
+      <p class="small">Se sei stato contattato da un partner “Stasera Qui”, inserisci nella casella di testo qui sopra il suo codice identificativo a 6 cifre.</p>
     </div>
 
     <div class="footer-actions">
-      <a class="btn primary" id="conferma">Conferma pubblicazione evento</a>
+      <a class="btn primary" id="anteprimaBtn">Rivedi anteprima</a>
+      <a class="btn primary" id="confermaFooterBtn">Conferma pubblicazione evento</a>
+      <a class="btn secondary" id="azzeraBtn" onclick="location.reload()">Azzera tutto</a>
     </div>
+    <div id="err" class="err"></div>
   </form>
+
+  <div id="preview" class="card" style="display:none">
+    <h3>Anteprima</h3>
+    <div class="small">
+      <div><b>Titolo:</b> <span id="pv_titolo"></span></div>
+      <div><b>Categorie:</b> <span id="pv_cats"></span></div>
+    </div>
+    <p id="pv_descr" style="margin-top:8px"></p>
+    <div><b class="small">Occorrenze:</b> <span id="pv_occ"></span></div>
+    <div id="pv_list" style="margin-top:6px"></div>
+  </div>
 
   <p class="small" style="margin-top:16px">In caso di dubbi o problemi durante la pubblicazione di un evento, scrivi a: <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a></p>
 </main>
@@ -89,32 +137,192 @@
 <footer class="page-footer"><a href="index.html" class="btn">← Torna alla mappa</a></footer>
 
 <script>
-document.getElementById('conferma').addEventListener('click', function(){
-  var titolo = document.getElementById('titolo').value.trim();
-  var cats = document.getElementById('categorie').value.trim();
-  var prezzo = document.getElementById('prezzo').value.trim();
-  var descr = document.getElementById('descrizione').value.trim();
-  var occLine = document.getElementById('data1').value+' ore '+document.getElementById('ora1').value+' — '+document.getElementById('luogo1').value+', '+document.getElementById('indirizzo1').value+', '+document.getElementById('citta1').value;
-  var ref = (document.getElementById('ref_name_1').value||'')+' — '+(document.getElementById('ref_phone_1').value||'');
+// categorie
+(function(){
+  const btn = document.getElementById('categorieBtn');
+  if(!btn) return;
+  const wrap = document.getElementById('catBadges');
+  const modal = document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:50';
+  modal.innerHTML = '<div style="background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-top-left-radius:16px;border-top-right-radius:16px;padding:16px;width:100%;max-width:1000px">\
+  <h3 style="margin:0 0 6px">Scegli categorie (multi)</h3>\
+  <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px">\
+  '+['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini'].map(function(c){ return '<div class="chip" data-cat=\"'+c+'\" style=\"background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none\">'+c+'</div>'; }).join('')+\
+  '</div><div class="actions"><a class="btn primary" id="catOk">Conferma</a> <a class="btn secondary" id="catClear">Azzera</a></div></div>';
+  document.body.appendChild(modal);
+  function renderCats(cats){ wrap.innerHTML=''; for(var i=0;i<cats.length;i++){var b=document.createElement('span'); b.className='badge'; b.textContent=cats[i]; wrap.appendChild(b);} }
+  var cats = [];
+  btn.addEventListener('click', function(){ modal.style.display='flex'; });
+  modal.addEventListener('click', function(e){ if(e.target===modal) modal.style.display='none'; });
+  modal.addEventListener('click', function(e){
+    if(e.target.classList.contains('chip')){
+      e.target.classList.toggle('active');
+      if(e.target.classList.contains('active')){ e.target.style.background='#22b3f0'; e.target.style.color='#081421'; e.target.style.borderColor='#22b3f0'; }
+      else { e.target.style.background='#17304d'; e.target.style.color='#d7f2ff'; e.target.style.borderColor='#2e6e8f'; }
+    }
+  });
+  modal.querySelector('#catOk').addEventListener('click', function(){
+    cats = Array.prototype.slice.call(modal.querySelectorAll('.chip.active')).map(function(ch){return ch.getAttribute('data-cat');});
+    renderCats(cats); modal.style.display='none';
+  });
+  modal.querySelector('#catClear').addEventListener('click', function(){ cats=[]; renderCats(cats); Array.prototype.forEach.call(modal.querySelectorAll('.chip'), function(ch){ ch.classList.remove('active'); }); });
+})();
 
-  var lines = [
-    'Stasera Qui — Nuovo evento','',
-    '[DATI EVENTO]',
-    'Titolo: '+titolo,
-    'Categorie: '+cats,
-    'Prezzo/Ingresso: '+prezzo,'',
-    'Descrizione:',
-    descr,'',
-    '[OCCORRENZE]',
-    '- '+occLine,'',
-    '[CONTATTI REFERENTI]',
-    (ref.trim()? '- '+ref : '—')
-  ];
-  var body = encodeURIComponent(lines.join('
-'));
-  var subj = encodeURIComponent('Nuovo evento — '+titolo);
-  window.location.href = 'mailto:eventi@staseraqui.it?subject='+subj+'&body='+body;
-});
+// contatti add
+(function(){
+  var wrap = document.getElementById('contattiWrap');
+  var addBtn = document.getElementById('addContact');
+  function addContactRow(){
+    var d=document.createElement('div');
+    d.className='grid contact';
+    d.innerHTML = '<div><label>Nome referente</label><input class="ref_name" placeholder="Es. Laura Bianchi"></div>\
+                   <div><label>Numero referente</label><input class="ref_phone" type="tel" placeholder="+39 333 1234567"></div>';
+    wrap.appendChild(d);
+  }
+  addBtn.addEventListener('click', addContactRow);
+})();
+
+// occorrenze add/remove
+(function(){
+  var wrap = document.getElementById('occWrap');
+  function occTpl(){
+    return '<div class="occ card">\
+      <div class="grid">\
+        <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>\
+        <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>\
+      </div>\
+      <div class="grid">\
+        <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>\
+        <div><label>Data*</label><input class="data" type="date"></div>\
+      </div>\
+      <div class="grid">\
+        <div><label>Orario*</label><input class="ora" type="time"></div>\
+        <div style="display:flex;align-items:flex-end;justify-content:flex-end">\
+          <button type="button" class="del-btn">Elimina occorrenza</button>\
+        </div>\
+      </div>\
+    </div>';
+  }
+  document.getElementById('addOcc').addEventListener('click', function(){
+    var d=document.createElement('div'); d.innerHTML=occTpl(); wrap.appendChild(d.firstElementChild);
+  });
+  wrap.addEventListener('click', function(e){
+    if(e.target.classList.contains('del-btn')){
+      var box = e.target.closest('.occ'); if(box) box.remove();
+    }
+  });
+})();
+
+// anteprima + conferma email
+(function(){
+  var err = document.getElementById('err');
+  function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
+  function collectOcc(){
+    var occ = [];
+    Array.prototype.forEach.call(document.querySelectorAll('#occWrap .occ'), function(b){
+      var luogo=clean(b.querySelector('.luogo').value);
+      var indirizzo=clean(b.querySelector('.indirizzo').value);
+      var citta=clean(b.querySelector('.citta').value);
+      var data=b.querySelector('.data').value;
+      var ora=b.querySelector('.ora').value;
+      if(!luogo||!indirizzo||!citta||!data||!ora){ occ.push(null); }
+      else { occ.push({luogo:luogo,indirizzo:indirizzo,citta:citta,data:data,ora:ora}); }
+    });
+    if(occ.length===0 || occ.indexOf(null)>-1) return null;
+    return occ;
+  }
+  function validate(){
+    err.textContent='';
+    var titolo = clean(document.getElementById('titolo').value);
+    var descr  = clean(document.getElementById('descrizione').value);
+    var file   = document.getElementById('locandina').files[0];
+    var anyCat = (document.getElementById('catBadges').children.length>0);
+    if(!titolo || !descr || !file || !anyCat){ err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria*.'; return null; }
+    if(file && file.size>5*1024*1024){ err.textContent='Immagine troppo pesante (>5MB).'; return null; }
+    var occ = collectOcc(); if(!occ){ err.textContent='Completa tutti i campi delle occorrenze. Usa “Elimina occorrenza” per quelle superflue.'; return null; }
+    return { titolo: titolo, descr: descr, occ: occ };
+  }
+  document.getElementById('anteprimaBtn').addEventListener('click', function(){
+    var data = validate(); if(!data) return;
+    document.getElementById('pv_titolo').textContent = data.titolo;
+    document.getElementById('pv_cats').textContent   = Array.prototype.map.call(document.getElementById('catBadges').children, function(b){return b.textContent;}).join(', ');
+    document.getElementById('pv_descr').textContent  = data.descr;
+    document.getElementById('pv_occ').textContent    = data.occ.length + ' occorrenza/e';
+    var ul = document.createElement('ul'); ul.style.marginTop='6px';
+    data.occ.forEach(function(o){ var li=document.createElement('li'); li.textContent=o.data+' ore '+o.ora+' — '+o.luogo+', '+o.indirizzo+', '+o.citta; ul.appendChild(li); });
+    var list = document.getElementById('pv_list'); list.innerHTML=''; list.appendChild(ul);
+    document.getElementById('preview').style.display='block';
+    window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
+  });
+
+  function collect(){
+    var payload = {
+      titolo: clean(document.getElementById('titolo').value),
+      prezzo: (document.getElementById('prezzo').value||'').trim(),
+      descr : clean(document.getElementById('descrizione').value),
+      cats  : Array.prototype.map.call(document.getElementById('catBadges').children, function(b){return b.textContent;}),
+      contatti: Array.prototype.map.call(document.querySelectorAll('#contattiWrap .contact'), function(row){
+        return { name: (row.querySelector('.ref_name')||{}).value||'',
+                 phone: (row.querySelector('.ref_phone')||{}).value||'' };
+      }).filter(function(x){ return (x.name||x.phone); }),
+      occ: Array.prototype.map.call(document.querySelectorAll('#occWrap .occ'), function(b){
+        return { luogo: (b.querySelector('.luogo')||{}).value||'',
+                 indirizzo: (b.querySelector('.indirizzo')||{}).value||'',
+                 citta: (b.querySelector('.citta')||{}).value||'',
+                 data: (b.querySelector('.data')||{}).value||'',
+                 ora: (b.querySelector('.ora')||{}).value||'' };
+      }),
+      submitter: {
+        nome: (document.getElementById('sub_nome').value||''),
+        cognome: (document.getElementById('sub_cognome').value||''),
+        tel: (document.getElementById('sub_tel').value||''),
+        email: (document.getElementById('sub_email').value||'')
+      },
+      partner: (document.getElementById('partner_code').value||''),
+      created_at: new Date()
+    };
+    return payload;
+  }
+  function formatEmail(payload){
+    var dt = payload.created_at;
+    function pad(n){ return String(n).padStart(2,'0'); }
+    var when = pad(dt.getDate())+'/'+pad(dt.getMonth()+1)+'/'+dt.getFullYear()+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
+    var occLines = (payload.occ.length? payload.occ.map(function(o){return '- '+o.data+' ore '+o.ora+' — '+o.luogo+', '+o.indirizzo+', '+o.citta;}).join('\n') : '—');
+    var contLines = (payload.contatti.length? payload.contatti.map(function(c){return '- '+(c.name||'')+' — '+(c.phone||'');}).join('\n') : '—');
+    var cats = payload.cats.join(', ');
+    var lines = [
+      'Stasera Qui — Nuovo evento','',
+      '[DATI EVENTO]',
+      'Titolo: '+payload.titolo,
+      'Categorie: '+cats,
+      'Prezzo/Ingresso: '+(payload.prezzo||''),'',
+      'Descrizione:',
+      payload.descr,'',
+      '[OCCORRENZE]',
+      occLines,'',
+      '[CONTATTI REFERENTI]',
+      contLines,'',
+      '[DATI DI CHI COMPILA]',
+      'Nome: '+payload.submitter.nome+' '+payload.submitter.cognome,
+      'Telefono: '+payload.submitter.tel,
+      'Email: '+payload.submitter.email,
+      'Codice partner: '+(payload.partner||''),
+      'Data invio: '+when
+    ];
+    var body = encodeURIComponent(lines.join('\n'));
+    var subj = encodeURIComponent('Nuovo evento — '+payload.titolo);
+    var to = 'eventi@staseraqui.it';
+    var cc = payload.submitter.email ? '&cc='+encodeURIComponent(payload.submitter.email) : '';
+    return 'mailto:'+to+'?subject='+subj+cc+'&body='+body;
+  }
+  document.getElementById('confermaFooterBtn').addEventListener('click', function(){
+    var data = collect();
+    if(!data.titolo || !data.descr || !data.cats.length || !data.occ.length){
+      document.getElementById('err').textContent = "Compila tutti i campi obbligatori e almeno una occorrenza."; return;
+    }
+    window.location.href = formatEmail(data);
+  });
+})();
 </script>
 </body>
 </html>
