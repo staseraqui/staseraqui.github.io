@@ -51,9 +51,10 @@
   });
 
   if(selDataBtn){
-    selDataBtn.addEventListener('click', function(){
+    selDataBtn.addEventListener('click', function(e){
+      e.preventDefault();
       dateModal.style.display='flex';
-      dateInput.value = '';
+      dateInput.value='';
       dateInput.focus();
     });
   }
@@ -74,7 +75,8 @@
 
   function loadEvents(){
     return fetch('assets/events.json').then(function(r){ return r.json(); }).then(function(js){
-      items = js; render();
+      items = js;
+      render();
     });
   }
 

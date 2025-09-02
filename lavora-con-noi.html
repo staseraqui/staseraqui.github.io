@@ -1,9 +1,11 @@
 <!doctype html>
 <html lang="it">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lavora con noi — Stasera Qui</title>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css"></head>
+<link rel="stylesheet" href="assets/style.css">
+</head>
 <body>
 <header class="header">
   <div class="logo">
@@ -11,8 +13,82 @@
     <span class="wordmark">stasera qui</span>
   </div>
 </header>
+
 <main class="container">
-<h1>Lavora con noi</h1><p class='small'>Diventa partner ufficiale: contatta attività, aiuta a pubblicare gli eventi, e guadagni una percentuale su ogni pubblicazione con il tuo codice.</p>
+  <h1>Lavora con noi</h1>
+  <div class="card">
+    <p>Entra nel progetto e diventa <b>partner ufficiale</b> sul tuo territorio. Guadagni una <b>percentuale del 50%</b> su ogni evento che un cliente pubblica usando il <b>tuo codice</b>. Aiutaci a scoprire eventi, a contattare locali e Pro Loco, oppure a far crescere la community.</p>
+    <p class="small">Nessun rischio, solo opportunità: formazione veloce, materiali pronti, supporto continuo.</p>
+  </div>
+
+  <form id="workForm" class="card" onsubmit="return false">
+    <div class="grid">
+      <div><label for="w_nome">Nome*</label><input id="w_nome" required></div>
+      <div><label for="w_cognome">Cognome*</label><input id="w_cognome" required></div>
+    </div>
+    <div class="grid">
+      <div><label for="w_email">Email*</label><input id="w_email" type="email" required></div>
+      <div><label for="w_tel">Telefono*</label><input id="w_tel" type="tel" required></div>
+    </div>
+    <div class="grid">
+      <div><label for="w_citta">Città/Provincia*</label><input id="w_citta" required></div>
+      <div>
+        <label for="w_ruolo">In cosa vuoi aiutarci?</label>
+        <select id="w_ruolo">
+          <option value="commerciale">Commerciale (nuovi clienti)</option>
+          <option value="curation">Curation eventi / mappatura</option>
+          <option value="ambassador">Ambassador locale / community</option>
+          <option value="tecnico">Supporto tecnico / contenuti</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label for="w_note">Perché ti interessa questo progetto? (facoltativo)</label>
+      <textarea id="w_note" style="min-height:160px"></textarea>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn primary" id="w_submit" type="button">Invia candidatura</button>
+    </div>
+  </form>
+
+  <div id="w_result" class="card" style="display:none"></div>
 </main>
+
 <footer class="page-footer"><a href="index.html" class="btn">← Torna alla mappa</a></footer>
-</body></html>
+
+<script>
+(function(){
+  function genCode(){
+    var s='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    var c=''; for(var i=0;i<6;i++){ c+=s[Math.floor(Math.random()*s.length)]; } return c;
+  }
+  document.getElementById('w_submit').addEventListener('click', function(){
+    var nome=document.getElementById('w_nome').value.trim();
+    var cognome=document.getElementById('w_cognome').value.trim();
+    var email=document.getElementById('w_email').value.trim();
+    var tel=document.getElementById('w_tel').value.trim();
+    var citta=document.getElementById('w_citta').value.trim();
+    var ruolo=document.getElementById('w_ruolo').value;
+    var note=document.getElementById('w_note').value.trim();
+    if(!nome||!cognome||!email||!tel||!citta){ alert('Compila tutti i campi obbligatori.'); return; }
+    var code=genCode();
+    var msg=[
+      'Nuova candidatura partner — Stasera Qui','',
+      'Nome: '+nome+' '+cognome,
+      'Email: '+email,
+      'Telefono: '+tel,
+      'Città/Provincia: '+citta,
+      'Ruolo: '+ruolo,
+      'Note: '+(note||'—'),'',
+      'Codice partner assegnato: '+code
+    ].join('\n');
+    var mail='mailto:lavoraconnoi@staseraqui.it?subject='+encodeURIComponent('Candidatura partner — '+nome+' '+cognome)+'&body='+encodeURIComponent(msg);
+    document.getElementById('w_result').style.display='block';
+    document.getElementById('w_result').innerHTML='<h3>Grazie!</h3><p class="small">La tua candidatura è stata preparata. Il tuo <b>codice partner</b> è:</p><h2 style="margin:6px 0">'+code+'</h2><p class="small">Si aprirà ora la tua email con il riepilogo; inviala per completare la candidatura.</p>';
+    window.location.href = mail;
+  });
+})();
+</script>
+</body>
+</html>

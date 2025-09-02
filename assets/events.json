@@ -1,6 +1,6 @@
 [
   {
-    "id": "d7f3daea",
+    "id": "9e204860",
     "title": "Concerto acustico al parco",
     "category": "Musica",
     "date": "2025-09-02",
@@ -10,12 +10,12 @@
     "city": "Torino",
     "price": "Gratis",
     "coords": {
-      "lat": 45.05433525560004,
-      "lng": 7.68750195931917
+      "lat": 45.04912791763647,
+      "lng": 7.686152748421462
     }
   },
   {
-    "id": "384425e5",
+    "id": "c33f8443",
     "title": "Street food night",
     "category": "Food & Drink",
     "date": "2025-09-03",
@@ -25,12 +25,12 @@
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.06522175293355,
-      "lng": 7.697538783240347
+      "lat": 45.06995433403209,
+      "lng": 7.692611943290009
     }
   },
   {
-    "id": "1c5f2f31",
+    "id": "c7dfd28a",
     "title": "DJ set sul fiume",
     "category": "Nightlife",
     "date": "2025-09-04",
@@ -40,12 +40,12 @@
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.06691632254377,
-      "lng": 7.694222059708584
+      "lat": 45.062277044611484,
+      "lng": 7.696344589101445
     }
   },
   {
-    "id": "ddb093ff",
+    "id": "5bedaf6c",
     "title": "Cinema all’aperto",
     "category": "Cultura/Spettacolo",
     "date": "2025-09-05",
@@ -55,12 +55,12 @@
     "city": "Torino",
     "price": "Gratis",
     "coords": {
-      "lat": 45.06620940680882,
-      "lng": 7.685719533072642
+      "lat": 45.07091004417274,
+      "lng": 7.68851442335668
     }
   },
   {
-    "id": "145c76c1",
+    "id": "252ac96f",
     "title": "Letture per bambini",
     "category": "Famiglie & Bambini",
     "date": "2025-09-06",
@@ -70,12 +70,12 @@
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.07619041590591,
-      "lng": 7.682454356124813
+      "lat": 45.076671428284136,
+      "lng": 7.679136941820618
     }
   },
   {
-    "id": "bbf121fb",
+    "id": "0a2a03ad",
     "title": "Corsa non competitiva",
     "category": "Sport",
     "date": "2025-09-02",
@@ -85,12 +85,12 @@
     "city": "Torino",
     "price": "10€",
     "coords": {
-      "lat": 45.05780980463935,
-      "lng": 7.631309516774325
+      "lat": 45.05514246439625,
+      "lng": 7.630779404425857
     }
   },
   {
-    "id": "9b941caf",
+    "id": "f7e878c6",
     "title": "Sagra della nocciola",
     "category": "Sagre & Fiere",
     "date": "2025-09-03",
@@ -100,12 +100,12 @@
     "city": "Alessandria",
     "price": "Gratis",
     "coords": {
-      "lat": 44.91332204144097,
-      "lng": 8.617248871778834
+      "lat": 44.91514313093103,
+      "lng": 8.614628536654225
     }
   },
   {
-    "id": "58d1cc24",
+    "id": "786635c7",
     "title": "Mercatino artigianale",
     "category": "Mercatini",
     "date": "2025-09-04",
@@ -115,8 +115,8 @@
     "city": "Alessandria",
     "price": "10€",
     "coords": {
-      "lat": 44.90665929169467,
-      "lng": 8.611294925511299
+      "lat": 44.91028003728205,
+      "lng": 8.607058287763474
     }
   }
 ]
