@@ -32,19 +32,24 @@
     </div>
     <div class="grid">
       <div><label for="w_citta">Città/Provincia*</label><input id="w_citta" required></div>
-      <div>
-        <label for="w_ruolo">In cosa vuoi aiutarci?</label>
-        <select id="w_ruolo">
-          <option value="commerciale">Commerciale (nuovi clienti)</option>
-          <option value="curation">Curation eventi / mappatura</option>
-          <option value="ambassador">Ambassador locale / community</option>
-          <option value="tecnico">Supporto tecnico / contenuti</option>
-        </select>
-      </div>
+      <div></div>
     </div>
-    <div>
-      <label for="w_note">Perché ti interessa questo progetto? (facoltativo)</label>
-      <textarea id="w_note" style="min-height:160px"></textarea>
+
+    <!-- Blocchi a larghezza piena come richiesto -->
+    <div class="card" style="margin:12px 0; padding:12px">
+      <label for="w_ruolo">In cosa vuoi aiutarci?</label>
+      <select id="w_ruolo" style="width:100%">
+        <option value="commerciale">Commerciale (nuovi clienti)</option>
+        <option value="curation">Curation eventi (selezione/mappatura)</option>
+        <option value="ambassador">Ambassador locale / community</option>
+        <option value="tecnico">Supporto tecnico / contenuti</option>
+      </select>
+      <p class="small" style="margin-top:8px">“Curation eventi (selezione/mappatura)” = cercare e valutare eventi adatti, verificare informazioni e posizionare correttamente i puntini sulla mappa.</p>
+    </div>
+
+    <div class="card" style="margin:12px 0; padding:12px">
+      <label for="w_note">Perché ti interessa questo progetto?</label>
+      <textarea id="w_note" style="min-height:160px; width:100%"></textarea>
     </div>
 
     <div class="footer-actions">
@@ -59,34 +64,14 @@
 
 <script>
 (function(){
-  function genCode(){
-    var s='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    var c=''; for(var i=0;i<6;i++){ c+=s[Math.floor(Math.random()*s.length)]; } return c;
-  }
+  function genCode(){ var s='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', c=''; for(var i=0;i<6;i++){ c+=s[Math.floor(Math.random()*s.length)]; } return c; }
   document.getElementById('w_submit').addEventListener('click', function(){
-    var nome=document.getElementById('w_nome').value.trim();
-    var cognome=document.getElementById('w_cognome').value.trim();
-    var email=document.getElementById('w_email').value.trim();
-    var tel=document.getElementById('w_tel').value.trim();
-    var citta=document.getElementById('w_citta').value.trim();
-    var ruolo=document.getElementById('w_ruolo').value;
-    var note=document.getElementById('w_note').value.trim();
+    var nome=w_nome.value.trim(), cognome=w_cognome.value.trim(), email=w_email.value.trim(), tel=w_tel.value.trim(), citta=w_citta.value.trim(), ruolo=w_ruolo.value, note=w_note.value.trim();
     if(!nome||!cognome||!email||!tel||!citta){ alert('Compila tutti i campi obbligatori.'); return; }
     var code=genCode();
-    var msg=[
-      'Nuova candidatura partner — Stasera Qui','',
-      'Nome: '+nome+' '+cognome,
-      'Email: '+email,
-      'Telefono: '+tel,
-      'Città/Provincia: '+citta,
-      'Ruolo: '+ruolo,
-      'Note: '+(note||'—'),'',
-      'Codice partner assegnato: '+code
-    ].join('\n');
-    var mail='mailto:lavoraconnoi@staseraqui.it?subject='+encodeURIComponent('Candidatura partner — '+nome+' '+cognome)+'&body='+encodeURIComponent(msg);
-    document.getElementById('w_result').style.display='block';
-    document.getElementById('w_result').innerHTML='<h3>Grazie!</h3><p class="small">La tua candidatura è stata preparata. Il tuo <b>codice partner</b> è:</p><h2 style="margin:6px 0">'+code+'</h2><p class="small">Si aprirà ora la tua email con il riepilogo; inviala per completare la candidatura.</p>';
-    window.location.href = mail;
+    var msg=['Nuova candidatura partner — Stasera Qui','','Nome: '+nome+' '+cognome,'Email: '+email,'Telefono: '+tel,'Città/Provincia: '+citta,'Ruolo: '+ruolo,'Note: '+(note||'—'),'','Codice partner assegnato: '+code].join('\n');
+    window.location.href='mailto:lavoraconnoi@staseraqui.it?subject='+encodeURIComponent('Candidatura partner — '+nome+' '+cognome)+'&body='+encodeURIComponent(msg);
+    var r=document.getElementById('w_result'); r.style.display='block'; r.innerHTML='<h3>Grazie!</h3><p class="small">Il tuo <b>codice partner</b> è:</p><h2 style="margin:6px 0">'+code+'</h2><p class="small">Si aprirà ora l’email con il riepilogo; inviala per completare la candidatura.</p>';
   });
 })();
 </script>

@@ -8,6 +8,12 @@
 <link rel="stylesheet" href="assets/style.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+/* Patch: forza il calendario sopra la mappa anche con vecchie CSS */
+.map{position:relative; z-index:1}
+.modal{z-index:999999 !important}
+.modal.open{display:flex !important}
+</style>
 </head>
 <body>
 <header class="header">
@@ -58,7 +64,8 @@
   </div>
 </main>
 
-<div id="dateModal" class="modal">
+<!-- Modal calendario -->
+<div id="dateModal" class="modal" style="display:none; align-items:center; justify-content:center;">
   <div>
     <h3 style="margin:0 0 8px">Seleziona una data</h3>
     <input type="date" id="dateInput">
@@ -69,6 +76,23 @@
   </div>
 </div>
 
-<script src="assets/app.js"></script>
+<script src="assets/app.js" defer></script>
+<script>
+// Fallback: se per qualche motivo app.js non inizializza il modal, attivo qui.
+(function(){
+  var selBtn = document.getElementById('selData');
+  var modal = document.getElementById('dateModal');
+  var dateInput = document.getElementById('dateInput');
+  var ok = document.getElementById('dateOk');
+  var cancel = document.getElementById('dateCancel');
+  var badge = document.querySelector('#selData .date-badge');
+  function openM(){ modal.classList.add('open'); modal.style.display='flex'; document.body.style.overflow='hidden'; dateInput.value=''; dateInput.focus(); }
+  function closeM(){ modal.classList.remove('open'); modal.style.display='none'; document.body.style.overflow='auto'; }
+  if(selBtn && !selBtn.dataset.patch){ selBtn.dataset.patch='1'; selBtn.addEventListener('click', function(e){ e.preventDefault(); openM();}); }
+  if(cancel && !cancel.dataset.patch){ cancel.dataset.patch='1'; cancel.addEventListener('click', function(){ closeM();}); }
+  if(ok && !ok.dataset.patch){ ok.dataset.patch='1'; ok.addEventListener('click', function(){ if(dateInput.value){ var d = new Date(dateInput.value); if(badge){ badge.textContent = d.toLocaleDateString('it-IT'); badge.style.display='inline-block'; } } closeM(); }); }
+  if(modal && !modal.dataset.patch){ modal.dataset.patch='1'; modal.addEventListener('click', function(e){ if(e.target===modal) closeM(); }); }
+})();
+</script>
 </body>
 </html>
