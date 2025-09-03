@@ -136,104 +136,128 @@
 <footer class="page-footer"><a href="index.html" class="btn">← Torna alla mappa</a></footer>
 
 <script>
+// Tutto dentro IIFE eseguito a fine body (DOM già pronto)
 (function(){
-  // URL della funzione Supabase (già personalizzato per te)
-  const fnURL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-checkout-session';
-
-  const occWrap = document.getElementById('occWrap');
-  const addOccBtn = document.getElementById('addOcc');
-  const anteprimaBtn = document.getElementById('anteprima');
-  const pagaBtn = document.getElementById('pagaPubblica');
-  const azzeraBtn = document.getElementById('azzera');
-  const errBox = document.getElementById('err');
-  const previewBox = document.getElementById('preview');
-
-  if (addOccBtn) addOccBtn.addEventListener('click', function(e){
-    e.preventDefault();
-    const base = document.querySelector('.occ');
-    const d = document.createElement('div');
-    d.className = 'grid occ';
-    d.innerHTML = base.innerHTML;
-    // pulisci i valori della nuova occorrenza
-    d.querySelectorAll('input').forEach(i => i.value = '');
-    occWrap.appendChild(d);
+  // MODALE CATEGORIE
+  var btn = document.getElementById('categorieBtn');
+  var wrap = document.getElementById('catBadges');
+  var modal = document.createElement('div');
+  modal.className='modal'; modal.style.display='none'; modal.style.alignItems='center'; modal.style.justifyContent='center';
+  modal.innerHTML = '<div style="background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px;min-width:280px;max-width:900px">  <h3 style="margin:0 0 6px">Scegli categorie (multi)</h3>  <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px">  '+['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini'].map(function(c){return '<div class="chip" data-cat="'+c+'" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none">'+c+'</div>';}).join('')+  '</div><div class="actions" style="display:flex;gap:8px;justify-content:flex-end"><button class="btn primary" id="catOk" type="button">Conferma</button><button class="btn secondary" id="catClear" type="button">Azzera</button></div></div>';
+  document.body.appendChild(modal);
+  function renderCats(cats){ wrap.innerHTML=''; for(var i=0;i<cats.length;i++){var b=document.createElement('span'); b.className='badge'; b.textContent=cats[i]; wrap.appendChild(b);} }
+  var cats = [];
+  btn.addEventListener('click', function(){ modal.style.display='flex'; document.body.style.overflow='hidden'; });
+  modal.addEventListener('click', function(e){ if(e.target===modal){ modal.style.display='none'; document.body.style.overflow='auto'; } });
+  modal.addEventListener('click', function(e){
+    if(e.target.classList.contains('chip')){
+      e.target.classList.toggle('active');
+      if(e.target.classList.contains('active')){ e.target.style.background='#22b3f0'; e.target.style.color='#081421'; e.target.style.borderColor='#22b3f0'; }
+      else { e.target.style.background='#17304d'; e.target.style.color='#d7f2ff'; e.target.style.borderColor='#2e6e8f'; }
+    }
+  });
+  modal.querySelector('#catOk').addEventListener('click', function(){
+    cats = Array.prototype.slice.call(modal.querySelectorAll('.chip.active')).map(function(ch){return ch.getAttribute('data-cat');});
+    renderCats(cats); modal.style.display='none'; document.body.style.overflow='auto';
+  });
+  modal.querySelector('#catClear').addEventListener('click', function(){
+    cats = []; renderCats(cats);
+    Array.prototype.forEach.call(modal.querySelectorAll('.chip'), function(ch){ ch.classList.remove('active'); ch.style.background='#17304d'; ch.style.color='#d7f2ff'; ch.style.borderColor='#2e6e8f'; });
   });
 
-  function clean(s){ return (s||'').trim().replace(/\s+/g,' '); }
+  // AGGIUNGI CONTATTO
+  var wrapC = document.getElementById('contattiWrap');
+  document.getElementById('addContact').addEventListener('click', function(){
+    var d=document.createElement('div'); d.className='grid contact';
+    d.innerHTML = '<div><label>Nome referente</label><input class="ref_name" placeholder="Es. Laura Bianchi"></div>                   <div><label>Numero referente</label><input class="ref_phone" type="tel" placeholder="+39 333 1234567"></div>';
+    wrapC.appendChild(d);
+  });
 
-  function gather(){
-    const cats = Array.from(document.getElementById('categorie').selectedOptions).map(o=>o.value);
-    const occ = Array.from(document.querySelectorAll('.occ')).map(b=>({
-      luogo: clean(b.querySelector('.luogo').value),
-      indirizzo: clean(b.querySelector('.indirizzo').value),
-      citta: clean(b.querySelector('.citta').value),
-      data: b.querySelector('.data').value,
-      ora: b.querySelector('.ora').value,
-      lat: parseFloat(b.querySelector('.lat').value),
-      lng: parseFloat(b.querySelector('.lng').value)
-    }));
+  // OCCORRENZE ADD/REMOVE
+  var wrapO = document.getElementById('occWrap');
+  document.getElementById('addOcc').addEventListener('click', function(){
+    var d=document.createElement('div'); d.className='occ card';
+    d.innerHTML = '<div class="grid">        <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>        <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>      </div>      <div class="grid">        <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>        <div><label>Data*</label><input class="data" type="date"></div>      </div>      <div class="grid">        <div><label>Orario*</label><input class="ora" type="time"></div>        <div style="display:flex;align-items:flex-end;justify-content:flex-end"><button type="button" class="btn secondary del-btn">Elimina occorrenza</button></div>      </div>';
+    wrapO.appendChild(d);
+  });
+  wrapO.addEventListener('click', function(e){
+    if(e.target.classList.contains('del-btn')){
+      var box=e.target.closest('.occ'); if(box) box.remove();
+    }
+  });
+
+  // ANTEPRIMA + CONFERMA
+  var err = document.getElementById('err');
+  function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
+  function collectOcc(){
+    var occ=[]; Array.prototype.forEach.call(document.querySelectorAll('#occWrap .occ'), function(b){
+      var luogo=clean((b.querySelector('.luogo')||{}).value||'');
+      var indirizzo=clean((b.querySelector('.indirizzo')||{}).value||'');
+      var citta=clean((b.querySelector('.citta')||{}).value||'');
+      var data=(b.querySelector('.data')||{}).value||'';
+      var ora=(b.querySelector('.ora')||{}).value||'';
+      if(!luogo||!indirizzo||!citta||!data||!ora){ occ.push(null); } else { occ.push({luogo:luogo,indirizzo:indirizzo,citta:citta,data:data,ora:ora}); }
+    });
+    if(occ.length===0 || occ.indexOf(null)>-1) return null;
+    return occ;
+  }
+  document.getElementById('anteprimaBtn').addEventListener('click', function(){
+    err.textContent='';
+    var titolo=clean(document.getElementById('titolo').value);
+    var descr =clean(document.getElementById('descrizione').value);
+    var file  =(document.getElementById('locandina').files||[])[0];
+    var anyCat=(document.getElementById('catBadges').children.length>0);
+    var occ=collectOcc();
+    if(!titolo||!descr||!file||!anyCat||!occ){ err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria* e completa tutte le occorrenze.'; return; }
+    document.getElementById('pv_titolo').textContent=titolo;
+    document.getElementById('pv_cats').textContent=Array.prototype.map.call(document.getElementById('catBadges').children,function(b){return b.textContent;}).join(', ');
+    document.getElementById('pv_descr').textContent=descr;
+    document.getElementById('pv_occ').textContent=occ.length+' occorrenza/e';
+    var ul=document.createElement('ul'); occ.forEach(function(o){ var li=document.createElement('li'); li.textContent=o.data+' ore '+o.ora+' — '+o.luogo+', '+o.indirizzo+', '+o.citta; ul.appendChild(li); }); var list=document.getElementById('pv_list'); list.innerHTML=''; list.appendChild(ul);
+    document.getElementById('preview').style.display='block';
+    window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
+  });
+  function collect(){
     return {
       titolo: clean(document.getElementById('titolo').value),
-      categorie: cats,
-      prezzo: clean(document.getElementById('prezzo').value),
-      descrizione: clean(document.getElementById('descrizione').value),
-      locandina_url: clean(document.getElementById('locandinaUrl').value),
-      occorrenze: occ,
+      prezzo:(document.getElementById('prezzo').value||'').trim(),
+      descr : clean(document.getElementById('descrizione').value),
+      cats  : Array.prototype.map.call(document.getElementById('catBadges').children, function(b){return b.textContent;}),
+      contatti: Array.prototype.map.call(document.querySelectorAll('#contattiWrap .contact'), function(row){
+        return { name: (row.querySelector('.ref_name')||{}).value||'',
+                 phone: (row.querySelector('.ref_phone')||{}).value||'' };
+      }).filter(function(x){ return (x.name||x.phone); }),
+      occ: Array.prototype.map.call(document.querySelectorAll('#occWrap .occ'), function(b){
+        return { luogo: (b.querySelector('.luogo')||{}).value||'',
+                 indirizzo: (b.querySelector('.indirizzo')||{}).value||'',
+                 citta: (b.querySelector('.citta')||{}).value||'',
+                 data: (b.querySelector('.data')||{}).value||'',
+                 ora: (b.querySelector('.ora')||{}).value||'' };
+      }),
       submitter: {
-        nome: clean(document.getElementById('nome').value),
-        cognome: clean(document.getElementById('cognome').value),
-        email: clean(document.getElementById('email').value),
-        tel: clean(document.getElementById('tel').value)
+        nome: (document.getElementById('sub_nome').value||''),
+        cognome: (document.getElementById('sub_cognome').value||''),
+        tel: (document.getElementById('sub_tel').value||''),
+        email: (document.getElementById('sub_email').value||'')
       },
-      partner_code: clean(document.getElementById('codicePartner').value)
+      partner: (document.getElementById('partner_code').value||''),
+      created_at: new Date()
     };
   }
-
-  function validate(p){
-    const e = [];
-    if(!p.titolo) e.push('Titolo obbligatorio');
-    if(!p.descrizione) e.push('Descrizione obbligatoria');
-    if(!p.locandina_url || !/^https?:\/\//.test(p.locandina_url)) e.push('URL immagine non valido');
-    if(!p.categorie || p.categorie.length===0) e.push('Seleziona almeno una categoria');
-    if(!p.occorrenze || p.occorrenze.length===0) e.push('Aggiungi almeno una occorrenza');
-    p.occorrenze.forEach((o,i)=>{
-      if(!(o.luogo && o.indirizzo && o.citta && o.data && o.ora)) e.push('Occorrenza '+(i+1)+': completa tutti i campi');
-      if(isNaN(o.lat) || isNaN(o.lng)) e.push('Occorrenza '+(i+1)+': inserisci latitudine/longitudine');
-    });
-    if(!p.submitter.nome || !p.submitter.cognome || !p.submitter.email || !p.submitter.tel) e.push('Completa i dati del referente');
-    if(p.descrizione.length>400) e.push('Descrizione oltre 400 caratteri');
-    if(p.occorrenze.length>4) e.push('Massimo 4 occorrenze per evento multiplo');
-    return e;
+  function formatEmail(p){
+    function pad(n){return String(n).padStart(2,'0');}
+    var d=p.created_at, when=pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+    var occ=p.occ.map(function(o){return '- '+o.data+' ore '+o.ora+' — '+o.luogo+', '+o.indirizzo+', '+o.citta;}).join('\n')||'—';
+    var cont=p.contatti.map(function(c){return '- '+(c.name||'')+' — '+(c.phone||'');}).join('\n')||'—';
+    var lines=['Stasera Qui — Nuovo evento','','[DATI EVENTO]','Titolo: '+p.titolo,'Categorie: '+p.cats.join(', '),'Prezzo/Ingresso: '+(p.prezzo||''),'','Descrizione:',p.descr,'','[OCCORRENZE]',occ,'','[CONTATTI REFERENTI]',cont,'','[DATI DI CHI COMPILA]','Nome: '+p.submitter.nome+' '+p.submitter.cognome,'Telefono: '+p.submitter.tel,'Email: '+p.submitter.email,'Codice partner: '+(p.partner||''),'Data invio: '+when];
+    var body=encodeURIComponent(lines.join('\n')); var subj=encodeURIComponent('Nuovo evento — '+p.titolo); var to='eventi@staseraqui.it'; var cc=p.submitter.email? '&cc='+encodeURIComponent(p.submitter.email):''; return 'mailto:'+to+'?subject='+subj+cc+'&body='+body;
   }
-
-  if (anteprimaBtn) anteprimaBtn.addEventListener('click', function(){
-    const p = gather(); const errs = validate(p);
-    if(errs.length){ errBox.textContent = errs.join(' — '); return; }
-    previewBox.style.display='block';
-    previewBox.innerHTML = '<h3>Anteprima</h3>'
-      + '<p><b>'+p.titolo+'</b></p>'
-      + '<p>'+p.descrizione+'</p>'
-      + '<p class="small">Categorie: '+p.categorie.join(', ')+'</p>'
-      + '<ul>'+p.occorrenze.map(o=>'<li>'+o.data+' '+o.ora+' — '+o.luogo+', '+o.indirizzo+', '+o.citta+' ('+o.lat+', '+o.lng+')</li>').join('')+'</ul>';
+  document.getElementById('confermaFooterBtn').addEventListener('click', function(){
+    var p=collect();
+    if(!p.titolo||!p.descr||!p.cats.length||!p.occ.length){ document.getElementById('err').textContent='Compila i dati obbligatori e almeno una occorrenza.'; return; }
+    window.location.href = formatEmail(p);
   });
-
-  if (pagaBtn) pagaBtn.addEventListener('click', async function(){
-    const p = gather(); const errs = validate(p);
-    if(errs.length){ errBox.textContent = errs.join(' — '); return; }
-    try{
-      const res = await fetch(fnURL, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(p)
-      });
-      if(!res.ok){ const t=await res.text(); throw new Error(t||('HTTP '+res.status)); }
-      const data = await res.json();
-      if(!data.url) throw new Error('URL checkout non ricevuto');
-      window.location.href = data.url;
-    }catch(err){ errBox.textContent = 'Errore: '+err.message; }
-  });
-
-  if (azzeraBtn) azzeraBtn.addEventListener('click', ()=> location.reload());
+  document.getElementById('azzeraBtn').addEventListener('click', function(){ location.reload(); });
 })();
 </script>
 </body>
