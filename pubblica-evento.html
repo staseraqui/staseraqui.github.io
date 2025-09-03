@@ -345,10 +345,13 @@ const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-che
       var errs = validatePayload(payload);
       if(errs.length){ errBox.textContent = errs.join(' — '); return; }
       var res = await fetch(FN_URL, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      });
+  method:'POST',
+  headers:{
+    'Content-Type':'application/json',
+    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY  // <— AGGIUNTO
+  },
+  body: JSON.stringify(payload)
+});
       if(!res.ok){
         var t=await res.text();
         throw new Error(t || ('HTTP '+res.status));
