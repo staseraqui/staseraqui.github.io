@@ -6,6 +6,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
 <style>.modal{z-index:999999!important}</style>
+<!-- Supabase JS per upload su Storage -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 </head>
 <body>
 <header class="header">
@@ -50,8 +52,13 @@
         <input id="prezzo" placeholder="Es. Gratis / 10€ con drink">
       </div>
       <div>
-        <label for="locandinaUrl">Locandina/Foto (URL)*</label>
-        <input id="locandinaUrl" placeholder="https://… (JPG/PNG)" required>
+        <!-- Scelta: caricamento file OPPURE URL -->
+        <label>Locandina/Foto*</label>
+        <div class="grid">
+          <div><input id="locandinaFile" type="file" accept="image/png,image/jpeg"></div>
+          <div><input id="locandinaUrl" placeholder="oppure incolla un URL (https://…)" ></div>
+        </div>
+        <p class="small">Carica un JPG/PNG <b>oppure</b> incolla un URL. Se scegli il file, lo carichiamo noi in modo sicuro.</p>
       </div>
     </div>
 
@@ -136,7 +143,15 @@
 <footer class="page-footer"><a href="index.html" class="btn">← Torna alla mappa</a></footer>
 
 <script>
-// Tutto dentro IIFE eseguito a fine body
+// === CONFIG SUPABASE (CERCA QUESTE DUE RIGHE E SOSTITUISCI I VALORI) ===
+const SUPABASE_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co';            // es. https://xxxxx.supabase.co
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';  // inizia con ey...
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// URL funzione pagamento (già tua)
+const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-checkout-session';
+
+// Tutto dentro IIFE
 (function(){
   // ====== MODALE CATEGORIE ======
   var btn = document.getElementById('categorieBtn');
@@ -213,7 +228,7 @@
   var err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
 
-  // Geocoding via Nominatim (Italia). Ritorna {lat,lng} o null.
+  // Geocoding via Nominatim (Italia) -> {lat,lng} o null
   async function geocode(indirizzo, citta){
     var q = encodeURIComponent(indirizzo+', '+citta+', Italia');
     var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q='+q+'&email=info@staseraqui.it';
@@ -227,7 +242,26 @@
     }catch(_){ return null; }
   }
 
-  // ====== ANTEPRIMA ======
+  // Upload della locandina su Supabase Storage (se selezionato un file)
+  async function getImageUrl(){
+    var f = document.getElementById('locandinaFile').files[0];
+    var urlInput = (document.getElementById('locandinaUrl').value||'').trim();
+    if (f){
+      if(!(f.type==='image/jpeg' || f.type==='image/png')) throw new Error('La locandina deve essere JPG o PNG');
+      if(f.size > 6*1024*1024) throw new Error('La locandina supera 6MB');
+      var ext = f.type==='image/png' ? 'png' : 'jpg';
+      var path = 'events/'+(new Date().toISOString().replace(/[:.]/g,'-'))+'_'+Math.random().toString(36).slice(2)+'.'+ext;
+      var up = await sb.storage.from('event-images').upload(path, f, { contentType: f.type, cacheControl: '3600', upsert:false });
+      if(up.error) throw new Error('Upload immagine: '+up.error.message);
+      var pub = sb.storage.from('event-images').getPublicUrl(path);
+      return pub.data.publicUrl;
+    }
+    if(!urlInput) throw new Error('Carica un file oppure incolla un URL immagine');
+    if(!/^https?:\/\//.test(urlInput)) throw new Error('URL immagine non valido');
+    return urlInput;
+  }
+
+  // Anteprima (senza geocoding)
   function collectOccForPreview(){
     var occ=[];
     Array.prototype.forEach.call(document.querySelectorAll('#occWrap .occ'), function(b){
@@ -236,7 +270,7 @@
       var citta=clean((b.querySelector('.citta')||{}).value||'');
       var data=(b.querySelector('.data')||{}).value||'';
       var ora=(b.querySelector('.ora')||{}).value||'';
-      if(!luogo||!indirizzo||!citta||!data||!ora){ occ.push(null); } else { occ.push({luogo:luogo,indirizzo:indirizzo,citta:citta,data:data,ora:ora}); }
+      if(!luogo||!indirizzo||!citta||!data||!ora){ occ.push(null); } else { occ.push({luogo,indirizzo,citta,data,ora}); }
     });
     if(occ.length===0 || occ.indexOf(null)>-1) return null;
     return occ;
@@ -245,10 +279,9 @@
     err.textContent='';
     var titolo=clean(document.getElementById('titolo').value);
     var descr =clean(document.getElementById('descrizione').value);
-    var img  =(document.getElementById('locandinaUrl').value||'').trim();
     var anyCat=(document.getElementById('catBadges').children.length>0);
     var occ=collectOccForPreview();
-    if(!titolo||!descr||!img||!anyCat||!occ){ err.textContent='Controlla: Titolo*, Descrizione*, Locandina URL*, almeno 1 Categoria* e completa tutte le occorrenze.'; return; }
+    if(!titolo||!descr||!anyCat||!occ){ err.textContent='Controlla: Titolo*, Descrizione*, almeno 1 Categoria* e completa tutte le occorrenze.'; return; }
     document.getElementById('pv_titolo').textContent=titolo;
     document.getElementById('pv_cats').textContent=Array.prototype.map.call(document.getElementById('catBadges').children,function(b){return b.textContent;}).join(', ');
     document.getElementById('pv_descr').textContent=descr;
@@ -258,34 +291,28 @@
     window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
   });
 
-  // ====== PUBBLICAZIONE (Stripe Checkout) ======
-  const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-checkout-session';
-
-  async function buildPayloadWithGeocoding(){
-    // raccogli i dati base
-    var baseOcc = Array.prototype.map.call(document.querySelectorAll('#occWrap .occ'), function(b){
-      return {
-        luogo: (b.querySelector('.luogo')||{}).value||'',
-        indirizzo: (b.querySelector('.indirizzo')||{}).value||'',
-        citta: (b.querySelector('.citta')||{}).value||'',
-        data: (b.querySelector('.data')||{}).value||'',
-        ora: (b.querySelector('.ora')||{}).value||''
-      };
-    });
-    // geocoding sequenziale per stabilità (max 4 occorrenze)
+  // Costruisci payload con geocoding (da Indirizzo/Città)
+  async function buildPayload(){
+    var occBlocks = Array.prototype.slice.call(document.querySelectorAll('#occWrap .occ'));
     var occFinal = [];
-    for (var i=0;i<baseOcc.length;i++){
-      var o = baseOcc[i];
-      if(!(o.luogo && o.indirizzo && o.citta && o.data && o.ora)) throw new Error('Completa tutti i campi dell\'occorrenza '+(i+1));
-      var pos = await geocode(o.indirizzo, o.citta);
+    for (var i=0;i<occBlocks.length;i++){
+      var b = occBlocks[i];
+      var luogo = (b.querySelector('.luogo')||{}).value||'';
+      var indirizzo = (b.querySelector('.indirizzo')||{}).value||'';
+      var citta = (b.querySelector('.citta')||{}).value||'';
+      var data = (b.querySelector('.data')||{}).value||'';
+      var ora  = (b.querySelector('.ora')||{}).value||'';
+      if(!(luogo && indirizzo && citta && data && ora)) throw new Error('Completa tutti i campi dell\'occorrenza '+(i+1));
+      var pos = await geocode(indirizzo, citta);
       if(!pos) throw new Error('Indirizzo non trovato per l\'occorrenza '+(i+1)+'. Verifica Indirizzo/Città.');
-      occFinal.push({ ...o, lat: pos.lat, lng: pos.lng });
+      occFinal.push({ luogo, indirizzo, citta, data, ora, lat: pos.lat, lng: pos.lng });
     }
+    var imageURL = await getImageUrl();
     return {
       titolo: clean(document.getElementById('titolo').value),
       prezzo: (document.getElementById('prezzo').value||'').trim(),
       descrizione: clean(document.getElementById('descrizione').value),
-      locandina_url: (document.getElementById('locandinaUrl').value||'').trim(),
+      locandina_url: imageURL,
       categorie: Array.prototype.map.call(document.getElementById('catBadges').children, function(b){return b.textContent;}),
       occorrenze: occFinal,
       submitter: {
@@ -301,7 +328,7 @@
     var e=[];
     if(!p.titolo) e.push('Titolo obbligatorio');
     if(!p.descrizione) e.push('Descrizione obbligatoria');
-    if(!p.locandina_url || !/^https?:\/\//.test(p.locandina_url)) e.push('URL immagine non valido');
+    if(!p.locandina_url || !/^https?:\/\//.test(p.locandina_url)) e.push('Immagine non valida');
     if(!p.categorie || p.categorie.length===0) e.push('Seleziona almeno una categoria');
     if(!p.occorrenze || p.occorrenze.length===0) e.push('Aggiungi almeno una occorrenza');
     if(!(p.submitter && p.submitter.nome && p.submitter.cognome && p.submitter.email && p.submitter.tel)) e.push('Completa i dati del referente');
@@ -311,11 +338,12 @@
   }
 
   document.getElementById('confermaFooterBtn').addEventListener('click', async function(){
-    err.textContent='';
+    var errBox = document.getElementById('err');
+    errBox.textContent='';
     try{
-      var payload = await buildPayloadWithGeocoding();
+      var payload = await buildPayload();
       var errs = validatePayload(payload);
-      if(errs.length){ err.textContent = errs.join(' — '); return; }
+      if(errs.length){ errBox.textContent = errs.join(' — '); return; }
       var res = await fetch(FN_URL, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -329,11 +357,10 @@
       if(!data.url) throw new Error('URL checkout non ricevuto');
       window.location.href = data.url; // Stripe Checkout
     }catch(ex){
-      err.textContent = 'Errore: ' + (ex && ex.message ? ex.message : String(ex));
+      errBox.textContent = 'Errore: ' + (ex && ex.message ? ex.message : String(ex));
     }
   });
 
-  // ====== AZZERA ======
   document.getElementById('azzeraBtn').addEventListener('click', function(){ location.reload(); });
 })();
 </script>
