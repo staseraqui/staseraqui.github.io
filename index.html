@@ -26,6 +26,8 @@
   #counter{margin:8px 0 4px;color:#b8c2ce}
   /* Fix: datepicker sopra la mappa su Mac */
   #datePicker{position:relative;z-index:9999}
+  /* Colore del pin come il logo */
+  .sq-pin{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -87,16 +89,14 @@
 
   <!-- CTA sotto mappa -->
   <div class="cta-row">
-    <a class="cta" href="pubblica-evento.html" style="background:#1e2d44;border-color:#2a3c58">Pubblica evento</a>
-    <a class="cta" href="lavora-con-noi.html">Lavora con noi</a>
+    <a class="cta primary" href="pubblica-evento.html">Pubblica evento</a>
+    <a class="cta accent" href="lavora-con-noi.html">Lavora con noi</a>
   </div>
 </main>
 
 <script>
-  // ====== CONFIGURA SUPABASE (SOSTITUISCI QUI PRIMA DEL COMMIT) ======
-  // SB_URL = Project URL (Supabase → Settings → API → Project URL)
-  // SB_ANON = anon public key (Supabase → Settings → API → Project API keys → anon public)
-  const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';   // es: https://rubdzlnolxcgpjklfggk.supabase.co
+  // ====== CONFIGURA SUPABASE (METTI QUI I TUOI 2 VALORI) ======
+  const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';   // es: https://rubd...supabase.co
   const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
@@ -106,15 +106,32 @@
   const fmtDate = s => s;
   const weekday = (s) => (new Date(s+'T00:00:00')).getDay(); // 0 dom, ... 6 sab
 
-  // ====== MAPPA ======
-  const map = L.map('map').setView([45.0703, 7.6869], 12); // Torino default
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(map);
+  // ====== MAPPA (niente bandierina: attribution custom) ======
+  const map = L.map('map', { attributionControl:false }).setView([45.0703, 7.6869], 12); // Torino default
+  L.control.attribution({prefix:false}).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(pos => {
       map.setView([pos.coords.latitude, pos.coords.longitude], 13);
       L.circle([pos.coords.latitude, pos.coords.longitude], {radius: 200, color:'#22b3f0'}).addTo(map);
     });
   }
+
+  // Icona pin con colore del brand
+  const pinIcon = L.divIcon({
+    className: 'sq-pin',
+    html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="28" height="32" style="display:block">
+             <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="currentColor"/>
+             <circle cx="32" cy="24" r="9" fill="#ffffff"/>
+           </svg>`,
+    iconSize: [28, 32],
+    iconAnchor: [14, 32],
+    popupAnchor: [0, -30]
+  });
 
   let EVENTS = [];
   let OCCS = [];
@@ -187,10 +204,10 @@
       const ev = EVENTS_BY_ID.get(occ.event_id) || {};
       const title = ev.title || ev.titolo || '(evento)';
       const cats  = (ev.categories || ev.categorie || []).join(', ');
-      const when  = `${fmtDate(occ.data)} ore ${occ.ora||''}`;
+      const when  = `${occ.data} ore ${occ.ora||''}`;
       const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
 
-      const m = L.marker([occ.lat, occ.lng]).addTo(map);
+      const m = L.marker([occ.lat, occ.lng], {icon: pinIcon}).addTo(map);
       m.bindPopup(`<b>${title}</b><br><small>${cats}</small><br>${when}<br>${where}`);
       markers.push(m);
     });
