@@ -1,48 +1,73 @@
 <!doctype html>
 <html lang="it">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>stasera qui</title>
+<link rel="icon" href="/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<!-- Supabase JS -->
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
 <style>
-/* Patch: forza il calendario sopra la mappa anche con vecchie CSS */
-.map{position:relative; z-index:1}
-.modal{z-index:999999 !important}
-.modal.open{display:flex !important}
+  .claim{font-style:italic;font-weight:700;text-align:center;margin:8px 0 16px}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:0 0 12px}
+  .tab{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);color:#fff;padding:8px 12px;border-radius:10px;font-weight:700}
+  .pill{cursor:pointer}
+  .chip{cursor:pointer}
+  #dateBadge{padding:8px 12px;border-radius:10px;background:#111f31;border:1px solid rgba(255,255,255,.15)}
+  #counter{margin:8px 0 4px;color:#b8c2ce}
+  /* Fix: datepicker sopra la mappa su Mac */
+  #datePicker{position:relative;z-index:9999}
 </style>
 </head>
 <body>
-<header class="header">
-  <div class="logo">
-    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
-      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
-      <circle cx="32" cy="24" r="9" fill="#ffffff"/>
+<header class="header" style="padding:0 16px">
+  <!-- Logo approvato a sinistra -->
+  <div class="logo" style="display:flex;align-items:center;gap:8px;height:72px">
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true" style="height:28px;vertical-align:middle">
+      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/>
     </svg>
-    <span class="wordmark">stasera qui</span>
+    <span class="wordmark" style="margin-left:6px;vertical-align:middle">stasera qui</span>
   </div>
 </header>
+
 <main class="container">
-  <div class="claim"><b>Scopri cosa fare, dove vuoi, quando vuoi</b></div>
-  <nav class="top-tabs">
-    <a href="mission.html">Mission</a>
-    <a href="chi-siamo.html">Chi siamo</a>
-    <a href="contatti.html">Contatti</a>
-    <a href="come-funziona.html">Come funziona</a>
-  </nav>
 
-  <div class="search"><input placeholder="Cerca città, zona o evento… (facoltativo)" id="searchInput"></div>
+  <!-- Claim centrato -->
+  <div class="claim">Scopri cosa fare, dove vuoi, quando vuoi</div>
 
+  <!-- Tabs info -->
+  <div class="tabs">
+    <a class="tab" href="mission.html">Mission</a>
+    <a class="tab" href="chi-siamo.html">Chi siamo</a>
+    <a class="tab" href="contatti.html">Contatti</a>
+    <a class="tab" href="come-funziona.html">Come funziona</a>
+  </div>
+
+  <!-- Ricerca -->
+  <div class="search">
+    <input placeholder="Cerca città, zona o evento… (facoltativo)" id="searchInput">
+  </div>
+
+  <!-- Filtri temporali -->
   <div class="pills" id="dayPills">
     <div class="pill" data-day="oggi">Oggi</div>
     <div class="pill" data-day="domani">Domani</div>
     <div class="pill" data-day="weekend">Weekend</div>
-    <div class="pill" id="selData">Seleziona data <span class="date-badge" style="display:none"></span></div>
+    <div class="pill" id="selDataBtn">Seleziona data</div>
+    <input type="date" id="datePicker" style="display:none">
+    <span id="dateBadge" style="display:none"></span>
   </div>
 
+  <!-- Filtri categorie -->
   <div class="chips" id="chips">
     <div class="chip" data-cat="Musica">Musica</div>
     <div class="chip" data-cat="Food & Drink">Food & Drink</div>
@@ -54,45 +79,190 @@
     <div class="chip" data-cat="Mercatini">Mercatini</div>
   </div>
 
-  <div id="resultCount" class="result-count">—</div>
+  <!-- Contatore -->
+  <div id="counter" class="small">—</div>
 
+  <!-- Mappa -->
   <div id="map" class="map"></div>
 
+  <!-- CTA sotto mappa -->
   <div class="cta-row">
-    <a class="cta pubblica" href="pubblica-evento.html">Pubblica evento</a>
-    <a class="cta lavoro" href="lavora-con-noi.html">Lavora con noi</a>
+    <a class="cta" href="pubblica-evento.html" style="background:#1e2d44;border-color:#2a3c58">Pubblica evento</a>
+    <a class="cta" href="lavora-con-noi.html">Lavora con noi</a>
   </div>
 </main>
 
-<!-- Modal calendario -->
-<div id="dateModal" class="modal" style="display:none; align-items:center; justify-content:center;">
-  <div>
-    <h3 style="margin:0 0 8px">Seleziona una data</h3>
-    <input type="date" id="dateInput">
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
-      <button id="dateCancel" class="btn secondary" type="button">Annulla</button>
-      <button id="dateOk" class="btn primary" type="button">Conferma</button>
-    </div>
-  </div>
-</div>
-
-<script src="assets/app.js" defer></script>
 <script>
-// Fallback: se per qualche motivo app.js non inizializza il modal, attivo qui.
-(function(){
-  var selBtn = document.getElementById('selData');
-  var modal = document.getElementById('dateModal');
-  var dateInput = document.getElementById('dateInput');
-  var ok = document.getElementById('dateOk');
-  var cancel = document.getElementById('dateCancel');
-  var badge = document.querySelector('#selData .date-badge');
-  function openM(){ modal.classList.add('open'); modal.style.display='flex'; document.body.style.overflow='hidden'; dateInput.value=''; dateInput.focus(); }
-  function closeM(){ modal.classList.remove('open'); modal.style.display='none'; document.body.style.overflow='auto'; }
-  if(selBtn && !selBtn.dataset.patch){ selBtn.dataset.patch='1'; selBtn.addEventListener('click', function(e){ e.preventDefault(); openM();}); }
-  if(cancel && !cancel.dataset.patch){ cancel.dataset.patch='1'; cancel.addEventListener('click', function(){ closeM();}); }
-  if(ok && !ok.dataset.patch){ ok.dataset.patch='1'; ok.addEventListener('click', function(){ if(dateInput.value){ var d = new Date(dateInput.value); if(badge){ badge.textContent = d.toLocaleDateString('it-IT'); badge.style.display='inline-block'; } } closeM(); }); }
-  if(modal && !modal.dataset.patch){ modal.dataset.patch='1'; modal.addEventListener('click', function(e){ if(e.target===modal) closeM(); }); }
-})();
+  // ====== CONFIGURA SUPABASE (SOSTITUISCI QUI PRIMA DEL COMMIT) ======
+  // SB_URL = Project URL (Supabase → Settings → API → Project URL)
+  // SB_ANON = anon public key (Supabase → Settings → API → Project API keys → anon public)
+  const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';   // es: https://rubdzlnolxcgpjklfggk.supabase.co
+  const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';
+  const sb = supabase.createClient(SB_URL, SB_ANON);
+
+  // ====== UTILI ======
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const fmtDate = s => s;
+  const weekday = (s) => (new Date(s+'T00:00:00')).getDay(); // 0 dom, ... 6 sab
+
+  // ====== MAPPA ======
+  const map = L.map('map').setView([45.0703, 7.6869], 12); // Torino default
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(map);
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+      L.circle([pos.coords.latitude, pos.coords.longitude], {radius: 200, color:'#22b3f0'}).addTo(map);
+    });
+  }
+
+  let EVENTS = [];
+  let OCCS = [];
+  let EVENTS_BY_ID = new Map();
+  let markers = [];
+
+  function clearMarkers(){
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+  }
+
+  function occPassesFilters(occ){
+    // Filtri giorno/data
+    if (state.day === 'oggi') {
+      const dt = new Date(); const d = dt.toISOString().slice(0,10);
+      if (occ.data !== d) return false;
+    }
+    if (state.day === 'domani') {
+      const dt = new Date(); dt.setDate(dt.getDate()+1);
+      const d = dt.toISOString().slice(0,10);
+      if (occ.data !== d) return false;
+    }
+    if (state.day === 'weekend') {
+      const w = weekday(occ.data);
+      if (![5,6,0].includes(w)) return false; // ven/sab/dom
+    }
+    if (state.customDate) {
+      if (occ.data !== state.customDate) return false;
+    }
+
+    // Filtro categorie (multi) sull'evento collegato
+    if (state.cats.size > 0) {
+      const ev = EVENTS_BY_ID.get(occ.event_id);
+      if (!ev) return false;
+      const evCats = (ev.categories || ev.categorie || []);
+      const ok = evCats.some(c => state.cats.has(c));
+      if (!ok) return false;
+    }
+
+    // Filtro testo
+    const q = state.query.toLowerCase();
+    if (q) {
+      const ev = EVENTS_BY_ID.get(occ.event_id) || {};
+      const text = [
+        ev.title || ev.titolo || '',
+        occ.luogo || '', occ.indirizzo || '', occ.citta || ''
+      ].join(' ').toLowerCase();
+      if (!text.includes(q)) return false;
+    }
+    return true;
+  }
+
+  function updateCounter(){
+    const b = map.getBounds();
+    const count = OCCS.filter(o => o.lat!=null && o.lng!=null && b.contains([o.lat, o.lng]) && occPassesFilters(o)).length;
+    $('#counter').textContent = count === 1 ? '1 evento visibile in mappa' : count + ' eventi visibili in mappa';
+    if (count === 0) {
+      alert('La combinazione corrente di filtri ha prodotto zero risultati. Prova a cambiare lo zoom, spostare la mappa o modificare i filtri.');
+    }
+  }
+
+  function renderMarkers(){
+    clearMarkers();
+    const b = map.getBounds();
+    OCCS.forEach(occ => {
+      if (occ.lat==null || occ.lng==null) return;
+      if (!b.contains([occ.lat, occ.lng])) return;
+      if (!occPassesFilters(occ)) return;
+
+      const ev = EVENTS_BY_ID.get(occ.event_id) || {};
+      const title = ev.title || ev.titolo || '(evento)';
+      const cats  = (ev.categories || ev.categorie || []).join(', ');
+      const when  = `${fmtDate(occ.data)} ore ${occ.ora||''}`;
+      const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
+
+      const m = L.marker([occ.lat, occ.lng]).addTo(map);
+      m.bindPopup(`<b>${title}</b><br><small>${cats}</small><br>${when}<br>${where}`);
+      markers.push(m);
+    });
+    updateCounter();
+  }
+
+  // ====== STATO FILTRI ======
+  const state = { day: null, customDate: null, cats: new Set(), query: '' };
+
+  // Chips categorie
+  $$('#chips .chip').forEach(ch => ch.addEventListener('click', () => {
+    ch.classList.toggle('active');
+    const c = ch.getAttribute('data-cat');
+    if (ch.classList.contains('active')) state.cats.add(c);
+    else state.cats.delete(c);
+    renderMarkers();
+  }));
+
+  // Pill temporali
+  $$('#dayPills .pill').forEach(p => p.addEventListener('click', () => {
+    const k = p.getAttribute('data-day');
+    if (!k) return;
+    state.day = k; state.customDate = null;
+    $('#dateBadge').style.display='none';
+    renderMarkers();
+  }));
+
+  // Seleziona data
+  $('#selDataBtn').addEventListener('click', () => {
+    const dp = $('#datePicker');
+    dp.showPicker ? dp.showPicker() : dp.click();
+  });
+  $('#datePicker').addEventListener('change', (e) => {
+    state.customDate = e.target.value || null;
+    state.day = null;
+    if (state.customDate) {
+      $('#dateBadge').style.display='inline-block';
+      $('#dateBadge').textContent = state.customDate;
+    } else {
+      $('#dateBadge').style.display='none';
+    }
+    renderMarkers();
+  });
+
+  // Ricerca
+  $('#searchInput').addEventListener('input', e => { state.query = e.target.value || ''; renderMarkers(); });
+
+  // Aggiornamenti mappa
+  map.on('moveend', renderMarkers);
+  map.on('zoomend', renderMarkers);
+
+  // ====== CARICAMENTO DATI DA SUPABASE ======
+  async function loadData(){
+    // Eventi
+    const { data: evs, error: e1 } = await sb
+      .from('events')
+      .select('id, title, titolo, categories, categorie, locandina_url');
+    if (e1) { console.error('events error', e1); return; }
+    EVENTS = evs || [];
+    EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
+
+    // Occorrenze
+    const { data: occs, error: e2 } = await sb
+      .from('occurrences')
+      .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta');
+    if (e2) { console.error('occurrences error', e2); return; }
+    OCCS = (occs || []).filter(o => o.lat!=null && o.lng!=null);
+
+    renderMarkers();
+  }
+
+  loadData();
 </script>
 </body>
 </html>
