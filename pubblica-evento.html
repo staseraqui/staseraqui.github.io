@@ -5,15 +5,33 @@
 <title>Pubblica evento — Stasera Qui</title>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
-<style>.modal{z-index:999999!important}</style>
+<style>
+  .modal{z-index:999999!important}
+  .err{color:#ffb4b4;margin-top:8px}
+  .badge{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:16px;padding:4px 10px;margin:6px 8px 0 0;font-size:13px}
+  .card{background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px;margin:14px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid > div > label{display:block;margin:6px 0 6px;font-weight:700}
+  input,textarea,select{width:100%;padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#ffffff;color:#081421}
+  textarea{min-height:240px}
+  .block-title{margin:22px 0 10px}
+  .btn{background:#111f31;border:1px solid rgba(255,255,255,.2);padding:10px 14px;border-radius:10px;color:#fff;display:inline-block;cursor:pointer}
+  .btn.primary{background:#22b3f0;color:#081421;border-color:#22b3f0;font-weight:700}
+  .btn.secondary{background:#1a2a44}
+  .footer-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .divider{border:none;border-top:1px solid rgba(255,255,255,.12);margin:18px 0}
+  .page-footer{padding:20px 16px}
+  @media (max-width:720px){ .grid{grid-template-columns:1fr} }
+</style>
 <!-- Supabase JS per upload su Storage -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 </head>
 <body>
 <header class="header">
   <div class="logo">
-    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
-    <span class="wordmark">stasera qui</span>
+    <!-- LOGO approvato: pin + parola -->
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true" style="height:28px;vertical-align:middle"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
+    <span class="wordmark" style="margin-left:8px;vertical-align:middle">stasera qui</span>
   </div>
 </header>
 
@@ -52,7 +70,6 @@
         <input id="prezzo" placeholder="Es. Gratis / 10€ con drink">
       </div>
       <div>
-        <!-- Scelta: caricamento file OPPURE URL -->
         <label>Locandina/Foto*</label>
         <div class="grid">
           <div><input id="locandinaFile" type="file" accept="image/png,image/jpeg"></div>
@@ -75,11 +92,12 @@
 
     <div style="margin-top:10px">
       <label for="descrizione">Descrizione breve (max 400)*</label>
-      <textarea id="descrizione" name="descrizione" maxlength="400" required placeholder="Due righe chiare: cosa succede, per chi è, dettagli utili." style="min-height:240px"></textarea>
+      <textarea id="descrizione" name="descrizione" maxlength="400" required placeholder="Due righe chiare: cosa succede, per chi è, dettagli utili."></textarea>
     </div>
 
     <h3 class="block-title">Occorrenze</h3>
     <div id="occWrap">
+      <!-- Prima occorrenza (obbligatoria) -->
       <div class="occ card">
         <div class="grid">
           <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>
@@ -143,12 +161,12 @@
 <footer class="page-footer"><a href="index.html" class="btn">← Torna alla mappa</a></footer>
 
 <script>
-// === CONFIG SUPABASE (CERCA QUESTE DUE RIGHE E SOSTITUISCI I VALORI) ===
-const SUPABASE_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co';            // es. https://xxxxx.supabase.co
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';  // inizia con ey...
+// === CONFIG SUPABASE (SOSTITUISCI QUESTE 2 RIGHE) ===
+const SUPABASE_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co';            // es. https://rubdzlnolxcgpjklfggk.supabase.co
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';  // anon public key (ey…)
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// URL funzione pagamento (già tua)
+// URL funzione pagamento (usa ESATTAMENTE l'Invoke URL che vedi in Supabase → create-checkout-session → Overview)
 const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-checkout-session';
 
 // Tutto dentro IIFE
@@ -228,49 +246,30 @@ const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-che
   var err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
 
-  // Geocoding via Nominatim (Italia) -> {lat,lng} o null
-  <script>
-  // ...lascia tutto com'è sopra
-
-  // Geocoding "smart" con 4 tentativi e normalizzazioni
+  // Geocoding "smart" con 4 tentativi e normalizzazioni (Italia)
   async function geocode(indirizzo, citta){
-    // Helper: normalizza apostrofi e spazi
     function norm(s){
       return (s||'')
-        .replace(/[’]/g, "'")           // apostrofo tipografico → semplice
-        .replace(/d' /gi, "d'")         // d' + spazio → d'
-        .replace(/'/g, " ")             // fallback: apostrofi → spazio
-        .replace(/\s+/g,' ')            // spazi multipli → singolo
+        .replace(/[’]/g, "'")       // apostrofo tipografico → semplice
+        .replace(/d'\s/gi, "d'")    // d' + spazio → d'
+        .replace(/'/g, " ")         // fallback: apostrofi → spazio
+        .replace(/\s+/g,' ')
         .trim();
     }
-    function noCivico(s){
-      // rimuove eventuale numero civico alla fine (es. "Via Roma 10" → "Via Roma")
-      return (s||'').replace(/\s+\d+[A-Za-z]?$/,'').trim();
-    }
+    function noCivico(s){ return (s||'').replace(/\s+\d+[A-Za-z]?$/,'').trim(); }
 
     const base = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=it&addressdetails=0';
     const headers = { 'Accept':'application/json', 'User-Agent': 'StaseraQui/1.0 (info@staseraqui.it)' };
 
-    // Tentativi (in ordine)
     const tries = [];
-    const ind1 = `${indirizzo}, ${citta}, Italia`;
-    tries.push(ind1);
-
-    const ind2 = `${norm(indirizzo)}, ${norm(citta)}, Italia`;
-    if(ind2 !== ind1) tries.push(ind2);
-
-    const ind3 = `${noCivico(indirizzo)}, ${citta}, Italia`;
-    if(ind3 !== ind1) tries.push(ind3);
-
-    // aggiungi provincia per comuni noti (es. Quattordio è in AL)
-    let provHint = '';
-    if (/^quattordio$/i.test((citta||'').trim())) provHint = ' (AL), Piemonte, Italia';
-    if (provHint){
-      const ind4 = `${noCivico(indirizzo)}, ${citta}${provHint}`;
-      tries.push(ind4);
+    const ind1 = `${indirizzo}, ${citta}, Italia`; tries.push(ind1);
+    const ind2 = `${norm(indirizzo)}, ${norm(citta)}, Italia`; if(ind2!==ind1) tries.push(ind2);
+    const ind3 = `${noCivico(indirizzo)}, ${citta}, Italia`; if(ind3!==ind1) tries.push(ind3);
+    if (/^quattordio$/i.test((citta||'').trim())) {
+      const ind4 = `${noCivico(indirizzo)}, ${citta} (AL), Piemonte, Italia`; tries.push(ind4);
     }
 
-    for (let i=0;i<tries.length;i++){
+    for (var i=0;i<tries.length;i++){
       const q = encodeURIComponent(tries[i]);
       const url = `${base}&q=${q}`;
       try{
@@ -280,14 +279,12 @@ const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-che
         if (Array.isArray(js) && js.length){
           return { lat: parseFloat(js[0].lat), lng: parseFloat(js[0].lon) };
         }
-      }catch(_){ /* passa al prossimo tentativo */ }
+      }catch(_){}
     }
-    return null; // non trovato dopo 3–4 tentativi
+    return null;
   }
 
-  // ...lascia il resto (getImageUrl, buildPayload, ecc.) uguale
-</script>
-  // Upload della locandina su Supabase Storage (se selezionato un file)
+  // Upload locandina su Supabase Storage (se file) oppure usa URL
   async function getImageUrl(){
     var f = document.getElementById('locandinaFile').files[0];
     var urlInput = (document.getElementById('locandinaUrl').value||'').trim();
@@ -336,7 +333,7 @@ const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-che
     window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
   });
 
-  // Costruisci payload con geocoding (da Indirizzo/Città)
+  // Costruisci payload finale con geocoding
   async function buildPayload(){
     var occBlocks = Array.prototype.slice.call(document.querySelectorAll('#occWrap .occ'));
     var occFinal = [];
@@ -369,6 +366,7 @@ const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-che
       partner_code: (document.getElementById('partner_code').value||'')
     };
   }
+
   function validatePayload(p){
     var e=[];
     if(!p.titolo) e.push('Titolo obbligatorio');
@@ -382,6 +380,7 @@ const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-che
     return e;
   }
 
+  // ====== CONFERMA → Stripe Checkout ======
   document.getElementById('confermaFooterBtn').addEventListener('click', async function(){
     var errBox = document.getElementById('err');
     errBox.textContent='';
@@ -390,13 +389,13 @@ const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-che
       var errs = validatePayload(payload);
       if(errs.length){ errBox.textContent = errs.join(' — '); return; }
       var res = await fetch(FN_URL, {
-  method:'POST',
-  headers:{
-    'Content-Type':'application/json',
-    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY  // <— AGGIUNTO
-  },
-  body: JSON.stringify(payload)
-});
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer ' + SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify(payload)
+      });
       if(!res.ok){
         var t=await res.text();
         throw new Error(t || ('HTTP '+res.status));
