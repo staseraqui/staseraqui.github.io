@@ -43,3 +43,7 @@ a{color:var(--fg);text-decoration:none}
 .logo{display:flex;align-items:center;gap:8px;height:72px;text-decoration:none}
 .logo .pin{height:28px;display:block}
 .logo .wordmark{font-size:35px;line-height:1;font-weight:700;letter-spacing:0.2px}
+/* CTA colorate e ben visibili */
+.cta.primary{background:#1e2d44!important;border:1px solid #2a3c58!important;color:#ffffff!important}
+.cta.accent{background:#17304d!important;border:1px solid #2e6e8f!important;color:#d7f2ff!important}
+.cta.primary:hover,.cta.accent:hover{filter:brightness(1.1)}
