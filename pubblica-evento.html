@@ -229,19 +229,64 @@ const FN_URL = 'https://rubdzlnolxcgpjklfggk.supabase.co/functions/v1/create-che
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
 
   // Geocoding via Nominatim (Italia) -> {lat,lng} o null
+  <script>
+  // ...lascia tutto com'è sopra
+
+  // Geocoding "smart" con 4 tentativi e normalizzazioni
   async function geocode(indirizzo, citta){
-    var q = encodeURIComponent(indirizzo+', '+citta+', Italia');
-    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q='+q+'&email=info@staseraqui.it';
-    try{
-      var res = await fetch(url, { headers: { 'Accept':'application/json' } });
-      if(!res.ok) return null;
-      var js = await res.json();
-      if(!Array.isArray(js) || js.length===0) return null;
-      var p = js[0];
-      return { lat: parseFloat(p.lat), lng: parseFloat(p.lon) };
-    }catch(_){ return null; }
+    // Helper: normalizza apostrofi e spazi
+    function norm(s){
+      return (s||'')
+        .replace(/[’]/g, "'")           // apostrofo tipografico → semplice
+        .replace(/d' /gi, "d'")         // d' + spazio → d'
+        .replace(/'/g, " ")             // fallback: apostrofi → spazio
+        .replace(/\s+/g,' ')            // spazi multipli → singolo
+        .trim();
+    }
+    function noCivico(s){
+      // rimuove eventuale numero civico alla fine (es. "Via Roma 10" → "Via Roma")
+      return (s||'').replace(/\s+\d+[A-Za-z]?$/,'').trim();
+    }
+
+    const base = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=it&addressdetails=0';
+    const headers = { 'Accept':'application/json', 'User-Agent': 'StaseraQui/1.0 (info@staseraqui.it)' };
+
+    // Tentativi (in ordine)
+    const tries = [];
+    const ind1 = `${indirizzo}, ${citta}, Italia`;
+    tries.push(ind1);
+
+    const ind2 = `${norm(indirizzo)}, ${norm(citta)}, Italia`;
+    if(ind2 !== ind1) tries.push(ind2);
+
+    const ind3 = `${noCivico(indirizzo)}, ${citta}, Italia`;
+    if(ind3 !== ind1) tries.push(ind3);
+
+    // aggiungi provincia per comuni noti (es. Quattordio è in AL)
+    let provHint = '';
+    if (/^quattordio$/i.test((citta||'').trim())) provHint = ' (AL), Piemonte, Italia';
+    if (provHint){
+      const ind4 = `${noCivico(indirizzo)}, ${citta}${provHint}`;
+      tries.push(ind4);
+    }
+
+    for (let i=0;i<tries.length;i++){
+      const q = encodeURIComponent(tries[i]);
+      const url = `${base}&q=${q}`;
+      try{
+        const res = await fetch(url, { headers });
+        if (!res.ok) continue;
+        const js = await res.json();
+        if (Array.isArray(js) && js.length){
+          return { lat: parseFloat(js[0].lat), lng: parseFloat(js[0].lon) };
+        }
+      }catch(_){ /* passa al prossimo tentativo */ }
+    }
+    return null; // non trovato dopo 3–4 tentativi
   }
 
+  // ...lascia il resto (getImageUrl, buildPayload, ecc.) uguale
+</script>
   // Upload della locandina su Supabase Storage (se selezionato un file)
   async function getImageUrl(){
     var f = document.getElementById('locandinaFile').files[0];
