@@ -47,3 +47,6 @@ textarea#descrizione{min-height:240px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:20000}
 .modal > div{background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px;min-width:280px}
 .note{color:#b8c2ce;font-size:12px;margin-top:6px}
+/* CTA colorate coerenti con lo stile */
+.cta.primary{background:#1e2d44;border-color:#2a3c58;color:#fff}
+.cta.accent{background:#17304d;border-color:#2e6e8f;color:#d7f2ff}
