@@ -1,19 +1,24 @@
 <!doctype html>
 <html lang="it">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pubblica evento — Stasera Qui</title>
-<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=17">
-<style>.modal{z-index:999999!important}</style>
-<!-- Config chiavi (Supabase + Google) -->
-<script src="assets/app-config.js?v=1"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pubblica evento — Stasera Qui</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=17">
+  <style>.modal{z-index:999999!important}</style>
+
+  <!-- Config (deve esistere): SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY -->
+  <script src="assets/app-config.js?v=1"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
+
 <header class="header">
   <div class="logo">
-    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
+      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
+      <circle cx="32" cy="24" r="9" fill="#ffffff"/>
+    </svg>
     <span class="wordmark">stasera qui</span>
   </div>
 </header>
@@ -71,7 +76,7 @@
 
     <div style="margin-top:10px">
       <label for="descrizione">Descrizione breve (max 400)*</label>
-      <textarea id="descrizione" name="descrizione" maxlength="400" required placeholder="Due righe chiare: cosa succede, per chi è, dettagli utili." style="min-height:240px"></textarea>
+      <textarea id="descrizione" maxlength="400" required placeholder="Due righe chiare: cosa succede, per chi è, dettagli utili." style="min-height:240px"></textarea>
     </div>
 
     <h3 class="block-title">Occorrenze</h3>
@@ -140,30 +145,38 @@
 
 <script>
 (function(){
-  // ---------- CONFIG ----------
+  // ====== CONFIG ======
   const CFG = window.SQ_CONFIG || {};
   const SUPABASE_URL = CFG.SUPABASE_URL;
   const SUPABASE_ANON = CFG.SUPABASE_ANON;
-  const GOOGLE_KEY = CFG.GOOGLE_MAPS_API_KEY;
+  const GOOGLE_KEY   = CFG.GOOGLE_MAPS_API_KEY;
   const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
+  const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/create-checkout-session';
 
-  // ---------- CATEGORIE: MODALE ----------
+  // ====== CATEGORIE: MODALE ======
   const btn = document.getElementById('categorieBtn');
   const wrap = document.getElementById('catBadges');
   const modal = document.createElement('div');
-  modal.className='modal'; modal.style.display='none'; modal.style.alignItems='center'; modal.style.justifyContent='center';
+  modal.className='modal';
+  Object.assign(modal.style,{display:'none',position:'fixed',inset:'0',background:'rgba(0,0,0,.45)',alignItems:'center',justifyContent:'center',padding:'16px'});
   modal.innerHTML = '<div style="background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px;min-width:280px;max-width:900px">\
-  <h3 style="margin:0 0 6px">Scegli categorie (multi)</h3>\
-  <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px">\
-  '+['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini'].map(function(c){return '<div class="chip" data-cat="'+c+'" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none">'+c+'</div>';}).join('')+'\
-  </div><div class="actions" style="display:flex;gap:8px;justify-content:flex-end"><button class="btn primary" id="catOk" type="button">Conferma</button><button class="btn secondary" id="catClear" type="button">Azzera</button></div></div>';
+    <h3 style="margin:0 0 6px">Scegli categorie (multi)</h3>\
+    <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px">\
+      '+['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini']
+        .map(c=>'<div class="chip" data-cat="'+c+'" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none">'+c+'</div>').join('')+'\
+    </div>\
+    <div class="actions" style="display:flex;gap:8px;justify-content:flex-end">\
+      <button class="btn primary" id="catOk" type="button">Conferma</button>\
+      <button class="btn secondary" id="catClear" type="button">Azzera</button>\
+    </div>\
+  </div>';
   document.body.appendChild(modal);
 
-  function renderCats(cats){ wrap.innerHTML=''; for(let i=0;i<cats.length;i++){const b=document.createElement('span'); b.className='badge'; b.textContent=cats[i]; wrap.appendChild(b);} }
+  function renderCats(cats){ wrap.innerHTML=''; cats.forEach(c=>{ const b=document.createElement('span'); b.className='badge'; b.textContent=c; wrap.appendChild(b); }); }
   let cats=[];
-  btn.addEventListener('click', ()=>{ modal.style.display='flex'; document.body.style.overflow='hidden';});
-  modal.addEventListener('click', (e)=>{ if(e.target===modal){ modal.style.display='none'; document.body.style.overflow='auto'; }});
-  modal.addEventListener('click', (e)=>{
+  btn.addEventListener('click', ()=>{ modal.style.display='flex'; document.body.style.overflow='hidden'; });
+  modal.addEventListener('click', e=>{ if(e.target===modal){ modal.style.display='none'; document.body.style.overflow='auto'; }});
+  modal.addEventListener('click', e=>{
     if(e.target.classList.contains('chip')){
       e.target.classList.toggle('active');
       if(e.target.classList.contains('active')){ e.target.style.background='#22b3f0'; e.target.style.color='#081421'; e.target.style.borderColor='#22b3f0'; }
@@ -179,7 +192,7 @@
     Array.prototype.forEach.call(modal.querySelectorAll('.chip'), ch=>{ ch.classList.remove('active'); ch.style.background='#17304d'; ch.style.color='#d7f2ff'; ch.style.borderColor='#2e6e8f'; });
   });
 
-  // ---------- CONTATTI ----------
+  // ====== CONTATTI ======
   const wrapC = document.getElementById('contattiWrap');
   document.getElementById('addContact').addEventListener('click', ()=>{
     const d=document.createElement('div'); d.className='grid contact';
@@ -188,7 +201,7 @@
     wrapC.appendChild(d);
   });
 
-  // ---------- OCCORRENZE ----------
+  // ====== OCCORRENZE ======
   const wrapO = document.getElementById('occWrap');
   document.getElementById('addOcc').addEventListener('click', ()=>{
     const d=document.createElement('div'); d.className='occ card';
@@ -204,9 +217,13 @@
     </div>';
     wrapO.appendChild(d);
   });
-  wrapO.addEventListener('click', (e)=>{ if(e.target.classList.contains('del-btn')){ const box=e.target.closest('.occ'); if(box) box.remove(); }});
+  wrapO.addEventListener('click', e=>{
+    if(e.target.classList.contains('del-btn')){
+      const box=e.target.closest('.occ'); if(box) box.remove();
+    }
+  });
 
-  // ---------- UTIL ----------
+  // ====== UTILITY ======
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
 
@@ -235,7 +252,7 @@
     return occ;
   }
 
-  // ---------- ANTEPRIMA ----------
+  // ====== ANTEPRIMA ======
   document.getElementById('anteprimaBtn').addEventListener('click', ()=>{
     err.textContent='';
     const titolo=clean(document.getElementById('titolo').value);
@@ -243,7 +260,9 @@
     const file  =(document.getElementById('locandina').files||[])[0];
     const anyCat=(document.getElementById('catBadges').children.length>0);
     const occ=collectOcc();
-    if(!titolo||!descr||!file||!anyCat||!occ){ err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria* e completa tutte le occorrenze.'; return; }
+    if(!titolo||!descr||!file||!anyCat||!occ){
+      err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria* e completa tutte le occorrenze.'; return;
+    }
     document.getElementById('pv_titolo').textContent=titolo;
     document.getElementById('pv_cats').textContent=Array.prototype.map.call(document.getElementById('catBadges').children,b=>b.textContent).join(', ');
     document.getElementById('pv_descr').textContent=descr;
@@ -254,7 +273,7 @@
     window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
   });
 
-  // ---------- CONFERMA → Stripe ----------
+  // ====== CONFERMA → STRIPE ======
   document.getElementById('confermaFooterBtn').addEventListener('click', async ()=>{
     try{
       err.textContent='';
@@ -290,7 +309,7 @@
         occFull.push({ ...o, lat: g.lat, lng: g.lng });
       }
 
-      // 3) Metadati evento da passare a Stripe
+      // 3) Metadati per Stripe
       const metadata = {
         titolo, prezzo, descrizione: descr, locandina_url,
         categorie: JSON.stringify(cats),
@@ -301,18 +320,18 @@
 
       const tipo = (occFull.length>1) ? 'multi' : 'single';
 
-      // 4) Chiama la funzione per creare la sessione Checkout
-      const origin = location.origin;
-      const url = `${origin.replace(/\/$/,'')}/functions/v1/create-checkout-session`; // proxy Supabase Edge (configurato già)
-      const resp = await fetch(url, {
+      // 4) Crea la sessione Checkout su Supabase Edge
+      const resp = await fetch(EDGE_URL, {
         method:'POST',
         headers:{'content-type':'application/json'},
         body: JSON.stringify({ tipo, metadata })
       });
       const j = await resp.json();
       if(!resp.ok){ throw new Error(j.error || 'Errore creazione checkout'); }
+
       // 5) Vai al pagamento
       window.location.href = j.url;
+
     }catch(e){
       err.textContent = 'Errore: '+ (e&&e.message? e.message: String(e));
     }
