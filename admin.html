@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — Stasera Qui</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=12">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+  .admin-wrap{max-width:980px;margin:0 auto;padding:16px}
+  .card{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);padding:16px;border-radius:12px;margin:12px 0}
+  input[type="text"],input[type="file"],select,textarea{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#fff;color:#081421}
+  .grid{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap}
+  .ok{color:#7CFC7C}.err{color:#ff6b6b}
+  pre{white-space:pre-wrap;background:#081421;padding:10px;border-radius:8px;max-height:360px;overflow:auto}
+  .table{width:100%;border-collapse:collapse}
+  .table th,.table td{border-bottom:1px solid rgba(255,255,255,.1);padding:8px 6px;text-align:left}
+  .muted{color:#b8c2ce}
+  .tiny{font-size:12px;color:#b8c2ce}
+</style>
+</head>
+<body>
+<header class="header" style="padding:0 16px">
+  <a href="index.html" class="logo">
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
+      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
+      <circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
+    <span class="wordmark">stasera qui</span>
+  </a>
+</header>
+
+<main class="admin-wrap">
+  <h1>Console Admin</h1>
+
+  <div class="card">
+    <h3>Accesso</h3>
+    <div class="grid">
+      <div><label>PIN admin</label><input id="pin" type="text" placeholder="Inserisci il tuo PIN (es. TORINO-2025)"></div>
+      <div><label>Chiave Anon Supabase</label><input id="sbAnon" type="text" placeholder="Incolla la anon key di Supabase"></div>
+    </div>
+    <div style="margin-top:8px"><label>URL progetto Supabase</label><input id="sbUrl" type="text" placeholder="https://xxxxx.supabase.co"></div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn" id="connect">Connetti</button>
+      <span id="status" class="muted">Non connesso</span>
+    </div>
+    <p class="tiny">Dove trovo questi dati? Supabase → Settings → API → <b>Project URL</b> e <b>anon public</b>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Caricamento massivo (CSV) con geocodifica</h3>
+    <p class="muted">Scarica il <a href="#" id="dlTpl">template CSV</a>. Compila e ricarica qui. Le <b>categorie</b> vanno separate con il carattere <b>|</b> (es: <i>Musica|Nightlife</i>).</p>
+    <input id="csvFile" type="file" accept=".csv">
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn" id="preview">Anteprima</button>
+      <button class="btn primary" id="import">Importa (con geocodifica)</button>
+    </div>
+    <div id="logCSV" class="muted" style="margin-top:8px"></div>
+    <pre id="csvPreview" style="display:none"></pre>
+    <p class="tiny">La geocodifica usa Nominatim (OpenStreetMap). Per rispetto dei limiti pubblici, l’import inserisce una pausa ~1 secondo tra richieste.</p>
+  </div>
+
+  <div class="card">
+    <h3>Eliminazione massiva</h3>
+    <div class="grid">
+      <div><label>Filtro per città (facoltativo)</label><input id="delCity" type="text" placeholder="Es. Torino"></div>
+      <div><label>Filtro per categoria (facoltativo)</label><input id="delCat" type="text" placeholder="Es. Musica"></div>
+    </div>
+    <div class="grid">
+      <div><label>Dal (YYYY-MM-DD)</label><input id="delFrom" type="text" placeholder="2025-09-05"></div>
+      <div><label>Al (YYYY-MM-DD)</label><input id="delTo" type="text" placeholder="2025-09-10"></div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn secondary" id="deleteBtn">Elimina eventi</button>
+    </div>
+    <div id="logDel" class="muted" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h3>Report veloci</h3>
+    <div class="btn-row">
+      <button class="btn" id="repDay">Eventi per giorno</button>
+      <button class="btn" id="repCity">Eventi per città</button>
+      <button class="btn" id="repCat">Eventi per categoria</button>
+    </div>
+    <table class="table" id="repTbl" style="margin-top:10px;display:none"></table>
+  </div>
+
+  <p class="small muted">Mantieni privato l’URL di questa pagina. Per sicurezza avanzata aggiungeremo il login via email (magic link) in Fase 2.</p>
+</main>
+
+<script>
+  // ===== Template CSV (separatore ';')
+  const tplCSV =
+`title;description;price;poster_url;categories;venue;address;city;date;time
+Aperitivo Jazz;Live trio;Gratis;https://…/poster.jpg;Musica|Nightlife;Bar Centrale;Via Roma 1;Torino;2025-09-15;19:30
+Festa Pro Loco;Stand e musica;10€;https://…/loca.png;Sagre & Fiere|Famiglie & Bambini;Piazza XX;Via Garibaldi;Alessandria;2025-09-16;18:00`;
+
+  // ===== Utilità
+  const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
+  const $ = s => document.querySelector(s);
+
+  // ===== Supabase (verrà creato dopo "Connetti")
+  let sb=null;
+  let rpc=null;
+
+  // ===== Download template
+  document.getElementById('dlTpl').onclick = (e)=>{
+    e.preventDefault();
+    const blob = new Blob([tplCSV], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'staseraqui_template.csv';
+    a.click();
+  };
+
+  // ===== Connessione
+  document.getElementById('connect').onclick = ()=>{
+    const url = document.getElementById('sbUrl').value.trim();
+    const key = document.getElementById('sbAnon').value.trim();
+    if(!url || !key){ alert('Inserisci URL e anon key di Supabase.'); return; }
+    sb = supabase.createClient(url, key);
+    rpc = async (fn, args)=> {
+      const { data, error } = await sb.rpc(fn, args);
+      if (error) throw error;
+      return data;
+    };
+    document.getElementById('status').textContent = 'Connesso';
+    document.getElementById('status').className = 'ok';
+  };
+
+  // ===== Parser CSV (semplice, separatore ';')
+  function parseCSV(text){
+    const rows = text.split(/\r?\n/).filter(Boolean);
+    const head = rows.shift().split(';').map(s=>s.trim());
+    const getIdx = (name)=> head.indexOf(name);
+    const items = rows.map(line=>{
+      const cols = line.split(';');
+      const get = (n)=> (cols[n]||'').trim();
+      return {
+        title: get(getIdx('title')),
+        description: get(getIdx('description')),
+        price: get(getIdx('price')),
+        poster_url: get(getIdx('poster_url')),
+        categories: (get(getIdx('categories'))||'').split('|').map(s=>s.trim()).filter(Boolean),
+        venue: get(getIdx('venue')),
+        address: get(getIdx('address')),
+        city: get(getIdx('city')),
+        date: get(getIdx('date')),
+        time: get(getIdx('time'))
+      };
+    });
+    return items;
+  }
+
+  let parsed=null;
+
+  document.getElementById('preview').onclick = ()=>{
+    const f = document.getElementById('csvFile').files[0];
+    if(!f) { alert('Seleziona un file CSV.'); return; }
+    const r = new FileReader();
+    r.onload = ()=>{
+      parsed = parseCSV(r.result);
+      document.getElementById('csvPreview').style.display='block';
+      document.getElementById('csvPreview').textContent = JSON.stringify(parsed, null, 2);
+      document.getElementById('logCSV').textContent = parsed.length+' righe pronte';
+    };
+    r.readAsText(f, 'utf-8');
+  };
+
+  // ===== Geocoding via Nominatim (OSM)
+  async function geocodeAddrOSM(addr){
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(addr);
+    const r = await fetch(url, {headers:{'Accept-Language':'it','User-Agent':'staseraqui-admin'}});
+    if(!r.ok) return null;
+    const j = await r.json(); if(!j || !j.length) return null;
+    return {lat:parseFloat(j[0].lat), lng:parseFloat(j[0].lon), label:j[0].display_name};
+  }
+
+  // ===== Import con geocodifica (rispettosa: 1 req/sec)
+  document.getElementById('import').onclick = async ()=>{
+    const pin = document.getElementById('pin').value.trim();
+    if(!sb || !rpc){ alert('Connettiti prima.'); return; }
+    if(!pin){ alert('Inserisci PIN admin.'); return; }
+    if(!parsed || !parsed.length){ alert('Fai prima Anteprima del CSV.'); return; }
+
+    const out = [];
+    document.getElementById('logCSV').innerHTML = 'Geocodifica in corso…';
+    for (let i=0;i<parsed.length;i++){
+      const row = parsed[i];
+      let lat=null, lng=null;
+      const q = [row.address, row.city].filter(Boolean).join(', ');
+      if (q){
+        try{
+          const g = await geocodeAddrOSM(q);
+          if (g){ lat=g.lat; lng=g.lng; }
+        }catch(_){}
+        await sleep(1000); // throttling educato
+      }
+      out.push({
+        title: row.title || '',
+        description: row.description || '',
+        price: row.price || '',
+        poster_url: row.poster_url || '',
+        categories: row.categories || [],
+        venue: row.venue || '',
+        address: row.address || '',
+        city: row.city || '',
+        date: row.date || '',
+        time: row.time || '',
+        lat, lng
+      });
+      document.getElementById('logCSV').innerHTML = `Geocodifica ${i+1}/${parsed.length}…`;
+    }
+
+    try{
+      const payload = { rows: out };
+      const res = await rpc('fn_admin_bulk_import', { pin, payload });
+      document.getElementById('logCSV').innerHTML = `<span class="ok">Import completato.</span> Inseriti: ${(res?.inserted||0)} — Errori: ${(res?.errors||0)}. Vai sulla Home e aggiorna per vedere i pin.`;
+    }catch(e){
+      document.getElementById('logCSV').innerHTML = '<span class="err">'+(e.message||e)+ '</span>';
+    }
+  };
+
+  // ===== Delete massivo
+  document.getElementById('deleteBtn').onclick = async ()=>{
+    const pin = document.getElementById('pin').value.trim();
+    if(!sb || !rpc){ alert('Connettiti prima.'); return; }
+    const filt = {
+      city: document.getElementById('delCity').value.trim() || null,
+      category: document.getElementById('delCat').value.trim() || null,
+      from: document.getElementById('delFrom').value.trim() || null,
+      to: document.getElementById('delTo').value.trim() || null
+    };
+    if(!pin){ alert('Inserisci PIN admin.'); return; }
+    if(!filt.city && !filt.category && !filt.from && !filt.to){
+      if(!confirm('Nessun filtro impostato: elimineresti TUTTI gli eventi. Sei sicuro?')) return;
+    }
+    try{
+      const res = await rpc('fn_admin_bulk_delete', { pin, filt });
+      document.getElementById('logDel').innerHTML = '<span class="ok">Eliminati '+(res?.deleted||0)+' eventi.</span>';
+    }catch(e){
+      document.getElementById('logDel').innerHTML = '<span class="err">'+(e.message||e)+ '</span>';
+    }
+  };
+
+  // ===== Report
+  async function runReport(viewName, cols){
+    if(!sb){ alert('Connettiti prima.'); return; }
+    const { data, error } = await sb.from(viewName).select('*');
+    if(error){ alert(error.message); return; }
+    const tbl = document.getElementById('repTbl');
+    tbl.style.display='table';
+    tbl.innerHTML = '<thead><tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody>'+
+      data.map(r=>'<tr>'+cols.map(c=>'<td>'+(r[c]??'')+'</td>').join('')+'</tr>').join('')+'</tbody>';
+  }
+  document.getElementById('repDay').onclick = ()=> runReport('vw_events_by_day', ['day','count']);
+  document.getElementById('repCity').onclick = ()=> runReport('vw_events_by_city', ['city','count']);
+  document.getElementById('repCat').onclick = ()=> runReport('vw_events_by_category', ['category','count']);
+</script>
+</body>
+</html>
