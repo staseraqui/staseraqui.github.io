@@ -4,7 +4,10 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin — Stasera Qui</title>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=13">
+<link rel="stylesheet" href="assets/style.css?v=14">
+<!-- carica la configurazione -->
+<script src="assets/app-config.js?v=1"></script>
+<!-- supabase -->
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
   .admin-wrap{max-width:980px;margin:0 auto;padding:16px}
@@ -38,21 +41,19 @@
     <h3>Accesso</h3>
     <div class="grid">
       <div><label>PIN admin</label><input id="pin" type="text" placeholder="PIN scelto (es. TORINO-2025)"></div>
-      <div><label>Chiave Anon Supabase</label><input id="sbAnon" type="text" placeholder="anon public key"></div>
+      <div style="align-self:end">
+        <button class="btn" id="connect">Connetti</button>
+        <span id="status" class="muted">Non connesso</span>
+      </div>
     </div>
-    <div style="margin-top:8px"><label>URL progetto Supabase</label><input id="sbUrl" type="text" placeholder="https://xxxxx.supabase.co"></div>
-    <div class="btn-row" style="margin-top:10px">
-      <button class="btn" id="connect">Connetti</button>
-      <span id="status" class="muted">Non connesso</span>
-    </div>
-    <p class="tiny">Dove trovo questi dati? Supabase → Settings → API → <b>Project URL</b> e <b>anon public</b>.</p>
+    <p class="tiny">Non servono più URL/Key: sono lette da <code>assets/app-config.js</code>.</p>
   </div>
 
   <div class="card">
     <h3>Upload locandine (JPG/PNG → URL pronti)</h3>
     <p class="list">
       1) Seleziona i file → <b>Carica</b> → ottieni l’URL da incollare nel CSV (colonna <code>poster_url</code>).<br>
-      2) Oppure, nel CSV usa la colonna <code>poster_file</code> con il <i>nome file</i> (es. <code>locandina1.jpg</code>): l’admin collegherà automaticamente l’URL caricato.
+      2) Oppure usa nel CSV la colonna <code>poster_file</code> con il nome file caricato (es. <code>loca1.jpg</code>).
     </p>
     <input id="imgFiles" type="file" accept="image/png,image/jpeg" multiple>
     <div class="btn-row" style="margin-top:10px">
@@ -64,9 +65,9 @@
 
   <div class="card">
     <h3>Caricamento massivo (CSV) con geocodifica</h3>
-    <p class="muted">Scarica il <a href="#" id="dlTpl">template CSV</a>. Colonne supportate:
+    <p class="muted">Scarica il <a href="#" id="dlTpl">template CSV</a>. Colonne:
       <code>title;description;price;poster_url;poster_file;categories;venue;address;city;date;time</code>.<br>
-      <b>categories</b> separate con <b>|</b> (es: <i>Musica|Nightlife</i>). <b>poster_url</b> o <b>poster_file</b> (uno dei due).
+      <b>categories</b> separate con <b>|</b>. Metti <b>poster_url</b> oppure <b>poster_file</b>.
     </p>
     <input id="csvFile" type="file" accept=".csv">
     <div class="btn-row" style="margin-top:10px">
@@ -75,7 +76,7 @@
     </div>
     <div id="logCSV" class="muted" style="margin-top:8px"></div>
     <pre id="csvPreview" style="display:none"></pre>
-    <p class="tiny">La geocodifica usa Nominatim (OpenStreetMap). Per rispetto dei limiti pubblici, l’import inserisce una pausa ~1 secondo tra richieste.</p>
+    <p class="tiny">Geocodifica: Nominatim (OSM). ~1 secondo tra richieste per rispetto dei limiti.</p>
   </div>
 
   <div class="card">
@@ -104,11 +105,11 @@
     <table class="table" id="repTbl" style="margin-top:10px;display:none"></table>
   </div>
 
-  <p class="small muted">Mantieni privato l’URL di questa pagina. Per sicurezza avanzata aggiungeremo il login via email (magic link) in Fase 2.</p>
+  <p class="small muted">Per sicurezza: il PIN non viene salvato. Se vuoi, in futuro aggiungiamo login via email (magic link).</p>
 </main>
 
 <script>
-  // ===== Template CSV (separatore ';')
+  // ===== Template CSV
   const tplCSV =
 `title;description;price;poster_url;poster_file;categories;venue;address;city;date;time
 Aperitivo Jazz;Live trio;Gratis;;loca1.jpg;Musica|Nightlife;Bar Centrale;Via Roma 1;Torino;2025-09-15;19:30
@@ -117,9 +118,6 @@ Festa Pro Loco;Stand e musica;10€;https://…/loca2.png;;Sagre & Fiere|Famigli
   const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
   const $ = s => document.querySelector(s);
   let sb=null, rpc=null;
-
-  // ===== Stato “file caricati” → mappa per collegare poster_file → poster_url
-  const uploadedMap = new Map(); // chiave: filename in minuscolo → valore: public URL
 
   // ===== Download template
   $('#dlTpl').onclick = (e)=>{
@@ -131,12 +129,14 @@ Festa Pro Loco;Stand e musica;10€;https://…/loca2.png;;Sagre & Fiere|Famigli
     a.click();
   };
 
-  // ===== Connessione
+  // ===== Connessione (usa config)
   $('#connect').onclick = ()=>{
-    const url = $('#sbUrl').value.trim();
-    const key = $('#sbAnon').value.trim();
-    if(!url || !key){ alert('Inserisci URL e anon key di Supabase.'); return; }
-    sb = supabase.createClient(url, key);
+    const cfg = window.SQ_CONFIG || {};
+    if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON){
+      alert('Config mancante: assets/app-config.js');
+      return;
+    }
+    sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON);
     rpc = async (fn, args)=> {
       const { data, error } = await sb.rpc(fn, args);
       if (error) throw error;
@@ -147,6 +147,7 @@ Festa Pro Loco;Stand e musica;10€;https://…/loca2.png;;Sagre & Fiere|Famigli
   };
 
   // ===== Upload locandine su bucket "event-images"
+  const uploadedMap = new Map(); // filename → public URL
   $('#uploadImgs').onclick = async ()=>{
     if(!sb){ alert('Connettiti prima.'); return; }
     const files = $('#imgFiles').files;
@@ -156,7 +157,7 @@ Festa Pro Loco;Stand e musica;10€;https://…/loca2.png;;Sagre & Fiere|Famigli
     for (let i=0;i<files.length;i++){
       const f = files[i];
       const path = 'bulk/'+Date.now()+'_'+f.name.replace(/\s+/g,'_');
-      const { data, error } = await sb.storage.from('event-images').upload(path, f, { upsert: true, contentType: f.type });
+      const { error } = await sb.storage.from('event-images').upload(path, f, { upsert: true, contentType: f.type });
       if(error){ lines.push(`ERRORE ${f.name}: ${error.message}`); continue; }
       const { data:pub } = sb.storage.from('event-images').getPublicUrl(path);
       uploadedMap.set(f.name.toLowerCase(), pub.publicUrl);
@@ -167,7 +168,7 @@ Festa Pro Loco;Stand e musica;10€;https://…/loca2.png;;Sagre & Fiere|Famigli
     $('#imgList').textContent = lines.join('\n');
   };
 
-  // ===== Parser CSV (supporta colonna opzionale poster_file)
+  // ===== CSV parser
   function parseCSV(text){
     const rows = text.split(/\r?\n/).filter(Boolean);
     const head = rows.shift().split(';').map(s=>s.trim());
@@ -215,7 +216,7 @@ Festa Pro Loco;Stand e musica;10€;https://…/loca2.png;;Sagre & Fiere|Famigli
     r.readAsText(f, 'utf-8');
   };
 
-  // ===== Geocode via Nominatim (OSM)
+  // ===== Geocoding (OSM)
   async function geocodeAddrOSM(addr){
     const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(addr);
     const r = await fetch(url, {headers:{'Accept-Language':'it','User-Agent':'staseraqui-admin'}});
@@ -224,7 +225,7 @@ Festa Pro Loco;Stand e musica;10€;https://…/loca2.png;;Sagre & Fiere|Famigli
     return {lat:parseFloat(j[0].lat), lng:parseFloat(j[0].lon), label:j[0].display_name};
   }
 
-  // ===== Import con geocodifica (1 req/sec)
+  // ===== Import (1 req/sec)
   $('#import').onclick = async ()=>{
     const pin = $('#pin').value.trim();
     if(!sb || !rpc){ alert('Connettiti prima.'); return; }
@@ -263,13 +264,13 @@ Festa Pro Loco;Stand e musica;10€;https://…/loca2.png;;Sagre & Fiere|Famigli
     try{
       const payload = { rows: out };
       const res = await rpc('fn_admin_bulk_import', { pin, payload });
-      $('#logCSV').innerHTML = `<span class="ok">Import completato.</span> Inseriti: ${(res?.inserted||0)} — Errori: ${(res?.errors||0)}. Vai sulla Home e aggiorna per vedere i pin.`;
+      $('#logCSV').innerHTML = `<span class="ok">Import completato.</span> Inseriti: ${(res?.inserted||0)} — Errori: ${(res?.errors||0)}. Vai in Home e aggiorna per vedere i pin.`;
     }catch(e){
       $('#logCSV').innerHTML = '<span class="err">'+(e.message||e)+ '</span>';
     }
   };
 
-  // ===== Delete massivo (per filtri)
+  // ===== Delete massivo (filtri)
   $('#deleteBtn').onclick = async ()=>{
     const pin = $('#pin').value.trim();
     if(!sb || !rpc){ alert('Connettiti prima.'); return; }
@@ -285,9 +286,9 @@ Festa Pro Loco;Stand e musica;10€;https://…/loca2.png;;Sagre & Fiere|Famigli
     }
     try{
       const res = await rpc('fn_admin_bulk_delete', { pin, filt });
-      $('#logDel').innerHTML = '<span class="ok">Eliminati '+(res?.deleted||0)+' eventi.</span>';
+      document.getElementById('logDel').innerHTML = '<span class="ok">Eliminati '+(res?.deleted||0)+' eventi.</span>';
     }catch(e){
-      $('#logDel').innerHTML = '<span class="err">'+(e.message||e)+ '</span>';
+      document.getElementById('logDel').innerHTML = '<span class="err">'+(e.message||e)+ '</span>';
     }
   };
 
