@@ -226,19 +226,51 @@
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
 
-  async function geocode(indirizzo, citta){
-  const base = 'https://maps.googleapis.com/maps/api/geocode/json';
-  const makeUrl = (q) =>
-    `${base}?address=${encodeURIComponent(q)}&components=country:IT&region=it&language=it&key=${GOOGLE_KEY}`;
+  <script>
+/* ... il resto del file ... */
 
-  // 1° tentativo: "indirizzo, città"
-  let res = await fetch(makeUrl(`${indirizzo}, ${citta}`));
-  let j = await res.json();
-  if (j.status === 'OK' && j.results?.[0]?.geometry?.location) {
-    const g = j.results[0].geometry.location;
-    return { lat: g.lat, lng: g.lng };
+// --- SOSTITUISCI QUESTA FUNZIONE ---
+async function geocode(indirizzo, citta){
+  const base = 'https://maps.googleapis.com/maps/api/geocode/json';
+  const makeUrl = (q, comp) =>
+    `${base}?address=${encodeURIComponent(q)}&components=${encodeURIComponent(comp)}&region=it&language=it&key=${GOOGLE_KEY}`;
+
+  // Costruiamo vari tentativi “guidando” Google verso l’Italia e il comune.
+  const tentativi = [
+    { q: `${indirizzo}, ${citta}`, comp: `locality:${citta}|country:IT` },
+    // Per Torino (e altri casi), proviamo anche l’alias inglese
+    { q: `${indirizzo}, ${citta}`, comp: `locality:${citta.toLowerCase()==='torino'?'Turin':citta}|country:IT` },
+    // Aggiungiamo "Italia" esplicito
+    { q: `${indirizzo}, ${citta}, Italia`, comp: `locality:${citta}|country:IT` },
+  ];
+
+  let lastStatus = null, lastErr = null;
+
+  for(const t of tentativi){
+    try{
+      const res = await fetch(makeUrl(t.q, t.comp));
+      const j = await res.json();
+      if (j.status === 'OK' && j.results?.[0]?.geometry?.location) {
+        const g = j.results[0].geometry.location;
+        return { lat: g.lat, lng: g.lng };
+      } else {
+        lastStatus = j.status || 'UNKNOWN';
+        lastErr = j.error_message || null;
+      }
+    }catch(e){
+      lastStatus = 'FETCH_ERROR';
+      lastErr = e?.message || String(e);
+    }
   }
 
+  // Se arriviamo qui, tutti i tentativi sono falliti: alziamo un errore descrittivo.
+  const msg = `Geocoding fallito (${lastStatus}${lastErr? ` — ${lastErr}`:''})`;
+  throw new Error(msg);
+}
+// --- FINE FUNZIONE SOSTITUITA ---
+
+/* ... il resto del file ... */
+</script>
   // 2° tentativo: aggiunge "Italia"
   res = await fetch(makeUrl(`${indirizzo}, ${citta}, Italia`));
   j = await res.json();
