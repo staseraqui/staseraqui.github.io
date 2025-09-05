@@ -7,7 +7,7 @@
 <link rel="icon" href="/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=8">
+<link rel="stylesheet" href="assets/style.css?v=9">
 
 <!-- Leaflet (fallback se NON usi Google Maps) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -29,7 +29,7 @@
   #routeInfo{position:fixed;left:16px;right:16px;bottom:16px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 12px;display:none;z-index:10000}
   .popup-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
-  /* Datepicker overlay (compatibile Mac/iPhone, senza bottone OK) */
+  /* Datepicker overlay (Mac/iPhone, conferma automatica) */
   #dpOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;z-index:9999}
   #dpBox{margin-top:80px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px}
   #dpInput{font-size:17px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#081421}
@@ -107,7 +107,7 @@
 <!-- Banner percorso -->
 <div id="routeInfo"></div>
 
-<!-- Datepicker overlay (solo scelta + chiusura automatica) -->
+<!-- Datepicker overlay (solo Annulla, conferma automatica su change) -->
 <div id="dpOverlay">
   <div id="dpBox">
     <input type="date" id="dpInput">
@@ -151,6 +151,8 @@
       s.async = true; s.defer = true;
       s.onerror = ()=>{ console.warn('Caricamento Google Maps fallito. Uso OSM.'); USE_GMAPS=false; initLeafletMap(); };
       document.head.appendChild(s);
+      // Fallback di sicurezza: se Google non chiama il callback entro 4s, uso OSM
+      setTimeout(()=>{ if(!GMAPS.map){ console.warn('Timeout Google Maps → uso OSM'); USE_GMAPS=false; initLeafletMap(); }}, 4000);
     } else {
       initLeafletMap();
     }
@@ -168,7 +170,6 @@
     GMAPS.directionsRenderer.setMap(GMAPS.map);
     GMAPS.geocoder = new google.maps.Geocoder();
 
-    // niente 'idle' per non chiudere popup/route
     GMAPS.map.addListener('dragend', renderMarkers);
     GMAPS.map.addListener('zoom_changed', renderMarkers);
 
@@ -232,7 +233,6 @@
   }
 
   function routeTo(dest){
-    // tenta posizione automatica; se negata, chiedi indirizzo; poi calcola
     const doCalc = (from)=> drawRouteGoogle(from, dest);
 
     if (!ORIGIN && navigator.geolocation){
@@ -383,7 +383,7 @@
           <button class="btn" id="chiudiRoute">Chiudi percorso</button>
           <button class="btn" id="cambiaOrigine">Cambia origine</button>
           <a class="btn" target="_blank" rel="noopener"
-             href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.lat+','+from.lng)}&destination=${encodeURIComponent(to.lat+','to.lng)}&travelmode=driving">Apri in Google Maps</a>
+             href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.lat+','+from.lng)}&destination=${encodeURIComponent(to.lat+','+to.lng)}&travelmode=driving">Apri in Google Maps</a>
         </div>
       </div>`;
     info.style.display='block';
@@ -522,7 +522,6 @@
   }
 
   function renderMarkers(){
-    // quando rendo i marker, prima pulisco marker e il percorso (come richiesto)
     clearRoute();
     if (USE_GMAPS){ gClearMarkers(); } else { lClearMarkers(); }
 
