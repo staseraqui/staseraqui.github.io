@@ -4,9 +4,10 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Pubblica evento — Stasera Qui</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=18">
+  <link rel="stylesheet" href="assets/style.css?v=20">
   <style>.modal{z-index:999999!important}</style>
-  <!-- Config chiavi -->
+
+  <!-- Config chiavi (DEVE esistere e contenere SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
   <script src="assets/app-config.js?v=1"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
@@ -14,6 +15,7 @@
 
 <header class="header">
   <div class="logo">
+    <!-- Logo approvato: pin azzurro + wordmark; dimensione pin regolata da CSS (.logo .pin) -->
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
       <circle cx="32" cy="24" r="9" fill="#ffffff"/>
@@ -152,12 +154,16 @@
   const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
   const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/create-checkout-session';
 
-  // ====== CATEGORIE: MODALE ======
+  // ====== CATEGORIE: MODALE (FUNZIONANTE) ======
   const btn = document.getElementById('categorieBtn');
   const wrap = document.getElementById('catBadges');
+
   const modal = document.createElement('div');
   modal.className='modal';
-  Object.assign(modal.style,{display:'none',position:'fixed',inset:'0',background:'rgba(0,0,0,.45)',alignItems:'center',justifyContent:'center',padding:'16px'});
+  Object.assign(modal.style,{
+    display:'none',position:'fixed',inset:'0',background:'rgba(0,0,0,.45)',
+    alignItems:'center',justifyContent:'center',padding:'16px'
+  });
   modal.innerHTML = '<div style="background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px;min-width:280px;max-width:900px">\
     <h3 style="margin:0 0 6px">Scegli categorie (multi)</h3>\
     <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px">\
@@ -172,23 +178,38 @@
   document.body.appendChild(modal);
 
   function renderCats(cats){ wrap.innerHTML=''; cats.forEach(c=>{ const b=document.createElement('span'); b.className='badge'; b.textContent=c; wrap.appendChild(b); }); }
+
   let cats=[];
   btn.addEventListener('click', ()=>{ modal.style.display='flex'; document.body.style.overflow='hidden'; });
-  modal.addEventListener('click', e=>{ if(e.target===modal){ modal.style.display='none'; document.body.style.overflow='auto'; }});
+
+  // chiudi clic su overlay
+  modal.addEventListener('click', e=>{
+    if(e.target===modal){ modal.style.display='none'; document.body.style.overflow='auto'; }
+  });
+
+  // toggle chip + stile
   modal.addEventListener('click', e=>{
     if(e.target.classList.contains('chip')){
       e.target.classList.toggle('active');
-      if(e.target.classList.contains('active')){ e.target.style.background='#22b3f0'; e.target.style.color='#081421'; e.target.style.borderColor='#22b3f0'; }
-      else { e.target.style.background='#17304d'; e.target.style.color='#d7f2ff'; e.target.style.borderColor='#2e6e8f'; }
+      if(e.target.classList.contains('active')){
+        e.target.style.background='#22b3f0'; e.target.style.color='#081421'; e.target.style.borderColor='#22b3f0';
+      }else{
+        e.target.style.background='#17304d'; e.target.style.color='#d7f2ff'; e.target.style.borderColor='#2e6e8f';
+      }
     }
   });
+
+  // conferma/azzera
   modal.querySelector('#catOk').addEventListener('click', ()=>{
     cats = Array.prototype.slice.call(modal.querySelectorAll('.chip.active')).map(ch=>ch.getAttribute('data-cat'));
-    renderCats(cats); modal.style.display='none'; document.body.style.overflow='auto';
+    renderCats(cats);
+    modal.style.display='none'; document.body.style.overflow='auto';
   });
   modal.querySelector('#catClear').addEventListener('click', ()=>{
     cats=[]; renderCats(cats);
-    Array.prototype.forEach.call(modal.querySelectorAll('.chip'), ch=>{ ch.classList.remove('active'); ch.style.background='#17304d'; ch.style.color='#d7f2ff'; ch.style.borderColor='#2e6e8f'; });
+    Array.prototype.forEach.call(modal.querySelectorAll('.chip'), ch=>{
+      ch.classList.remove('active'); ch.style.background='#17304d'; ch.style.color='#d7f2ff'; ch.style.borderColor='#2e6e8f';
+    });
   });
 
   // ====== CONTATTI ======
@@ -226,61 +247,37 @@
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
 
-  <script>
-/* ... il resto del file ... */
+  // Geocoding robusto (Italia)
+  async function geocode(indirizzo, citta){
+    const base = 'https://maps.googleapis.com/maps/api/geocode/json';
+    const makeUrl = (q, comp) =>
+      `${base}?address=${encodeURIComponent(q)}&components=${encodeURIComponent(comp)}&region=it&language=it&key=${GOOGLE_KEY}`;
 
-// --- SOSTITUISCI QUESTA FUNZIONE ---
-async function geocode(indirizzo, citta){
-  const base = 'https://maps.googleapis.com/maps/api/geocode/json';
-  const makeUrl = (q, comp) =>
-    `${base}?address=${encodeURIComponent(q)}&components=${encodeURIComponent(comp)}&region=it&language=it&key=${GOOGLE_KEY}`;
+    const tentativi = [
+      { q: `${indirizzo}, ${citta}`, comp: `locality:${citta}|country:IT` },
+      { q: `${indirizzo}, ${citta}`, comp: `locality:${citta.toLowerCase()==='torino'?'Turin':citta}|country:IT` },
+      { q: `${indirizzo}, ${citta}, Italia`, comp: `locality:${citta}|country:IT` },
+    ];
 
-  // Costruiamo vari tentativi “guidando” Google verso l’Italia e il comune.
-  const tentativi = [
-    { q: `${indirizzo}, ${citta}`, comp: `locality:${citta}|country:IT` },
-    // Per Torino (e altri casi), proviamo anche l’alias inglese
-    { q: `${indirizzo}, ${citta}`, comp: `locality:${citta.toLowerCase()==='torino'?'Turin':citta}|country:IT` },
-    // Aggiungiamo "Italia" esplicito
-    { q: `${indirizzo}, ${citta}, Italia`, comp: `locality:${citta}|country:IT` },
-  ];
-
-  let lastStatus = null, lastErr = null;
-
-  for(const t of tentativi){
-    try{
-      const res = await fetch(makeUrl(t.q, t.comp));
-      const j = await res.json();
-      if (j.status === 'OK' && j.results?.[0]?.geometry?.location) {
-        const g = j.results[0].geometry.location;
-        return { lat: g.lat, lng: g.lng };
-      } else {
-        lastStatus = j.status || 'UNKNOWN';
-        lastErr = j.error_message || null;
+    let lastStatus=null, lastErr=null;
+    for(const t of tentativi){
+      try{
+        const res = await fetch(makeUrl(t.q, t.comp));
+        const j = await res.json();
+        if (j.status === 'OK' && j.results?.[0]?.geometry?.location) {
+          const g = j.results[0].geometry.location;
+          return { lat: g.lat, lng: g.lng };
+        }else{
+          lastStatus = j.status || 'UNKNOWN';
+          lastErr = j.error_message || null;
+        }
+      }catch(e){
+        lastStatus = 'FETCH_ERROR';
+        lastErr = e?.message || String(e);
       }
-    }catch(e){
-      lastStatus = 'FETCH_ERROR';
-      lastErr = e?.message || String(e);
     }
+    throw new Error(`Geocoding fallito (${lastStatus}${lastErr? ' — '+lastErr:''})`);
   }
-
-  // Se arriviamo qui, tutti i tentativi sono falliti: alziamo un errore descrittivo.
-  const msg = `Geocoding fallito (${lastStatus}${lastErr? ` — ${lastErr}`:''})`;
-  throw new Error(msg);
-}
-// --- FINE FUNZIONE SOSTITUITA ---
-
-/* ... il resto del file ... */
-</script>
-  // 2° tentativo: aggiunge "Italia"
-  res = await fetch(makeUrl(`${indirizzo}, ${citta}, Italia`));
-  j = await res.json();
-  if (j.status === 'OK' && j.results?.[0]?.geometry?.location) {
-    const g = j.results[0].geometry.location;
-    return { lat: g.lat, lng: g.lng };
-  }
-
-  return null;
-}
 
   function collectOcc(){
     const occ=[];
@@ -346,17 +343,17 @@ async function geocode(indirizzo, citta){
       const pub = sb.storage.from('event-images').getPublicUrl(fname);
       const locandina_url = pub?.data?.publicUrl || '';
 
-      // 2) Geocoding per ogni occorrenza
+      // 2) Geocoding per ogni occorrenza (con errori espliciti)
       const occFull=[];
       for(const o of occ){
-try{
-  const g = await geocode(o.indirizzo, o.citta);
-  if(!g){ err.textContent = `Indirizzo non trovato per: ${o.indirizzo}, ${o.citta}`; return; }
-  occFull.push({ ...o, lat: g.lat, lng: g.lng });
-}catch(geoErr){
-  err.textContent = `Errore geocoding per: ${o.indirizzo}, ${o.citta} — ${geoErr.message}`;
-  return;
-}        occFull.push({ ...o, lat: g.lat, lng: g.lng });
+        try{
+          const g = await geocode(o.indirizzo, o.citta);
+          if(!g){ err.textContent = `Indirizzo non trovato per: ${o.indirizzo}, ${o.citta}`; return; }
+          occFull.push({ ...o, lat: g.lat, lng: g.lng });
+        }catch(geoErr){
+          err.textContent = `Errore geocoding per: ${o.indirizzo}, ${o.citta} — ${geoErr.message}`;
+          return;
+        }
       }
 
       // 3) Metadati per Stripe
@@ -371,7 +368,7 @@ try{
       const tipo = (occFull.length>1) ? 'multi' : 'single';
 
       // 4) Crea la sessione Checkout su Supabase Edge
-      const resp = await fetch( (SUPABASE_URL + '/functions/v1/create-checkout-session'), {
+      const resp = await fetch(EDGE_URL, {
         method:'POST',
         headers:{'content-type':'application/json'},
         body: JSON.stringify({ tipo, metadata })
