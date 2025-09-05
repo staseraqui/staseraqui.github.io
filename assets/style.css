@@ -52,3 +52,8 @@ a{color:var(--fg);text-decoration:none}
 .popup-actions .btn{min-width:160px;text-align:center}
 .btn.light{background:#ffd24d;border:1px solid #ccad33;color:#081421}
 .btn.light:hover{filter:brightness(1.05)}
+
+/* Bottoni nel popup: stessa dimensione + versione chiara per locandina */
+.popup-actions .btn{min-width:168px;text-align:center}
+.btn.light{background:#ffd24d;border:1px solid #ccad33;color:#081421}
+.btn.light:hover{filter:brightness(1.05)}
