@@ -349,9 +349,14 @@ async function geocode(indirizzo, citta){
       // 2) Geocoding per ogni occorrenza
       const occFull=[];
       for(const o of occ){
-        const g = await geocode(o.indirizzo, o.citta);
-        if(!g){ err.textContent=`Indirizzo non trovato per: ${o.indirizzo}, ${o.citta}`; return; }
-        occFull.push({ ...o, lat: g.lat, lng: g.lng });
+try{
+  const g = await geocode(o.indirizzo, o.citta);
+  if(!g){ err.textContent = `Indirizzo non trovato per: ${o.indirizzo}, ${o.citta}`; return; }
+  occFull.push({ ...o, lat: g.lat, lng: g.lng });
+}catch(geoErr){
+  err.textContent = `Errore geocoding per: ${o.indirizzo}, ${o.citta} — ${geoErr.message}`;
+  return;
+}        occFull.push({ ...o, lat: g.lat, lng: g.lng });
       }
 
       // 3) Metadati per Stripe
