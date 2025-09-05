@@ -7,7 +7,7 @@
 <link rel="icon" href="/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=9">
+<link rel="stylesheet" href="assets/style.css?v=10">
 
 <!-- Leaflet (fallback se NON usi Google Maps) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -151,7 +151,7 @@
       s.async = true; s.defer = true;
       s.onerror = ()=>{ console.warn('Caricamento Google Maps fallito. Uso OSM.'); USE_GMAPS=false; initLeafletMap(); };
       document.head.appendChild(s);
-      // Fallback di sicurezza: se Google non chiama il callback entro 4s, uso OSM
+      // Fallback di sicurezza
       setTimeout(()=>{ if(!GMAPS.map){ console.warn('Timeout Google Maps → uso OSM'); USE_GMAPS=false; initLeafletMap(); }}, 4000);
     } else {
       initLeafletMap();
@@ -411,7 +411,7 @@
       state.customDate = dpInput.value;
       state.day = null;
       setDateBadgeISO(state.customDate);
-      clearRoute();
+      clearRoute();     // pulisco percorso quando cambi data
       renderMarkers();
     }
     dpOverlay.style.display='none';
@@ -427,7 +427,7 @@
   $$('#dayPills .pill').forEach(p => p.addEventListener('click', ()=>{
     const k = p.getAttribute('data-day'); if(!k) return;
     state.day = k; state.customDate=null;
-    clearRoute();
+    clearRoute();      // pulisco percorso quando cambi filtro tempo
     const t = todayISO();
     if (k==='oggi')   setDateBadgeISO(t);
     if (k==='domani') setDateBadgeISO(addDays(t,1));
@@ -444,14 +444,14 @@
     ch.classList.toggle('active');
     const c = ch.getAttribute('data-cat');
     if (ch.classList.contains('active')) state.cats.add(c); else state.cats.delete(c);
-    clearRoute();
+    clearRoute();      // pulisco percorso quando cambi categorie
     renderMarkers();
   }));
 
   // Ricerca (solo su click o Invio)
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
-    clearRoute();
+    clearRoute();      // pulisco percorso quando fai una nuova ricerca
     if (state.query){
       if (USE_GMAPS){
         GMAPS.geocoder.geocode({address:state.query}, (res, status)=>{
@@ -522,7 +522,7 @@
   }
 
   function renderMarkers(){
-    clearRoute();
+    // 🔴 NON cancelliamo più il percorso qui, così non sparisce dopo il fitBounds
     if (USE_GMAPS){ gClearMarkers(); } else { lClearMarkers(); }
 
     const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
