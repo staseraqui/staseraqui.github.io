@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Pubblica evento — Stasera Qui</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=20">
+  <link rel="stylesheet" href="assets/style.css?v=21">
   <style>.modal{z-index:999999!important}</style>
 
   <!-- Config chiavi (DEVE esistere e contenere SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
@@ -15,7 +15,7 @@
 
 <header class="header">
   <div class="logo">
-    <!-- Logo approvato: pin azzurro + wordmark; dimensione pin regolata da CSS (.logo .pin) -->
+    <!-- Logo approvato: pin azzurro + wordmark; la dimensione pin è nel CSS (.logo .pin) -->
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
       <circle cx="32" cy="24" r="9" fill="#ffffff"/>
@@ -154,7 +154,24 @@
   const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
   const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/create-checkout-session';
 
-  // ====== CATEGORIE: MODALE (FUNZIONANTE) ======
+  // ====== CARICAMENTO Google Maps JS (per usare il Geocoder con referrer restrictions) ======
+  let mapsLoadedPromise = null;
+  function loadGoogleMaps(){
+    if (window.google && window.google.maps) return Promise.resolve();
+    if (mapsLoadedPromise) return mapsLoadedPromise;
+    mapsLoadedPromise = new Promise((resolve, reject)=>{
+      if(!GOOGLE_KEY){ reject(new Error('Manca GOOGLE_MAPS_API_KEY in assets/app-config.js')); return; }
+      const s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GOOGLE_KEY)+'&libraries=places&v=quarterly';
+      s.async = true; s.defer = true;
+      s.onload = ()=> resolve();
+      s.onerror = ()=> reject(new Error('Caricamento Google Maps JS fallito'));
+      document.head.appendChild(s);
+    });
+    return mapsLoadedPromise;
+  }
+
+  // ====== CATEGORIE: MODALE ======
   const btn = document.getElementById('categorieBtn');
   const wrap = document.getElementById('catBadges');
 
@@ -247,36 +264,31 @@
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
 
-  // Geocoding robusto (Italia)
+  // Geocoding con Google Maps JS (funziona con chiave limitata per referrer)
   async function geocode(indirizzo, citta){
-    const base = 'https://maps.googleapis.com/maps/api/geocode/json';
-    const makeUrl = (q, comp) =>
-      `${base}?address=${encodeURIComponent(q)}&components=${encodeURIComponent(comp)}&region=it&language=it&key=${GOOGLE_KEY}`;
+    await loadGoogleMaps(); // assicura che google.maps sia disponibile
+    const geocoder = new google.maps.Geocoder();
 
     const tentativi = [
-      { q: `${indirizzo}, ${citta}`, comp: `locality:${citta}|country:IT` },
-      { q: `${indirizzo}, ${citta}`, comp: `locality:${citta.toLowerCase()==='torino'?'Turin':citta}|country:IT` },
-      { q: `${indirizzo}, ${citta}, Italia`, comp: `locality:${citta}|country:IT` },
+      { address: `${indirizzo}, ${citta}`, componentRestrictions: { country: 'IT', locality: citta } },
+      { address: `${indirizzo}, ${citta}`, componentRestrictions: { country: 'IT' } },
+      { address: `${indirizzo}, ${citta}, Italia`, componentRestrictions: { country: 'IT' } },
     ];
 
-    let lastStatus=null, lastErr=null;
-    for(const t of tentativi){
-      try{
-        const res = await fetch(makeUrl(t.q, t.comp));
-        const j = await res.json();
-        if (j.status === 'OK' && j.results?.[0]?.geometry?.location) {
-          const g = j.results[0].geometry.location;
-          return { lat: g.lat, lng: g.lng };
-        }else{
-          lastStatus = j.status || 'UNKNOWN';
-          lastErr = j.error_message || null;
-        }
-      }catch(e){
-        lastStatus = 'FETCH_ERROR';
-        lastErr = e?.message || String(e);
-      }
+    for (const t of tentativi){
+      const res = await new Promise((resolve)=> {
+        geocoder.geocode(t, (results, status)=>{
+          if(status === 'OK' && results && results[0] && results[0].geometry && results[0].geometry.location){
+            const loc = results[0].geometry.location;
+            resolve({ ok:true, lat: loc.lat(), lng: loc.lng() });
+          } else {
+            resolve({ ok:false, status });
+          }
+        });
+      });
+      if(res.ok) return { lat: res.lat, lng: res.lng };
     }
-    throw new Error(`Geocoding fallito (${lastStatus}${lastErr? ' — '+lastErr:''})`);
+    throw new Error('Geocoding fallito (Google Maps JS)');
   }
 
   function collectOcc(){
@@ -343,7 +355,7 @@
       const pub = sb.storage.from('event-images').getPublicUrl(fname);
       const locandina_url = pub?.data?.publicUrl || '';
 
-      // 2) Geocoding per ogni occorrenza (con errori espliciti)
+      // 2) Geocoding per ogni occorrenza (con Maps JS)
       const occFull=[];
       for(const o of occ){
         try{
