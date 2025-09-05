@@ -7,7 +7,7 @@
 <link rel="icon" href="/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="stylesheet" href="assets/style.css?v=8">
 
 <!-- Leaflet (fallback se NON usi Google Maps) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -29,8 +29,8 @@
   #routeInfo{position:fixed;left:16px;right:16px;bottom:16px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 12px;display:none;z-index:10000}
   .popup-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
-  /* Datepicker overlay (compatibile Mac/iPhone, no zoom) */
-  #dpOverlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-start;justify-content:center;z-index:9999}
+  /* Datepicker overlay (compatibile Mac/iPhone, senza bottone OK) */
+  #dpOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;z-index:9999}
   #dpBox{margin-top:80px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px}
   #dpInput{font-size:17px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#081421}
   #dpBtns{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
@@ -91,7 +91,7 @@
   <!-- Contatore + lista -->
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div id="counter" class="small">—</div>
-    <button class="btn" id="listBtn" type="button">Mostra lista eventi visibili</button>
+    <button class="btn light" id="listBtn" type="button">Mostra lista eventi visibili</button>
   </div>
 
   <!-- Mappa -->
@@ -107,13 +107,12 @@
 <!-- Banner percorso -->
 <div id="routeInfo"></div>
 
-<!-- Datepicker overlay -->
+<!-- Datepicker overlay (solo scelta + chiusura automatica) -->
 <div id="dpOverlay">
   <div id="dpBox">
     <input type="date" id="dpInput">
     <div id="dpBtns">
       <button class="btn" id="dpAnnulla" type="button">Annulla</button>
-      <button class="btn" id="dpOK" type="button">OK</button>
     </div>
   </div>
 </div>
@@ -169,7 +168,7 @@
     GMAPS.directionsRenderer.setMap(GMAPS.map);
     GMAPS.geocoder = new google.maps.Geocoder();
 
-    // NIENTE più 'idle' (era la causa della chiusura popup/route). Usiamo dragend/zoom_changed.
+    // niente 'idle' per non chiudere popup/route
     GMAPS.map.addListener('dragend', renderMarkers);
     GMAPS.map.addListener('zoom_changed', renderMarkers);
 
@@ -190,18 +189,18 @@
         path: 'M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z',
         anchor: new google.maps.Point(32,64),
         fillColor:'#22b3f0', fillOpacity:1,
-        strokeColor:'#ffffff', strokeWeight:2,
-        scale:0.75
+        strokeColor:'#ffffff', strokeWeight:3,
+        scale:0.85
       }
     });
 
     const html = `
-      <div>
+      <div style="color:#081421;max-width:300px">
         <b>${ev.title||ev.titolo||'(evento)'}</b><br>
-        <small>${cats}</small><br>
+        <small>${cats||''}</small><br>
         ${when}<br>${where}
         ${descr? `<br><br>${descr}`:''}
-        <div class="popup-actions">
+        <div class="popup-actions" style="margin-top:10px">
           <button class="btn" data-calc="1">Calcola percorso</button>
           ${posterHTML}
         </div>
@@ -210,7 +209,6 @@
     m.addListener('click', ()=>{
       GMAPS.infowindow.setContent(html);
       GMAPS.infowindow.open(GMAPS.map, m);
-      // aggancia l'azione dopo che il DOM del popup è pronto
       setTimeout(()=>{
         const btn=document.querySelector('button[data-calc="1"]');
         if(btn){ btn.onclick = ()=> routeTo({lat:occ.lat,lng:occ.lng,label:where}); }
@@ -222,35 +220,41 @@
   function gClearMarkers(){
     markers.forEach(m=>m.setMap(null));
     markers=[];
-    // NON tocchiamo più GMAPS.directionsRenderer qui: così il percorso resta visibile.
-    $('#routeInfo').style.display='none'; // lo nascondo solo quando chiudi percorso esplicitamente
+  }
+
+  function clearRoute(){
+    if (USE_GMAPS){
+      GMAPS.directionsRenderer.set('directions', null);
+    } else if (LEAF.routeLayer){
+      LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null;
+    }
+    $('#routeInfo').style.display='none';
   }
 
   function routeTo(dest){
-    // prova geolocalizzazione automatica; se negata, chiedi indirizzo
-    if (!ORIGIN){
-      if (navigator.geolocation){
-        navigator.geolocation.getCurrentPosition(pos=>{
-          ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
-          drawRouteGoogle(ORIGIN, dest);
-        }, _=>{
-          const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
-          if (ask && ask.trim()){
-            GMAPS.geocoder.geocode({address:ask.trim()}, (res, status)=>{
-              if(status==='OK' && res[0]){
-                ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
-                drawRouteGoogle(ORIGIN, dest);
-              } else { window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank'); }
-            });
-          } else {
-            window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
-          }
-        });
-        return;
-      }
+    // tenta posizione automatica; se negata, chiedi indirizzo; poi calcola
+    const doCalc = (from)=> drawRouteGoogle(from, dest);
+
+    if (!ORIGIN && navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(pos=>{
+        ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
+        doCalc(ORIGIN);
+      }, _=>{
+        const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
+        if (ask && ask.trim()){
+          GMAPS.geocoder.geocode({address:ask.trim()}, (res, status)=>{
+            if(status==='OK' && res[0]){
+              ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
+              doCalc(ORIGIN);
+            } else { window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank'); }
+          });
+        } else {
+          window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
+        }
+      });
+      return;
     }
-    // se ORIGIN già esiste o non c'è geoloc
-    if (ORIGIN){ drawRouteGoogle(ORIGIN, dest); }
+    if (ORIGIN){ doCalc(ORIGIN); }
   }
 
   function drawRouteGoogle(from, to){
@@ -278,7 +282,7 @@
           </div>
         </div>`;
       info.style.display='block';
-      $('#chiudiRoute').onclick = ()=>{ GMAPS.directionsRenderer.set('directions', null); info.style.display='none'; };
+      $('#chiudiRoute').onclick = ()=> clearRoute();
       $('#cambiaOrigine').onclick = ()=>{
         const ask = prompt('Nuova origine (indirizzo):', from.label||'');
         if (ask && ask.trim()){
@@ -322,12 +326,12 @@
     const posterHTML = ev.locandina_url ? `<a class="btn light" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>` : '';
 
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
-    const html = `<div>
+    const html = `<div style="color:#081421;max-width:300px">
       <b>${ev.title||ev.titolo||'(evento)'}</b><br>
-      <small>${cats}</small><br>
+      <small>${cats||''}</small><br>
       ${when}<br>${where}
       ${descr? `<br><br>${descr}`:''}
-      <div class="popup-actions">
+      <div class="popup-actions" style="margin-top:10px">
          <button class="btn" data-calc="1">Calcola percorso</button>
          ${posterHTML}
       </div>
@@ -342,7 +346,6 @@
   function lClearMarkers(){
     markers.forEach(m=>LEAF.map.removeLayer(m));
     markers=[];
-    // NON rimuovo LEAF.routeLayer qui
   }
 
   async function geocodeAddrOSM(addr){
@@ -380,11 +383,11 @@
           <button class="btn" id="chiudiRoute">Chiudi percorso</button>
           <button class="btn" id="cambiaOrigine">Cambia origine</button>
           <a class="btn" target="_blank" rel="noopener"
-             href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.lat+','+from.lng)}&destination=${encodeURIComponent(to.lat+','+to.lng)}&travelmode=driving">Apri in Google Maps</a>
+             href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.lat+','+from.lng)}&destination=${encodeURIComponent(to.lat+','to.lng)}&travelmode=driving">Apri in Google Maps</a>
         </div>
       </div>`;
     info.style.display='block';
-    $('#chiudiRoute').onclick = ()=>{ if(LEAF.routeLayer){LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null;} info.style.display='none'; };
+    $('#chiudiRoute').onclick = ()=> clearRoute();
     $('#cambiaOrigine').onclick = async ()=>{
       const ask = prompt('Nuova origine (indirizzo):', from.label||'');
       if(!ask) return;
@@ -395,7 +398,7 @@
     };
   }
 
-  // ====== DATEPICKER OVERLAY (compatibile Mac/iPhone) ======
+  // ====== DATEPICKER OVERLAY (senza OK: conferma al volo) ======
   const dpOverlay = $('#dpOverlay'), dpInput = $('#dpInput');
   $('#selDataBtn').addEventListener('click', ()=>{
     dpInput.value = state.customDate || todayISO();
@@ -403,11 +406,12 @@
     setTimeout(()=>dpInput.focus(),0);
   });
   $('#dpAnnulla').addEventListener('click', ()=> dpOverlay.style.display='none');
-  $('#dpOK').addEventListener('click', ()=>{
+  dpInput.addEventListener('change', ()=>{
     if (dpInput.value){
       state.customDate = dpInput.value;
       state.day = null;
       setDateBadgeISO(state.customDate);
+      clearRoute();
       renderMarkers();
     }
     dpOverlay.style.display='none';
@@ -423,6 +427,7 @@
   $$('#dayPills .pill').forEach(p => p.addEventListener('click', ()=>{
     const k = p.getAttribute('data-day'); if(!k) return;
     state.day = k; state.customDate=null;
+    clearRoute();
     const t = todayISO();
     if (k==='oggi')   setDateBadgeISO(t);
     if (k==='domani') setDateBadgeISO(addDays(t,1));
@@ -439,12 +444,14 @@
     ch.classList.toggle('active');
     const c = ch.getAttribute('data-cat');
     if (ch.classList.contains('active')) state.cats.add(c); else state.cats.delete(c);
+    clearRoute();
     renderMarkers();
   }));
 
   // Ricerca (solo su click o Invio)
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
+    clearRoute();
     if (state.query){
       if (USE_GMAPS){
         GMAPS.geocoder.geocode({address:state.query}, (res, status)=>{
@@ -515,7 +522,9 @@
   }
 
   function renderMarkers(){
-    if (USE_GMAPS){ gClearMarkers(); } else { lClearMarkers(); if(LEAF.routeLayer){/* lascio il percorso */} $('#routeInfo').style.display='none'; }
+    // quando rendo i marker, prima pulisco marker e il percorso (come richiesto)
+    clearRoute();
+    if (USE_GMAPS){ gClearMarkers(); } else { lClearMarkers(); }
 
     const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
     const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds.contains([lat,lng]);
