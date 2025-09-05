@@ -227,14 +227,28 @@
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
 
   async function geocode(indirizzo, citta){
-    const full = encodeURIComponent((indirizzo||'')+', '+(citta||''));
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${full}&key=${GOOGLE_KEY}`;
-    const res = await fetch(url); const j = await res.json();
-    if(j.status==='OK' && j.results && j.results[0] && j.results[0].geometry){
-      const g=j.results[0].geometry.location; return {lat:g.lat, lng:g.lng};
-    }
-    return null;
+  const base = 'https://maps.googleapis.com/maps/api/geocode/json';
+  const makeUrl = (q) =>
+    `${base}?address=${encodeURIComponent(q)}&components=country:IT&region=it&language=it&key=${GOOGLE_KEY}`;
+
+  // 1° tentativo: "indirizzo, città"
+  let res = await fetch(makeUrl(`${indirizzo}, ${citta}`));
+  let j = await res.json();
+  if (j.status === 'OK' && j.results?.[0]?.geometry?.location) {
+    const g = j.results[0].geometry.location;
+    return { lat: g.lat, lng: g.lng };
   }
+
+  // 2° tentativo: aggiunge "Italia"
+  res = await fetch(makeUrl(`${indirizzo}, ${citta}, Italia`));
+  j = await res.json();
+  if (j.status === 'OK' && j.results?.[0]?.geometry?.location) {
+    const g = j.results[0].geometry.location;
+    return { lat: g.lat, lng: g.lng };
+  }
+
+  return null;
+}
 
   function collectOcc(){
     const occ=[];
