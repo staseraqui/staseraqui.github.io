@@ -7,7 +7,7 @@
 <link rel="icon" href="/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=5">
+<link rel="stylesheet" href="assets/style.css?v=7">
 
 <!-- Leaflet (fallback se NON usi Google Maps) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -28,6 +28,12 @@
   .pill.active,.chip.active{outline:3px solid #ffd24d;box-shadow:0 0 0 3px rgba(255,210,77,.25)}
   #routeInfo{position:fixed;left:16px;right:16px;bottom:16px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 12px;display:none;z-index:10000}
   .popup-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+  /* Datepicker overlay (compatibile Mac/iPhone, no zoom) */
+  #dpOverlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-start;justify-content:center;z-index:9999}
+  #dpBox{margin-top:80px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px}
+  #dpInput{font-size:17px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#081421}
+  #dpBtns{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
 </style>
 </head>
 <body>
@@ -56,7 +62,7 @@
 
   <!-- Ricerca -->
   <div class="search" style="gap:8px">
-    <input placeholder="Cerca città, zona o evento… (digita e poi premi Cerca)" id="searchInput">
+    <input placeholder="Cerca città, zona o evento… (digita e poi premi Cerca)" id="searchInput" autocomplete="off">
     <button class="btn" id="searchBtn" type="button">Cerca</button>
     <button class="btn" id="locBtn" type="button">📍 Usa la mia posizione</button>
   </div>
@@ -67,7 +73,6 @@
     <div class="pill" data-day="domani">Domani</div>
     <div class="pill" data-day="weekend">Weekend</div>
     <div class="pill" id="selDataBtn">Seleziona data</div>
-    <!-- Badge data scelta -->
     <span id="dateBadge" style="display:none"></span>
   </div>
 
@@ -102,15 +107,25 @@
 <!-- Banner percorso -->
 <div id="routeInfo"></div>
 
+<!-- Datepicker overlay -->
+<div id="dpOverlay">
+  <div id="dpBox">
+    <input type="date" id="dpInput">
+    <div id="dpBtns">
+      <button class="btn" id="dpAnnulla" type="button">Annulla</button>
+      <button class="btn" id="dpOK" type="button">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // ====== CONFIG ======
   const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';
   const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';
-  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // se lasci questa stringa, usiamo OSM
+  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // sostituisci solo qui
 
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
-  // Diagnostica: vedi in Console cosa viene usato
   const hasGoogleKey = GMAPS_API_KEY && !/^INSERISCI_/.test(GMAPS_API_KEY);
   console.log('Chiave Google presente?', hasGoogleKey);
 
@@ -154,70 +169,88 @@
     GMAPS.directionsRenderer.setMap(GMAPS.map);
     GMAPS.geocoder = new google.maps.Geocoder();
 
-    GMAPS.map.addListener('idle', renderMarkers);
+    // NIENTE più 'idle' (era la causa della chiusura popup/route). Usiamo dragend/zoom_changed.
+    GMAPS.map.addListener('dragend', renderMarkers);
+    GMAPS.map.addListener('zoom_changed', renderMarkers);
+
     loadData();
   };
 
-  function gAddMarker(occ, ev, where, when, descr, posterHTML){
+  function gAddMarker(occ, ev){
+    const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
+    const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
+    const cats  = (ev.categories||ev.categorie||[]).join(', ');
+    const descr = ev.description||ev.descrizione||'';
+    const posterHTML = ev.locandina_url ? `<a class="btn light" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>` : '';
+
     const m = new google.maps.Marker({
       position:{lat:occ.lat, lng:occ.lng},
       map: GMAPS.map,
       icon: {
         path: 'M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z',
         anchor: new google.maps.Point(32,64),
-        fillColor:'#22b3f0', fillOpacity:1, strokeWeight:0,
-        scale:0.5
+        fillColor:'#22b3f0', fillOpacity:1,
+        strokeColor:'#ffffff', strokeWeight:2,
+        scale:0.75
       }
     });
+
     const html = `
       <div>
-        <b>${ev.title||ev.titolo||'(evento)'}</b><br><small>${(ev.categories||ev.categorie||[]).join(', ')}</small><br>${when}<br>${where}
+        <b>${ev.title||ev.titolo||'(evento)'}</b><br>
+        <small>${cats}</small><br>
+        ${when}<br>${where}
         ${descr? `<br><br>${descr}`:''}
         <div class="popup-actions">
           <button class="btn" data-calc="1">Calcola percorso</button>
           ${posterHTML}
         </div>
       </div>`;
+
     m.addListener('click', ()=>{
       GMAPS.infowindow.setContent(html);
       GMAPS.infowindow.open(GMAPS.map, m);
-      setTimeout(()=>{ const btn=document.querySelector('button[data-calc="1"]'); if(btn){ btn.onclick = ()=> routeTo({lat:occ.lat,lng:occ.lng,label:where}); }},0);
+      // aggancia l'azione dopo che il DOM del popup è pronto
+      setTimeout(()=>{
+        const btn=document.querySelector('button[data-calc="1"]');
+        if(btn){ btn.onclick = ()=> routeTo({lat:occ.lat,lng:occ.lng,label:where}); }
+      },0);
     });
     markers.push(m);
   }
 
-  function gClear(){
-    markers.forEach(m=>m.setMap(null)); markers=[];
-    GMAPS.directionsRenderer.set('directions', null);
-    $('#routeInfo').style.display='none';
+  function gClearMarkers(){
+    markers.forEach(m=>m.setMap(null));
+    markers=[];
+    // NON tocchiamo più GMAPS.directionsRenderer qui: così il percorso resta visibile.
+    $('#routeInfo').style.display='none'; // lo nascondo solo quando chiudi percorso esplicitamente
   }
 
   function routeTo(dest){
-    if (!USE_GMAPS){ drawRouteLeaflet(ORIGIN, dest); return; }
+    // prova geolocalizzazione automatica; se negata, chiedi indirizzo
     if (!ORIGIN){
-      const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per usare la tua posizione):','');
-      if (ask && ask.trim()){
-        GMAPS.geocoder.geocode({address:ask.trim()}, (res, status)=>{
-          if(status==='OK' && res[0]){
-            ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
-            drawRouteGoogle(ORIGIN, dest);
-          } else { alert('Indirizzo di partenza non trovato.'); }
+      if (navigator.geolocation){
+        navigator.geolocation.getCurrentPosition(pos=>{
+          ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
+          drawRouteGoogle(ORIGIN, dest);
+        }, _=>{
+          const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
+          if (ask && ask.trim()){
+            GMAPS.geocoder.geocode({address:ask.trim()}, (res, status)=>{
+              if(status==='OK' && res[0]){
+                ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
+                drawRouteGoogle(ORIGIN, dest);
+              } else { window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank'); }
+            });
+          } else {
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
+          }
         });
         return;
-      } else {
-        if (navigator.geolocation){
-          navigator.geolocation.getCurrentPosition(pos=>{
-            ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
-            drawRouteGoogle(ORIGIN, dest);
-          }, _=> window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank'));
-        } else {
-          window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
-        }
-        return;
       }
-    } else {
-      drawRouteGoogle(ORIGIN, dest);
     }
+    // se ORIGIN già esiste o non c'è geoloc
+    if (ORIGIN){ drawRouteGoogle(ORIGIN, dest); }
   }
 
   function drawRouteGoogle(from, to){
@@ -269,48 +302,47 @@
 
     LEAF.pinIcon = L.divIcon({
       className:'sq-pin',
-      html:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="28" height="32" style="display:block">
-              <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="currentColor"/>
+      html:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="30" height="34" style="display:block;filter:drop-shadow(0 0 2px #fff)">
+              <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="currentColor" stroke="#ffffff" stroke-width="2"/>
               <circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>`,
-      iconSize:[28,32], iconAnchor:[14,32], popupAnchor:[0,-30]
+      iconSize:[30,34], iconAnchor:[15,34], popupAnchor:[0,-30]
     });
 
-    LEAF.map.on('moveend', renderMarkers);
+    LEAF.map.on('dragend', renderMarkers);
     LEAF.map.on('zoomend', renderMarkers);
-
-    // Geolocalizzazione via bottone (fallback + prompt chiaro)
-    $('#locBtn').addEventListener('click', ()=>{
-      if (!navigator.geolocation){ alert('Geolocalizzazione non disponibile.'); return; }
-      navigator.geolocation.getCurrentPosition(pos=>{
-        ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
-        LEAF.map.setView([ORIGIN.lat, ORIGIN.lng], 13);
-      }, _=>{
-        const ask = prompt('Geolocalizzazione bloccata. Scrivi un indirizzo di partenza:','Torino');
-        if (!ask) return;
-        geocodeAddrOSM(ask).then(g=>{
-          if (!g) return alert('Indirizzo non trovato.');
-          ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
-          LEAF.map.setView([ORIGIN.lat, ORIGIN.lng], 13);
-        });
-      });
-    });
 
     loadData();
   }
 
-  function lAddMarker(occ, ev, where, when, descr, posterHTML){
+  function lAddMarker(occ, ev){
+    const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
+    const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
+    const cats  = (ev.categories||ev.categorie||[]).join(', ');
+    const descr = ev.description||ev.descrizione||'';
+    const posterHTML = ev.locandina_url ? `<a class="btn light" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>` : '';
+
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
-    const html = `<b>${ev.title||ev.titolo||'(evento)'}</b><br><small>${(ev.categories||ev.categorie||[]).join(', ')}</small><br>${when}<br>${where}`+
-      (descr? `<br><br>${descr}`:'')+
-      `<div class="popup-actions">
+    const html = `<div>
+      <b>${ev.title||ev.titolo||'(evento)'}</b><br>
+      <small>${cats}</small><br>
+      ${when}<br>${where}
+      ${descr? `<br><br>${descr}`:''}
+      <div class="popup-actions">
          <button class="btn" data-calc="1">Calcola percorso</button>
          ${posterHTML}
-       </div>`;
+      </div>
+    </div>`;
     m.bindPopup(html).on('popupopen', ()=>{
       const btn = document.querySelector('button[data-calc="1"]');
       if(btn){ btn.onclick = ()=> drawRouteLeaflet(ORIGIN, {lat:occ.lat,lng:occ.lng,label:where}); }
     });
     markers.push(m);
+  }
+
+  function lClearMarkers(){
+    markers.forEach(m=>LEAF.map.removeLayer(m));
+    markers=[];
+    // NON rimuovo LEAF.routeLayer qui
   }
 
   async function geocodeAddrOSM(addr){
@@ -321,7 +353,6 @@
   }
 
   async function drawRouteLeaflet(from, to){
-    const info = $('#routeInfo');
     if (!from){
       const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza:','Torino');
       if (!ask) return;
@@ -340,6 +371,7 @@
     LEAF.map.fitBounds(LEAF.routeLayer.getBounds(), {padding:[40,40]});
 
     const km = (route.distance/1000).toFixed(1), min = Math.round(route.duration/60);
+    const info = $('#routeInfo');
     info.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
         <div><b>Percorso</b> — <span class="small">${from.label||'Origine'} → ${to.label||'Destinazione'}</span><br>
@@ -363,45 +395,24 @@
     };
   }
 
-  // ====== DATEPICKER COMPATIBILE (iPhone e Mac) ======
-  function openDatePicker(){
-    // crea un input temporaneo visibile e con font >=16px (evita zoom su iPhone)
-    const tmp = document.createElement('input');
-    tmp.type = 'date';
-    tmp.id = 'tmpDate';
-    tmp.style.position = 'absolute';
-    tmp.style.zIndex = '9999';
-    tmp.style.fontSize = '16px';
-    // posizionalo vicino al bottone
-    const btn = $('#selDataBtn');
-    const r = btn.getBoundingClientRect();
-    tmp.style.left = (r.left + window.scrollX) + 'px';
-    tmp.style.top  = (r.bottom + window.scrollY + 6) + 'px';
-    document.body.appendChild(tmp);
-
-    // apri il picker
-    setTimeout(()=>{
-      if (tmp.showPicker) tmp.showPicker(); else tmp.focus();
-    }, 0);
-
-    // quando l’utente sceglie una data → aggiorna stato, mostra badge, ricalcola marker
-    tmp.addEventListener('change', ()=>{
-      if (tmp.value){
-        state.customDate = tmp.value;
-        state.day = null;
-        setDateBadgeISO(state.customDate);
-        renderMarkers();
-      }
-      cleanup();
-    });
-
-    // se esce senza scegliere
-    tmp.addEventListener('blur', ()=>{ setTimeout(cleanup, 200); });
-
-    function cleanup(){
-      if (tmp && tmp.parentNode) tmp.parentNode.removeChild(tmp);
+  // ====== DATEPICKER OVERLAY (compatibile Mac/iPhone) ======
+  const dpOverlay = $('#dpOverlay'), dpInput = $('#dpInput');
+  $('#selDataBtn').addEventListener('click', ()=>{
+    dpInput.value = state.customDate || todayISO();
+    dpOverlay.style.display='flex';
+    setTimeout(()=>dpInput.focus(),0);
+  });
+  $('#dpAnnulla').addEventListener('click', ()=> dpOverlay.style.display='none');
+  $('#dpOK').addEventListener('click', ()=>{
+    if (dpInput.value){
+      state.customDate = dpInput.value;
+      state.day = null;
+      setDateBadgeISO(state.customDate);
+      renderMarkers();
     }
-  }
+    dpOverlay.style.display='none';
+  });
+  dpOverlay.addEventListener('click', (e)=>{ if(e.target===dpOverlay) dpOverlay.style.display='none'; });
 
   function setDateBadgeISO(d1, d2){
     $('#dateBadge').style.display='inline-block';
@@ -422,11 +433,6 @@
     }
     renderMarkers();
   }));
-
-  // Bottone "Seleziona data" → apre il datepicker temporaneo (compatibile Mac/iPhone)
-  document.addEventListener('click', (e)=>{
-    if (e.target && e.target.id==='selDataBtn'){ openDatePicker(); }
-  });
 
   // Categorie
   $$('#chips .chip').forEach(ch => ch.addEventListener('click', ()=>{
@@ -456,7 +462,7 @@
   });
   $('#searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') $('#searchBtn').click(); });
 
-  // Geolocalizzazione (bottone esplicito)
+  // Geolocalizzazione bottone
   $('#locBtn').addEventListener('click', ()=>{
     if (!navigator.geolocation){ alert('Geolocalizzazione non disponibile.'); return; }
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -479,7 +485,7 @@
     });
   });
 
-  // ====== LOGICA FILTRI ======
+  // ====== FILTRI LOGICA ======
   function occPassesFilters(occ){
     if (state.day==='oggi'   && occ.data!==todayISO()) return false;
     if (state.day==='domani' && occ.data!==addDays(todayISO(),1)) return false;
@@ -509,8 +515,7 @@
   }
 
   function renderMarkers(){
-    // pulizia
-    if (USE_GMAPS){ gClear(); } else { markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; if(LEAF.routeLayer){LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null;} $('#routeInfo').style.display='none'; }
+    if (USE_GMAPS){ gClearMarkers(); } else { lClearMarkers(); if(LEAF.routeLayer){/* lascio il percorso */} $('#routeInfo').style.display='none'; }
 
     const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
     const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds.contains([lat,lng]);
@@ -521,13 +526,7 @@
       if (!occPassesFilters(occ)) return;
 
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
-      const when = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
-      const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
-      const descr = ev.description||ev.descrizione||'';
-      const posterHTML = ev.locandina_url ? `<a class="btn light" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>` : '';
-
-      if (USE_GMAPS) gAddMarker(occ, ev, where, when, descr, posterHTML);
-      else lAddMarker(occ, ev, where, when, descr, posterHTML);
+      if (USE_GMAPS) gAddMarker(occ, ev); else lAddMarker(occ, ev);
     });
     updateCounter();
   }
