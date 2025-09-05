@@ -5,7 +5,7 @@
 <title>Admin — Stasera Qui</title>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css?v=14">
-<!-- carica la configurazione -->
+<!-- config con SUPABASE_URL e SUPABASE_ANON -->
 <script src="assets/app-config.js?v=1"></script>
 <!-- supabase -->
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
@@ -46,10 +46,12 @@
         <span id="status" class="muted">Non connesso</span>
       </div>
     </div>
-    <div class="btn-row" style="margin-top:10px">
-  <a class="btn" href="admin-seleziona.html" target="_blank">Apri mappa per eliminare eventi</a>
-</div>  
     <p class="tiny">Non servono più URL/Key: sono lette da <code>assets/app-config.js</code>.</p>
+
+    <!-- 🔹 TASTO RICHIESTO: link rapido alla mappa per eliminare eventi -->
+    <div class="btn-row" style="margin-top:10px">
+      <a class="btn" href="admin-seleziona.html" target="_blank">Apri mappa per eliminare eventi</a>
+    </div>
   </div>
 
   <div class="card">
