@@ -2,105 +2,79 @@
   --bg:#0b1828;
   --fg:#ffffff;
   --muted:#b8c2ce;
-  --accent:#22b3f0;
+  --accent:#22b3f0;         /* azzurro brand (pin/mappa) */
+  --primary:#ffd54f;        /* giallo bottoni primari */
+  --primary-border:#f0c43c; /* bordo giallo */
+  --panel:#0f1c2d;          /* card/pannelli */
+  --panel-border:rgba(255,255,255,.12);
+  --field:#ffffff;          /* sfondo input chiaro */
+  --field-text:#1c2a3a;
 }
+
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font:16px/1.45 Rubik, system-ui, -apple-system, Segoe UI, Roboto, 'DejaVu Sans', sans-serif}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+  font:16px/1.45 Rubik, system-ui, -apple-system, Segoe UI, Roboto, 'DejaVu Sans', sans-serif}
 a{color:var(--fg);text-decoration:none}
 
-.header{display:flex;align-items:center;gap:14px;padding:14px 16px;background:#0b1828;position:sticky;top:0;z-index:10;border-bottom:1px solid rgba(255,255,255,.05)}
-.header img{height:36px}
-.header .payoff{color:var(--muted);font-size:12px;margin-top:-4px}
+.header{display:flex;align-items:center;gap:14px;padding:14px 16px;background:#0b1828;
+  position:sticky;top:0;z-index:10;border-bottom:1px solid rgba(255,255,255,.05)}
+/* Logo approvato: pin a goccia azzurro + wordmark, pin alto 0.8 della scritta, allineamento orizzontale */
+.logo{display:flex;align-items:center;gap:10px}
+.logo .wordmark{font-weight:700;font-size:28px;line-height:1}
+.logo .pin{display:inline-block;height:.8em;/* 0.8 x altezza scritta */ width:auto}
 
 .container{padding:16px;max-width:980px;margin:0 auto}
-
 .search{display:flex;gap:10px;margin:14px 0 10px}
-.search input{flex:1;padding:14px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:#fff;color:#1c2a3a}
+.search input{flex:1;padding:14px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.15);
+  background:#fff;color:#1c2a3a}
 
 .pills{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
-.pill{background:#fff;color:#081421;border-radius:40px;padding:10px 18px;font-weight:700;cursor:pointer}
+.pill{background:#fff;color:#081421;border-radius:40px;padding:10px 18px;font-weight:700;
+  border:2px solid transparent;cursor:pointer;user-select:none}
+.pill.active{border-color:var(--primary)}
 
 .chips{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 16px}
-.chip{background:var(--accent);color:#fff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none}
-.chip.active{outline:2px solid #fff8}
+.chip{background:var(--accent);color:#081421;border-radius:28px;padding:10px 18px;font-weight:700;
+  cursor:pointer;user-select:none;border:2px solid transparent}
+.chip.active{border-color:#fff}
 
 .map{height:420px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.1);margin-bottom:16px}
 .leaflet-container{background:#eaf2f6}
 
-.cta-row{display:flex;gap:10px;margin:10px 0 30px}
-.cta{flex:1;text-align:center;background:#111f31;border:1px solid rgba(255,255,255,.1);color:#fff;padding:14px;border-radius:12px;font-weight:700}
-
-/* ---------- LOGO: proporzioni fisse (pin 28px, wordmark 35px) ---------- */
-.logo{display:flex;align-items:center;gap:8px;height:72px;text-decoration:none}
-.logo .pin{height:28px;display:block}
-.logo .wordmark{font-size:35px;line-height:1;font-weight:700;letter-spacing:0.2px}
+.cta-row{display:flex;gap:10px;margin:10px 0 30px;justify-content:center}
+.cta{flex:1;max-width:300px;text-align:center;background:#111f31;border:1px solid rgba(255,255,255,.1);color:#fff;
+  padding:14px;border-radius:12px}
+.cta.primary{background:var(--primary);border:2px solid var(--primary-border);color:#081421;font-weight:800}
+.cta.accent{background:var(--accent);border:2px solid #1fa2d8;color:#081421;font-weight:800}
 
 .footer{color:var(--muted);text-align:center;padding:30px 10px 60px}
-.btn{background:#111f31;border:1px solid rgba(255,255,255,.1);padding:10px 14px;border-radius:10px;color:#fff;display:inline-block}
+
+.btn{display:inline-block;cursor:pointer;border-radius:10px;padding:10px 14px;font-weight:800;
+  border:2px solid rgba(255,255,255,.15);background:#111f31;color:#fff}
+.btn.primary{background:var(--primary);border-color:var(--primary-border);color:#081421}
+.btn.secondary{background:#111f31;border-color:rgba(255,255,255,.25);color:#fff}
+.btn.accent{background:var(--accent);border-color:#1fa2d8;color:#081421}
+
 .small{font-size:13px;color:var(--muted)}
 
-/* Evidenza selezioni (pills + chips) */
-.pill.active,.chip.active{outline:3px solid #ffd24d;box-shadow:0 0 0 3px rgba(255,210,77,.25)}
+/* ---- CARD / FORM LAYOUT (Pubblica evento) ---- */
+.card{background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;padding:16px;margin:12px 0}
+.block-title{margin:18px 0 10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:720px){ .grid{grid-template-columns:1fr} }
 
-/* ---------- CTA COLORATE (giallo + azzurro, ben visibili) ---------- */
-.cta.primary{background:#ffd24d!important;border:1px solid #ccad33!important;color:#081421!important;box-shadow:0 2px 10px rgba(255,210,77,.15)}
-.cta.accent{background:#22b3f0!important;border:1px solid #1386b5!important;color:#081421!important;box-shadow:0 2px 10px rgba(34,179,240,.15)}
-.cta.primary:hover,.cta.accent:hover{filter:brightness(1.05)}
-.cta.primary:active,.cta.accent:active{transform:translateY(1px)}
-
-/* Bottoni nel popup: stessa dimensione + versione chiara per locandina */
-.popup-actions .btn{min-width:160px;text-align:center}
-.btn.light{background:#ffd24d;border:1px solid #ccad33;color:#081421}
-.btn.light:hover{filter:brightness(1.05)}
-
-/* Bottoni nel popup: stessa dimensione + versione chiara per locandina */
-.popup-actions .btn{min-width:168px;text-align:center}
-
-/* === OVERRIDE VISIBILITÀ BOTTONI (più contrasto) === */
-:root{
-  --btn-yellow: #ffd54f;
-  --btn-yellow-dark: #f0c43c;
-  --btn-text: #081421;
-  --btn-outline: #ffdf80;
-  --accent: #22b3f0; /* lasciamo l'azzurro come accento */
+label{display:block;margin:4px 0 6px}
+input, textarea, select{
+  width:100%; background:var(--field); color:var(--field-text);
+  border:1px solid rgba(0,0,0,.18); border-radius:10px; padding:12px 14px;
 }
+textarea{min-height:120px;resize:vertical}
+.badge{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;
+  padding:6px 10px;border-radius:999px;margin:6px 6px 0 0;font-size:13px}
+.note{color:var(--muted);font-size:13px;margin:8px 0 0}
+.divider{border:none;border-top:1px solid rgba(255,255,255,.1);margin:18px 0}
+.footer-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:12px}
+.err{color:#ff9a9a;font-weight:700;margin-top:8px}
 
-/* Bottoni generici */
-.btn{
-  background: var(--btn-yellow);
-  color: var(--btn-text);
-  border: 2px solid var(--btn-yellow-dark);
-  font-weight: 700;
-  padding: 12px 16px;
-  border-radius: 12px;
-  cursor: pointer;
-}
-.btn:hover{ background: var(--btn-yellow-dark); }
-.btn:focus{ outline: 3px solid var(--btn-outline); outline-offset: 2px; }
-
-/* Varianti */
-.btn.primary{ background: var(--btn-yellow); border-color: var(--btn-yellow-dark); color: var(--btn-text); }
-.btn.secondary{
-  background: transparent;
-  color: var(--btn-yellow);
-  border: 2px solid var(--btn-yellow);
-}
-.btn.secondary:hover{ border-color: var(--btn-yellow-dark); color: var(--btn-yellow-dark); }
-
-/* Call-to-action della Home */
-.cta{
-  border-radius: 12px;
-  border: 2px solid transparent;
-  font-weight: 800;
-  padding: 14px 18px;
-}
-.cta.primary{ background: var(--btn-yellow); color: var(--btn-text); border-color: var(--btn-yellow-dark); }
-.cta.primary:hover{ background: var(--btn-yellow-dark); }
-.cta.accent{ background: var(--accent); color: #081421; border-color: #1b8fcb; }
-.cta.accent:hover{ filter: brightness(0.95); }
-
-/* Chip attivi più visibili */
-.chip.active{ outline: 3px solid #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.2) inset; }
-
-/* Pulsante “Mostra lista eventi visibili” (se usa .btn) resta ben visibile */.btn.light{background:#ffd24d;border:1px solid #ccad33;color:#081421}
-.btn.light:hover{filter:brightness(1.05)}
+/* Footer semplice */
+.page-footer{display:flex;justify-content:center;padding:20px 0 50px}
