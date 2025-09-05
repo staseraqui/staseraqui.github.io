@@ -55,5 +55,52 @@ a{color:var(--fg);text-decoration:none}
 
 /* Bottoni nel popup: stessa dimensione + versione chiara per locandina */
 .popup-actions .btn{min-width:168px;text-align:center}
-.btn.light{background:#ffd24d;border:1px solid #ccad33;color:#081421}
+
+/* === OVERRIDE VISIBILITÀ BOTTONI (più contrasto) === */
+:root{
+  --btn-yellow: #ffd54f;
+  --btn-yellow-dark: #f0c43c;
+  --btn-text: #081421;
+  --btn-outline: #ffdf80;
+  --accent: #22b3f0; /* lasciamo l'azzurro come accento */
+}
+
+/* Bottoni generici */
+.btn{
+  background: var(--btn-yellow);
+  color: var(--btn-text);
+  border: 2px solid var(--btn-yellow-dark);
+  font-weight: 700;
+  padding: 12px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.btn:hover{ background: var(--btn-yellow-dark); }
+.btn:focus{ outline: 3px solid var(--btn-outline); outline-offset: 2px; }
+
+/* Varianti */
+.btn.primary{ background: var(--btn-yellow); border-color: var(--btn-yellow-dark); color: var(--btn-text); }
+.btn.secondary{
+  background: transparent;
+  color: var(--btn-yellow);
+  border: 2px solid var(--btn-yellow);
+}
+.btn.secondary:hover{ border-color: var(--btn-yellow-dark); color: var(--btn-yellow-dark); }
+
+/* Call-to-action della Home */
+.cta{
+  border-radius: 12px;
+  border: 2px solid transparent;
+  font-weight: 800;
+  padding: 14px 18px;
+}
+.cta.primary{ background: var(--btn-yellow); color: var(--btn-text); border-color: var(--btn-yellow-dark); }
+.cta.primary:hover{ background: var(--btn-yellow-dark); }
+.cta.accent{ background: var(--accent); color: #081421; border-color: #1b8fcb; }
+.cta.accent:hover{ filter: brightness(0.95); }
+
+/* Chip attivi più visibili */
+.chip.active{ outline: 3px solid #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.2) inset; }
+
+/* Pulsante “Mostra lista eventi visibili” (se usa .btn) resta ben visibile */.btn.light{background:#ffd24d;border:1px solid #ccad33;color:#081421}
 .btn.light:hover{filter:brightness(1.05)}
