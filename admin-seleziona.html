@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — Seleziona ed elimina</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=14">
+<!-- config con SUPABASE_URL e SUPABASE_ANON -->
+<script src="assets/app-config.js?v=1"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+  .wrap{max-width:1100px;margin:0 auto;padding:16px}
+  #map{height:68vh;border-radius:12px;border:1px solid rgba(255,255,255,.15);margin:10px 0}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input[type="text"]{padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#fff;color:#081421}
+  .ok{color:#7CFC7C}.err{color:#ff6b6b}.muted{color:#b8c2ce}
+</style>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg&libraries=geometry"></script>
+</head>
+<body>
+<header class="header" style="padding:0 16px">
+  <a href="index.html" class="logo">
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
+      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
+      <circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
+    <span class="wordmark">stasera qui</span>
+  </a>
+</header>
+
+<main class="wrap">
+  <h1>Seleziona ed elimina eventi</h1>
+
+  <div class="row">
+    <div><label class="muted">PIN admin</label><br><input id="pin" type="text" placeholder="PIN"></div>
+    <div style="align-self:flex-end"><button class="btn" id="connect">Connetti</button></div>
+    <div style="align-self:flex-end"><button class="btn" id="load">Carica eventi</button></div>
+    <div style="align-self:flex-end"><button class="btn secondary" id="delSel">Elimina selezionati</button></div>
+  </div>
+
+  <div class="muted" style="margin-top:6px" id="status">Non connesso</div>
+
+  <div id="map"></div>
+
+  <div class="muted" id="selInfo">Selezionati: 0</div>
+  <div id="lastOps" class="muted"></div>
+</main>
+
+<script>
+  let sb=null, selected=new Set(), markers=[], map=null;
+
+  function initMap(){
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: {lat:45.07, lng:7.68}, zoom: 10, mapTypeControl:false, streetViewControl:false
+    });
+  }
+  initMap();
+
+  document.getElementById('connect').onclick = ()=>{
+    const cfg = window.SQ_CONFIG || {};
+    if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON){
+      alert('Config mancante: assets/app-config.js');
+      return;
+    }
+    sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON);
+    document.getElementById('status').textContent = 'Connesso';
+  };
+
+  document.getElementById('load').onclick = async ()=>{
+    if(!sb){ alert('Connettiti prima'); return; }
+    const { data, error } = await sb.from('vw_event_points').select('*');
+    if(error){ alert(error.message); return; }
+
+    // pulizia
+    markers.forEach(m=>m.setMap(null)); markers=[]; selected.clear(); updateSel();
+
+    // disegna i pin
+    data.forEach(row=>{
+      if(row.lat==null || row.lng==null) return;
+      const m = new google.maps.Marker({
+        position: {lat: row.lat, lng: row.lng},
+        map,
+        icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+      });
+      m._eventId = row.event_id;
+      m._selected = false;
+
+      m.addListener('click', ()=>{
+        m._selected = !m._selected;
+        if(m._selected){
+          selected.add(m._eventId);
+          m.setIcon('http://maps.google.com/mapfiles/ms/icons/red-dot.png');
+        } else {
+          selected.delete(m._eventId);
+          m.setIcon('http://maps.google.com/mapfiles/ms/icons/blue-dot.png');
+        }
+        updateSel();
+      });
+
+      const info = new google.maps.InfoWindow({
+        content: `<div style="min-width:220px"><b>${escapeHtml(row.title||'')}</b><br>${row.luogo||''}, ${row.indirizzo||''}<br>${row.citta||''}<br>${row.data||''} ${row.ora||''}</div>`
+      });
+      m.addListener('mouseover', ()=> info.open({map, anchor:m}));
+      m.addListener('mouseout', ()=> info.close());
+      markers.push(m);
+    });
+
+    if(data.length){ map.setCenter({lat:data[0].lat, lng:data[0].lng}); }
+    document.getElementById('lastOps').textContent = `Caricati ${data.length} punti`;
+  };
+
+  function updateSel(){ document.getElementById('selInfo').textContent = 'Selezionati: '+selected.size; }
+
+  document.getElementById('delSel').onclick = async ()=>{
+    if(!sb){ alert('Connettiti prima'); return; }
+    const pin = document.getElementById('pin').value.trim();
+    if(!pin){ alert('Inserisci PIN'); return; }
+    const ids = Array.from(selected);
+    if(!ids.length){ alert('Seleziona almeno un evento (clicca i pin per farli diventare rossi)'); return; }
+    if(!confirm(`Eliminare ${ids.length} evento/i?`)) return;
+
+    const { data, error } = await sb.rpc('fn_admin_delete_ids', { pin, ids });
+    if(error){ alert(error.message); return; }
+
+    // rimuovi i marker dalla mappa
+    markers.forEach(m=>{ if(selected.has(m._eventId)){ m.setMap(null); } });
+    markers = markers.filter(m=>!selected.has(m._eventId));
+    selected.clear(); updateSel();
+    document.getElementById('lastOps').innerHTML = `<span class="ok">Eliminati ${data?.deleted||0} eventi.</span>`;
+  };
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>
