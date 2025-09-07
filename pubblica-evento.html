@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Pubblica evento — Stasera Qui</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=22">
+  <link rel="stylesheet" href="assets/style.css?v=23">
   <style>.modal{z-index:999999!important}</style>
 
   <!-- Config chiavi (DEVE contenere SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
@@ -389,10 +389,14 @@
 
       const tipo = (occFull.length>1) ? 'multi' : 'single';
 
-      // 4) Crea la sessione Checkout su Supabase Edge
+      // 4) Crea la sessione Checkout su Supabase Edge (AGGIUNGO HEADER AUTH)
       const resp = await fetch(EDGE_URL, {
         method:'POST',
-        headers:{'content-type':'application/json'},
+        headers:{
+          'content-type':'application/json',
+          'apikey': SUPABASE_ANON,
+          'Authorization': 'Bearer ' + SUPABASE_ANON
+        },
         body: JSON.stringify({ tipo, metadata })
       });
 
