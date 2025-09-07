@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>stasera qui</title>
 <link rel="icon" href="/favicon.ico">
+
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+
 <link rel="stylesheet" href="assets/style.css?v=10">
 
 <!-- Leaflet (fallback se NON usi Google Maps) -->
@@ -29,7 +31,7 @@
   #routeInfo{position:fixed;left:16px;right:16px;bottom:16px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 12px;display:none;z-index:10000}
   .popup-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
-  /* Datepicker overlay (Mac/iPhone, conferma automatica) */
+  /* Datepicker overlay */
   #dpOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;z-index:9999}
   #dpBox{margin-top:80px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px}
   #dpInput{font-size:17px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#081421}
@@ -38,7 +40,7 @@
 </head>
 <body>
 <header class="header" style="padding:0 16px">
-  <!-- Logo bloccato -->
+  <!-- Logo approvato -->
   <a href="index.html" class="logo">
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
@@ -107,7 +109,7 @@
 <!-- Banner percorso -->
 <div id="routeInfo"></div>
 
-<!-- Datepicker overlay (solo Annulla, conferma automatica su change) -->
+<!-- Datepicker overlay -->
 <div id="dpOverlay">
   <div id="dpBox">
     <input type="date" id="dpInput">
@@ -121,19 +123,22 @@
   // ====== CONFIG ======
   const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';
   const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';
-  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // sostituisci solo qui
+  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // tua chiave
 
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
   const hasGoogleKey = GMAPS_API_KEY && !/^INSERISCI_/.test(GMAPS_API_KEY);
-  console.log('Chiave Google presente?', hasGoogleKey);
-
   let USE_GMAPS = false;
+
   let GMAPS = { map:null, infowindow:null, directionsService:null, directionsRenderer:null, geocoder:null };
   let LEAF = { map:null, pinIcon:null, routeLayer:null };
+
   let EVENTS=[], OCCS=[], EVENTS_BY_ID=new Map(), markers=[];
   let state = { day:null, customDate:null, cats:new Set(), query:'' };
   let ORIGIN = null;
+
+  // flag per auto-fit una sola volta quando non si vede niente
+  let _refitTried = false;
 
   const $ = s => document.querySelector(s);
   const $$ = s => Array.from(document.querySelectorAll(s));
@@ -151,7 +156,6 @@
       s.async = true; s.defer = true;
       s.onerror = ()=>{ console.warn('Caricamento Google Maps fallito. Uso OSM.'); USE_GMAPS=false; initLeafletMap(); };
       document.head.appendChild(s);
-      // Fallback di sicurezza
       setTimeout(()=>{ if(!GMAPS.map){ console.warn('Timeout Google Maps → uso OSM'); USE_GMAPS=false; initLeafletMap(); }}, 4000);
     } else {
       initLeafletMap();
@@ -160,7 +164,6 @@
 
   // ====== GOOGLE MAPS ======
   window.initGoogleMap = function(){
-    console.log('Mappa in uso: Google');
     GMAPS.map = new google.maps.Map(document.getElementById('map'), {
       center:{lat:45.0703, lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false
     });
@@ -299,7 +302,6 @@
 
   // ====== LEAFLET (fallback OSM) ======
   function initLeafletMap(){
-    console.log('Mappa in uso: OSM');
     LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869],12);
     L.control.attribution({prefix:false}).addTo(LEAF.map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(LEAF.map);
@@ -322,7 +324,7 @@
     const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
     const cats  = (ev.categories||ev.categorie||[]).join(', ');
-    const descr = ev.description||ev.descrizione||'';
+    thedescr = ev.description||ev.descrizione||'';
     const posterHTML = ev.locandina_url ? `<a class="btn light" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>` : '';
 
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
@@ -330,7 +332,7 @@
       <b>${ev.title||ev.titolo||'(evento)'}</b><br>
       <small>${cats||''}</small><br>
       ${when}<br>${where}
-      ${descr? `<br><br>${descr}`:''}
+      ${thedescr? `<br><br>${thedescr}`:''}
       <div class="popup-actions" style="margin-top:10px">
          <button class="btn" data-calc="1">Calcola percorso</button>
          ${posterHTML}
@@ -398,7 +400,7 @@
     };
   }
 
-  // ====== DATEPICKER OVERLAY (senza OK: conferma al volo) ======
+  // ====== DATEPICKER OVERLAY ======
   const dpOverlay = $('#dpOverlay'), dpInput = $('#dpInput');
   $('#selDataBtn').addEventListener('click', ()=>{
     dpInput.value = state.customDate || todayISO();
@@ -410,8 +412,8 @@
     if (dpInput.value){
       state.customDate = dpInput.value;
       state.day = null;
+      _refitTried = false;               // resetta per nuovo filtro
       setDateBadgeISO(state.customDate);
-      clearRoute();     // pulisco percorso quando cambi data
       renderMarkers();
     }
     dpOverlay.style.display='none';
@@ -427,7 +429,7 @@
   $$('#dayPills .pill').forEach(p => p.addEventListener('click', ()=>{
     const k = p.getAttribute('data-day'); if(!k) return;
     state.day = k; state.customDate=null;
-    clearRoute();      // pulisco percorso quando cambi filtro tempo
+    _refitTried = false;                 // resetta per nuovo filtro
     const t = todayISO();
     if (k==='oggi')   setDateBadgeISO(t);
     if (k==='domani') setDateBadgeISO(addDays(t,1));
@@ -444,14 +446,14 @@
     ch.classList.toggle('active');
     const c = ch.getAttribute('data-cat');
     if (ch.classList.contains('active')) state.cats.add(c); else state.cats.delete(c);
-    clearRoute();      // pulisco percorso quando cambi categorie
+    _refitTried = false;                 // resetta per nuovo filtro
     renderMarkers();
   }));
 
   // Ricerca (solo su click o Invio)
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
-    clearRoute();      // pulisco percorso quando fai una nuova ricerca
+    _refitTried = false;                 // resetta per nuova ricerca
     if (state.query){
       if (USE_GMAPS){
         GMAPS.geocoder.geocode({address:state.query}, (res, status)=>{
@@ -476,6 +478,8 @@
       ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
       if (USE_GMAPS) GMAPS.map.setCenter({lat:ORIGIN.lat, lng:ORIGIN.lng});
       else LEAF.map.setView([ORIGIN.lat, ORIGIN.lng], 13);
+      _refitTried = false;
+      renderMarkers();
     }, _=>{
       const ask = prompt('Geolocalizzazione bloccata. Scrivi un indirizzo di partenza:','Torino');
       if (!ask) return;
@@ -484,10 +488,18 @@
           if(status==='OK' && res[0]){
             ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
             GMAPS.map.setCenter({lat:ORIGIN.lat, lng:ORIGIN.lng});
+            _refitTried = false;
+            renderMarkers();
           } else alert('Indirizzo non trovato.');
         });
       } else {
-        geocodeAddrOSM(ask).then(g=>{ if(!g) return alert('Indirizzo non trovato.'); ORIGIN={lat:g.lat,lng:g.lng,label:g.label}; LEAF.map.setView([g.lat,g.lng],13); });
+        geocodeAddrOSM(ask).then(g=>{
+          if(!g) return alert('Indirizzo non trovato.');
+          ORIGIN={lat:g.lat,lng:g.lng,label:g.label};
+          LEAF.map.setView([g.lat,g.lng],13);
+          _refitTried = false;
+          renderMarkers();
+        });
       }
     });
   });
@@ -516,17 +528,35 @@
 
   function updateCounter(){
     const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
-    const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds.contains([lat,lng]);
+    const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds && bounds.contains([lat,lng]);
     const count = OCCS.filter(o => o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o)).length;
     $('#counter').textContent = count===1 ? '1 evento visibile sulla mappa' : `${count} eventi visibili sulla mappa`;
   }
 
+  // Calcolo bounds globali (tutte le occorrenze)
+  function computeAllBounds(){
+    const pts = OCCS.filter(o => o.lat!=null && o.lng!=null);
+    if (!pts.length) return null;
+
+    if (USE_GMAPS){
+      const b = new google.maps.LatLngBounds();
+      pts.forEach(o => b.extend(new google.maps.LatLng(o.lat, o.lng)));
+      return b;
+    } else {
+      return L.latLngBounds(pts.map(o => [o.lat, o.lng]));
+    }
+  }
+
   function renderMarkers(){
-    // 🔴 NON cancelliamo più il percorso qui, così non sparisce dopo il fitBounds
+    // NON cancelliamo il percorso qui
     if (USE_GMAPS){ gClearMarkers(); } else { lClearMarkers(); }
 
     const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
-    const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds.contains([lat,lng]);
+    const contains = (lat,lng)=> USE_GMAPS
+      ? bounds && bounds.contains(new google.maps.LatLng(lat,lng))
+      : bounds && bounds.contains([lat,lng]);
+
+    let rendered = 0;
 
     OCCS.forEach(occ=>{
       if (occ.lat==null || occ.lng==null) return;
@@ -535,14 +565,27 @@
 
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
       if (USE_GMAPS) gAddMarker(occ, ev); else lAddMarker(occ, ev);
+      rendered++;
     });
+
     updateCounter();
+
+    // Se non c'è nulla in vista, allarghiamo automaticamente (una sola volta)
+    if (rendered===0 && !_refitTried && OCCS.length>0){
+      const all = computeAllBounds();
+      if (all){
+        _refitTried = true;
+        if (USE_GMAPS) GMAPS.map.fitBounds(all);
+        else LEAF.map.fitBounds(all);
+        setTimeout(renderMarkers, 80);
+      }
+    }
   }
 
   // Lista eventi visibili
   $('#listBtn').addEventListener('click', ()=>{
     const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
-    const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds.contains([lat,lng]);
+    const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds && bounds.contains([lat,lng]);
     const occs = OCCS.filter(o => o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o))
                      .sort((a,b)=> (a.data+a.ora).localeCompare(b.data+b.ora));
     if (!occs.length){ alert('Nessun evento visibile nell’area attuale.'); return; }
@@ -559,6 +602,7 @@
     EVENTS = evs||[]; EVENTS_BY_ID = new Map(EVENTS.map(e=>[e.id,e]));
     const { data: occs } = await sb.from('occurrences').select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta');
     OCCS = (occs||[]).filter(o=>o.lat!=null && o.lng!=null);
+    _refitTried = false;
     renderMarkers();
   }
 </script>
