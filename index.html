@@ -8,9 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=8">
+<link rel="stylesheet" href="assets/style.css?v=100">
 <style>
-  /* aggiustamenti visivi minimi */
+  /* piccoli aggiustamenti */
   .claim{font-style:italic;text-align:center;margin:6px 0 14px;font-weight:700}
   .tabs-top{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:0 0 12px}
   .tabs-top .btn{font-weight:700}
@@ -21,23 +21,21 @@
   .list-btn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#ffcc00;color:#081421;font-weight:800}
   .cta.primary{background:#ffcc00;color:#081421;font-weight:800}
   .cta.accent{background:#22b3f0;color:#081421;font-weight:800}
-  /* il date picker non deve finire dietro la mappa */
-  #dateField{position:relative; z-index:9999}
   /* popup Google Maps */
-  .gmap-pop h3{margin:0 0 6px;font-size:16px}
+  .gmap-pop h3{margin:0 0 6px;font-size:16px;font-weight:700}
   .gmap-pop .small{font-size:13px;color:#cfe2f2}
 </style>
 </head>
 <body>
 <header class="header" style="padding:10px 16px">
-  <!-- LOGO approvato -->
-  <img src="assets/logo_lockup_dark_v4.svg" alt="stasera qui" style="height:56px">
+  <!-- LOGO APPROVATO: usa il file già approvato -->
+  <img src="assets/logo_lockup_dark_v4.svg" alt="stasera qui" style="height:56px;display:block">
 </header>
 
 <main class="container">
   <div class="claim">Scopri cosa fare, dove vuoi, quando vuoi</div>
 
-  <!-- Tabs informativi -->
+  <!-- Tabs info -->
   <div class="tabs-top">
     <a class="btn" href="mission.html">Mission</a>
     <a class="btn" href="chi-siamo.html">Chi siamo</a>
@@ -45,7 +43,7 @@
     <a class="btn" href="come-funziona.html">Come funziona</a>
   </div>
 
-  <!-- Ricerca (solo su invio o Enter) -->
+  <!-- Ricerca -->
   <div class="search">
     <input id="searchInput" placeholder="Cerca città, zona o evento… (facoltativo)">
     <a id="searchBtn" class="btn">Cerca</a>
@@ -92,25 +90,17 @@
   </div>
 </main>
 
-<!-- Config (URL/KEY/GMAPS) -->
-<script src="assets/app-config.js?v=8"></script>
+<!-- Config -->
+<script src="assets/app-config.js?v=100"></script>
 <!-- Supabase client -->
 <script src="https://esm.sh/@supabase/supabase-js@2"></script>
 
 <script>
-  // ======= Lettura config =======
+  // ======= Config =======
   const SUPABASE_URL = window.SQ?.https://rubdzlnolxcgpjklfggk.supabase.co;
   const SUPABASE_ANON_KEY = window.SQ?.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8;
   const GMAPS_KEY = window.SQ?.AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg;
-
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error('Manca SUPABASE_URL o SUPABASE_ANON_KEY in assets/app-config.js');
-  }
-  if (!GMAPS_KEY) {
-    console.error('Manca GOOGLE_MAPS_API_KEY in assets/app-config.js');
-  }
-
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const sb = (SUPABASE_URL && SUPABASE_ANON_KEY) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
   // ======= Helpers =======
   const $  = sel => document.querySelector(sel);
@@ -172,6 +162,7 @@
 
   // ======= Carica eventi+occorrenze (NO view) =======
   async function loadAndRender(){
+    if (!sb) { console.error('Supabase non configurato'); return; }
     clearMarkers();
 
     // 1) Intervallo date
@@ -275,14 +266,11 @@
     if (e.key === 'Enter'){ e.preventDefault(); loadAndRender(); }
   });
 
-  // lista visibili (stub semplice)
-  $('#showList').addEventListener('click', ()=>{
-    alert('Anteprima lista eventi visibili: usa i pin per ora (lista dettagliata in arrivo).');
-  });
-
   // ======= Init Google Maps =======
   window.initMap = function(){
-    map = new google.maps.Map(document.getElementById('map'), {
+    const el = document.getElementById('map');
+    if (!el) return;
+    map = new google.maps.Map(el, {
       center:{lat:45.0703,lng:7.6869}, zoom:12,
       mapTypeControl:false, streetViewControl:false
     });
@@ -304,7 +292,9 @@
 
 <!-- Google Maps (usa la key in app-config.js) -->
 <script>
-  if (GMAPS_KEY){
+  if (!GMAPS_KEY) {
+    console.error('Manca GOOGLE_MAPS_API_KEY in assets/app-config.js');
+  } else {
     const s = document.createElement('script');
     s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&callback=initMap&libraries=geometry`;
     s.async = true; s.defer = true;
