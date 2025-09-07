@@ -18,10 +18,10 @@ a{color:var(--fg);text-decoration:none}
 
 .header{display:flex;align-items:center;gap:14px;padding:14px 16px;background:#0b1828;
   position:sticky;top:0;z-index:10;border-bottom:1px solid rgba(255,255,255,.05)}
-/* Logo approvato: pin a goccia azzurro + wordmark, pin alto 0.8 della scritta, allineamento orizzontale */
+/* Logo approvato: pin a goccia azzurro + wordmark, pin alto 1.8 della scritta, allineamento orizzontale */
 .logo{display:flex;align-items:center;gap:10px}
 .logo .wordmark{font-weight:700;font-size:28px;line-height:1}
-.logo .pin{display:inline-block;height:1.8em;/* 0.8 x altezza scritta */ width:auto}
+.logo .pin{display:inline-block;height:1.8em;/* 1.8 x altezza scritta */ width:auto}
 
 .container{padding:16px;max-width:980px;margin:0 auto}
 .search{display:flex;gap:10px;margin:14px 0 10px}
