@@ -5,78 +5,62 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>stasera qui</title>
 <link rel="icon" href="/favicon.ico">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=10">
-
-<!-- Leaflet (fallback se NON usi Google Maps) -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-
-<!-- Supabase JS -->
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-
+<link rel="stylesheet" href="assets/style.css?v=7">
 <style>
-  .claim{font-style:italic;font-weight:700;text-align:center;margin:8px 0 16px}
-  .tabs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:0 0 12px}
-  .tab{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);color:#fff;padding:8px 12px;border-radius:10px;font-weight:700}
-  .pill{cursor:pointer}
-  .chip{cursor:pointer}
-  #dateBadge{padding:8px 12px;border-radius:10px;background:#111f31;border:1px solid rgba(255,255,255,.35);min-width:170px;display:inline-block;text-align:center}
-  #counter{margin:8px 0 4px;color:#b8c2ce}
-  .sq-pin{color:var(--accent)}
-  .pill.active,.chip.active{outline:3px solid #ffd24d;box-shadow:0 0 0 3px rgba(255,210,77,.25)}
-  #routeInfo{position:fixed;left:16px;right:16px;bottom:16px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 12px;display:none;z-index:10000}
-  .popup-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-
-  /* Datepicker overlay (Mac/iPhone, conferma automatica) */
-  #dpOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;z-index:9999}
-  #dpBox{margin-top:80px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px}
-  #dpInput{font-size:17px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#081421}
-  #dpBtns{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+  /* piccoli aiuti visivi */
+  .tabs-top{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0 14px}
+  .tabs-top .btn{font-weight:700}
+  .claim{font-style:italic;text-align:center;margin:6px 0 8px;font-weight:700}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .row input[type="date"]{padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#fff;color:#081421}
+  .counter-wrap{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:10px 0}
+  .list-btn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#ffcc00;color:#081421;font-weight:700}
+  .map{height:500px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.1);margin:10px 0 16px}
+  .pill, .chip{cursor:pointer}
+  .pill.active, .chip.active{outline:2px solid #ffcc00}
+  .cta.primary{background:#ffcc00;color:#081421;font-weight:800}
+  .cta.accent{background:#22b3f0;color:#081421;font-weight:800}
+  .gmap-pop h3{margin:0 0 6px;font-size:16px}
+  .gmap-pop .small{font-size:13px;color:#cfe2f2}
 </style>
 </head>
 <body>
-<header class="header" style="padding:0 16px">
-  <!-- Logo bloccato -->
-  <a href="index.html" class="logo">
-    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
-      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
-      <circle cx="32" cy="24" r="9" fill="#ffffff"/>
-    </svg>
-    <span class="wordmark">stasera qui</span>
-  </a>
+<header class="header" style="padding:10px 16px">
+  <!-- LOGO approvato: pin + wordmark, claim separato -->
+  <div style="display:flex;align-items:center;gap:10px">
+    <img src="assets/logo_lockup_dark_v4.svg" alt="stasera qui" style="height:56px">
+  </div>
 </header>
 
 <main class="container">
-  <!-- Claim -->
   <div class="claim">Scopri cosa fare, dove vuoi, quando vuoi</div>
 
-  <!-- Tabs -->
-  <div class="tabs">
-    <a class="tab" href="mission.html">Mission</a>
-    <a class="tab" href="chi-siamo.html">Chi siamo</a>
-    <a class="tab" href="contatti.html">Contatti</a>
-    <a class="tab" href="come-funziona.html">Come funziona</a>
+  <!-- Tabs info -->
+  <div class="tabs-top">
+    <a class="btn" href="mission.html">Mission</a>
+    <a class="btn" href="chi-siamo.html">Chi siamo</a>
+    <a class="btn" href="contatti.html">Contatti</a>
+    <a class="btn" href="come-funziona.html">Come funziona</a>
   </div>
 
   <!-- Ricerca -->
-  <div class="search" style="gap:8px">
-    <input placeholder="Cerca città, zona o evento… (digita e poi premi Cerca)" id="searchInput" autocomplete="off">
-    <button class="btn" id="searchBtn" type="button">Cerca</button>
-    <button class="btn" id="locBtn" type="button">📍 Usa la mia posizione</button>
+  <div class="search">
+    <input id="searchInput" placeholder="Cerca città, zona o evento… (facoltativo)">
   </div>
 
-  <!-- Filtri temporali -->
-  <div class="pills" id="dayPills" style="align-items:center;gap:8px;flex-wrap:wrap">
+  <!-- Giorni -->
+  <div class="pills" id="dayPills">
     <div class="pill" data-day="oggi">Oggi</div>
     <div class="pill" data-day="domani">Domani</div>
     <div class="pill" data-day="weekend">Weekend</div>
-    <div class="pill" id="selDataBtn">Seleziona data</div>
-    <span id="dateBadge" style="display:none"></span>
+    <div class="pill" id="pickDate">Seleziona data</div>
+    <input type="date" id="dateField" style="display:none">
   </div>
 
-  <!-- Filtri categorie -->
+  <!-- Categorie -->
   <div class="chips" id="chips">
     <div class="chip" data-cat="Musica">Musica</div>
     <div class="chip" data-cat="Food & Drink">Food & Drink</div>
@@ -89,478 +73,231 @@
   </div>
 
   <!-- Contatore + lista -->
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <div id="counter" class="small">—</div>
-    <button class="btn light" id="listBtn" type="button">Mostra lista eventi visibili</button>
+  <div class="counter-wrap">
+    <div id="counter" class="small">0 eventi visibili sulla mappa</div>
+    <button id="showList" class="list-btn">Mostra lista eventi visibili</button>
   </div>
 
-  <!-- Mappa -->
+  <!-- MAPPA -->
   <div id="map" class="map"></div>
 
   <!-- CTA -->
   <div class="cta-row">
     <a class="cta primary" href="pubblica-evento.html">Pubblica evento</a>
-    <a class="cta accent" href="lavora-con-noi.html">Lavora con noi</a>
+    <a class="cta accent"  href="lavora-con-noi.html">Lavora con noi</a>
+  </div>
+
+  <div class="footer small">
+    © <span id="year"></span> Stasera Qui
   </div>
 </main>
 
-<!-- Banner percorso -->
-<div id="routeInfo"></div>
-
-<!-- Datepicker overlay (solo Annulla, conferma automatica su change) -->
-<div id="dpOverlay">
-  <div id="dpBox">
-    <input type="date" id="dpInput">
-    <div id="dpBtns">
-      <button class="btn" id="dpAnnulla" type="button">Annulla</button>
-    </div>
-  </div>
-</div>
-
+<script src="assets/app-config.js?v=7"></script>
+<script src="https://esm.sh/@supabase/supabase-js@2"></script>
 <script>
-  // ====== CONFIG ======
-  const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';
-  const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';
-  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // sostituisci solo qui
+  // ======= Config da app-config.js =======
+  const SUPABASE_URL = window.SQ?.https://rubdzlnolxcgpjklfggk.supabase.co;
+  const SUPABASE_ANON_KEY = window.SQ?.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8;
+  const GMAPS_KEY = window.SQ?.AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg;
 
-  const sb = supabase.createClient(SB_URL, SB_ANON);
-
-  const hasGoogleKey = GMAPS_API_KEY && !/^INSERISCI_/.test(GMAPS_API_KEY);
-  console.log('Chiave Google presente?', hasGoogleKey);
-
-  let USE_GMAPS = false;
-  let GMAPS = { map:null, infowindow:null, directionsService:null, directionsRenderer:null, geocoder:null };
-  let LEAF = { map:null, pinIcon:null, routeLayer:null };
-  let EVENTS=[], OCCS=[], EVENTS_BY_ID=new Map(), markers=[];
-  let state = { day:null, customDate:null, cats:new Set(), query:'' };
-  let ORIGIN = null;
-
-  const $ = s => document.querySelector(s);
-  const $$ = s => Array.from(document.querySelectorAll(s));
-  const fmtIT = (d) => { const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}`; };
-  const todayISO = () => new Date().toISOString().slice(0,10);
-  const addDays  = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); };
-  const weekday  = s => (new Date(s+'T00:00:00')).getDay();
-
-  // ====== MAPPA: bootstrap ======
-  (function setupMap(){
-    if (hasGoogleKey){
-      USE_GMAPS = true;
-      const s = document.createElement('script');
-      s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_API_KEY}&libraries=geometry&callback=initGoogleMap`;
-      s.async = true; s.defer = true;
-      s.onerror = ()=>{ console.warn('Caricamento Google Maps fallito. Uso OSM.'); USE_GMAPS=false; initLeafletMap(); };
-      document.head.appendChild(s);
-      // Fallback di sicurezza
-      setTimeout(()=>{ if(!GMAPS.map){ console.warn('Timeout Google Maps → uso OSM'); USE_GMAPS=false; initLeafletMap(); }}, 4000);
-    } else {
-      initLeafletMap();
-    }
-  })();
-
-  // ====== GOOGLE MAPS ======
-  window.initGoogleMap = function(){
-    console.log('Mappa in uso: Google');
-    GMAPS.map = new google.maps.Map(document.getElementById('map'), {
-      center:{lat:45.0703, lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false
-    });
-    GMAPS.infowindow = new google.maps.InfoWindow();
-    GMAPS.directionsService = new google.maps.DirectionsService();
-    GMAPS.directionsRenderer = new google.maps.DirectionsRenderer({suppressMarkers:true, preserveViewport:false});
-    GMAPS.directionsRenderer.setMap(GMAPS.map);
-    GMAPS.geocoder = new google.maps.Geocoder();
-
-    GMAPS.map.addListener('dragend', renderMarkers);
-    GMAPS.map.addListener('zoom_changed', renderMarkers);
-
-    loadData();
+  // ======= Helpers =======
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const todayISO  = () => new Date().toISOString().slice(0,10);
+  const addDays = (d, n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); }
+  const weekendRange = () => {
+    const d = new Date(), day = d.getDay(); // 0 dom -> 6 sab
+    const sat = new Date(d); sat.setDate(d.getDate() + ((6-day+7)%7));
+    const sun = new Date(sat); sun.setDate(sat.getDate()+1);
+    const fmt = x => x.toISOString().slice(0,10);
+    return {from:fmt(sat), to:fmt(sun)};
+  };
+  const normCats = c => {
+    if (!c) return [];
+    if (Array.isArray(c)) return c.map(s=>String(s).trim()).filter(Boolean);
+    return String(c).split('|').map(s=>s.trim()).filter(Boolean);
   };
 
-  function gAddMarker(occ, ev){
-    const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
-    const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
-    const cats  = (ev.categories||ev.categorie||[]).join(', ');
-    const descr = ev.description||ev.descrizione||'';
-    const posterHTML = ev.locandina_url ? `<a class="btn light" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>` : '';
+  // ======= Stato filtri =======
+  let selDate = null; // YYYY-MM-DD (selezionata) oppure null
+  let selCats = new Set(); // categorie attive
 
-    const m = new google.maps.Marker({
-      position:{lat:occ.lat, lng:occ.lng},
-      map: GMAPS.map,
-      icon: {
-        path: 'M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z',
-        anchor: new google.maps.Point(32,64),
-        fillColor:'#22b3f0', fillOpacity:1,
-        strokeColor:'#ffffff', strokeWeight:3,
-        scale:0.85
-      }
-    });
+  // ======= Google Maps =======
+  let map, markers = [], dirRenderer=null, dirService=null;
 
-    const html = `
-      <div style="color:#081421;max-width:300px">
-        <b>${ev.title||ev.titolo||'(evento)'}</b><br>
-        <small>${cats||''}</small><br>
-        ${when}<br>${where}
-        ${descr? `<br><br>${descr}`:''}
-        <div class="popup-actions" style="margin-top:10px">
-          <button class="btn" data-calc="1">Calcola percorso</button>
-          ${posterHTML}
-        </div>
-      </div>`;
+  function setCounter(n){ $('#counter').textContent = `${n} eventi visibili sulla mappa`; }
 
-    m.addListener('click', ()=>{
-      GMAPS.infowindow.setContent(html);
-      GMAPS.infowindow.open(GMAPS.map, m);
-      setTimeout(()=>{
-        const btn=document.querySelector('button[data-calc="1"]');
-        if(btn){ btn.onclick = ()=> routeTo({lat:occ.lat,lng:occ.lng,label:where}); }
-      },0);
-    });
-    markers.push(m);
+  function clearMarkers(){
+    markers.forEach(m => m.setMap(null));
+    markers = [];
+    if (dirRenderer) { dirRenderer.setMap(null); dirRenderer = null; }
   }
 
-  function gClearMarkers(){
-    markers.forEach(m=>m.setMap(null));
-    markers=[];
+  function fitIfNeeded(){
+    if (!markers.length) return;
+    const bounds = new google.maps.LatLngBounds();
+    markers.forEach(m => bounds.extend(m.getPosition()));
+    map.fitBounds(bounds, 60);
   }
 
-  function clearRoute(){
-    if (USE_GMAPS){
-      GMAPS.directionsRenderer.set('directions', null);
-    } else if (LEAF.routeLayer){
-      LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null;
-    }
-    $('#routeInfo').style.display='none';
-  }
-
-  function routeTo(dest){
-    const doCalc = (from)=> drawRouteGoogle(from, dest);
-
-    if (!ORIGIN && navigator.geolocation){
-      navigator.geolocation.getCurrentPosition(pos=>{
-        ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
-        doCalc(ORIGIN);
-      }, _=>{
-        const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
-        if (ask && ask.trim()){
-          GMAPS.geocoder.geocode({address:ask.trim()}, (res, status)=>{
-            if(status==='OK' && res[0]){
-              ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
-              doCalc(ORIGIN);
-            } else { window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank'); }
-          });
-        } else {
-          window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
-        }
-      });
-      return;
-    }
-    if (ORIGIN){ doCalc(ORIGIN); }
-  }
-
-  function drawRouteGoogle(from, to){
-    GMAPS.directionsService.route({
-      origin: new google.maps.LatLng(from.lat, from.lng),
-      destination: new google.maps.LatLng(to.lat, to.lng),
-      travelMode: google.maps.TravelMode.DRIVING
-    }, (res, status)=>{
-      if(status!=='OK'){ alert('Impossibile calcolare il percorso.'); return; }
-      GMAPS.directionsRenderer.setDirections(res);
-      const leg = res.routes[0].legs[0];
-      const dist = leg.distance.text, dur = leg.duration.text;
-      GMAPS.map.fitBounds(res.routes[0].bounds);
-
-      const info = $('#routeInfo');
-      info.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-          <div><b>Percorso</b> — <span class="small">${from.label||'Origine'} → ${to.label||'Destinazione'}</span><br>
-          Distanza: <b>${dist}</b> · Tempo stimato: <b>${dur}</b></div>
-          <div style="display:flex;gap:8px">
-            <button class="btn" id="chiudiRoute">Chiudi percorso</button>
-            <button class="btn" id="cambiaOrigine">Cambia origine</button>
-            <a class="btn" target="_blank" rel="noopener"
-               href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.lat+','+from.lng)}&destination=${encodeURIComponent(to.lat+','+to.lng)}&travelmode=driving">Apri in Google Maps</a>
-          </div>
-        </div>`;
-      info.style.display='block';
-      $('#chiudiRoute').onclick = ()=> clearRoute();
-      $('#cambiaOrigine').onclick = ()=>{
-        const ask = prompt('Nuova origine (indirizzo):', from.label||'');
-        if (ask && ask.trim()){
-          GMAPS.geocoder.geocode({address:ask.trim()}, (res2, status2)=>{
-            if(status2==='OK' && res2[0]){
-              ORIGIN = {lat:res2[0].geometry.location.lat(), lng:res2[0].geometry.location.lng(), label:res2[0].formatted_address};
-              drawRouteGoogle(ORIGIN, to);
-            } else { alert('Indirizzo non trovato.'); }
-          });
-        }
-      };
-    });
-  }
-
-  // ====== LEAFLET (fallback OSM) ======
-  function initLeafletMap(){
-    console.log('Mappa in uso: OSM');
-    LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869],12);
-    L.control.attribution({prefix:false}).addTo(LEAF.map);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(LEAF.map);
-
-    LEAF.pinIcon = L.divIcon({
-      className:'sq-pin',
-      html:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="30" height="34" style="display:block;filter:drop-shadow(0 0 2px #fff)">
-              <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="currentColor" stroke="#ffffff" stroke-width="2"/>
-              <circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>`,
-      iconSize:[30,34], iconAnchor:[15,34], popupAnchor:[0,-30]
-    });
-
-    LEAF.map.on('dragend', renderMarkers);
-    LEAF.map.on('zoomend', renderMarkers);
-
-    loadData();
-  }
-
-  function lAddMarker(occ, ev){
-    const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
-    const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
-    const cats  = (ev.categories||ev.categorie||[]).join(', ');
-    const descr = ev.description||ev.descrizione||'';
-    const posterHTML = ev.locandina_url ? `<a class="btn light" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>` : '';
-
-    const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
-    const html = `<div style="color:#081421;max-width:300px">
-      <b>${ev.title||ev.titolo||'(evento)'}</b><br>
-      <small>${cats||''}</small><br>
-      ${when}<br>${where}
-      ${descr? `<br><br>${descr}`:''}
-      <div class="popup-actions" style="margin-top:10px">
-         <button class="btn" data-calc="1">Calcola percorso</button>
-         ${posterHTML}
-      </div>
-    </div>`;
-    m.bindPopup(html).on('popupopen', ()=>{
-      const btn = document.querySelector('button[data-calc="1"]');
-      if(btn){ btn.onclick = ()=> drawRouteLeaflet(ORIGIN, {lat:occ.lat,lng:occ.lng,label:where}); }
-    });
-    markers.push(m);
-  }
-
-  function lClearMarkers(){
-    markers.forEach(m=>LEAF.map.removeLayer(m));
-    markers=[];
-  }
-
-  async function geocodeAddrOSM(addr){
-    const url = 'https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr);
-    const r = await fetch(url, {headers:{'Accept-Language':'it'}});
-    const j = await r.json(); if(!j||!j.length) return null;
-    return {lat:parseFloat(j[0].lat), lng:parseFloat(j[0].lon), label:j[0].display_name};
-  }
-
-  async function drawRouteLeaflet(from, to){
-    if (!from){
-      const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza:','Torino');
-      if (!ask) return;
-      const g = await geocodeAddrOSM(ask);
-      if(!g){ alert('Indirizzo non trovato.'); return; }
-      ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
-      from = ORIGIN;
-    }
-    if (LEAF.routeLayer){ LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null; }
-
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
-    const r = await fetch(url); const j = await r.json();
-    if (!j || !j.routes || !j.routes.length){ alert('Impossibile calcolare il percorso.'); return; }
-    const route = j.routes[0];
-    LEAF.routeLayer = L.geoJSON(route.geometry, {style:{color:'#22b3f0',weight:5,opacity:0.9}}).addTo(LEAF.map);
-    LEAF.map.fitBounds(LEAF.routeLayer.getBounds(), {padding:[40,40]});
-
-    const km = (route.distance/1000).toFixed(1), min = Math.round(route.duration/60);
-    const info = $('#routeInfo');
-    info.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-        <div><b>Percorso</b> — <span class="small">${from.label||'Origine'} → ${to.label||'Destinazione'}</span><br>
-        Distanza: <b>${km} km</b> · Tempo stimato: <b>${min} min</b></div>
-        <div style="display:flex;gap:8px">
-          <button class="btn" id="chiudiRoute">Chiudi percorso</button>
-          <button class="btn" id="cambiaOrigine">Cambia origine</button>
-          <a class="btn" target="_blank" rel="noopener"
-             href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.lat+','+from.lng)}&destination=${encodeURIComponent(to.lat+','+to.lng)}&travelmode=driving">Apri in Google Maps</a>
-        </div>
-      </div>`;
-    info.style.display='block';
-    $('#chiudiRoute').onclick = ()=> clearRoute();
-    $('#cambiaOrigine').onclick = async ()=>{
-      const ask = prompt('Nuova origine (indirizzo):', from.label||'');
-      if(!ask) return;
-      const g = await geocodeAddrOSM(ask);
-      if(!g){ alert('Indirizzo non trovato.'); return; }
-      ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
-      drawRouteLeaflet(ORIGIN, to);
+  function addMarker(ev, occ){
+    const pos = {lat: occ.lat, lng: occ.lng};
+    const icon = {
+      url: 'assets/pin_azzurro.svg',
+      scaledSize: new google.maps.Size(32, 40),
+      anchor: new google.maps.Point(16, 40)
     };
+    const m = new google.maps.Marker({position:pos, map, icon});
+    const cats = normCats(ev.categories).join(', ');
+    const html = `
+      <div class="gmap-pop">
+        <h3>${ev.title}</h3>
+        <div class="small">${occ.date} ore ${occ.time} — ${occ.venue}, ${occ.address}, ${occ.city}</div>
+        <div class="small">Categorie: ${cats || '—'} · ${ev.price_text || ''}</div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <a class="btn" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(occ.venue+', '+occ.address+', '+occ.city)}">Apri in Google Maps</a>
+          <a class="btn" target="_blank" href="${ev.image_url}">Apri locandina</a>
+        </div>
+      </div>`;
+    const info = new google.maps.InfoWindow({content: html});
+    m.addListener('click', ()=> info.open({anchor:m, map}));
+    markers.push(m);
   }
 
-  // ====== DATEPICKER OVERLAY (senza OK: conferma al volo) ======
-  const dpOverlay = $('#dpOverlay'), dpInput = $('#dpInput');
-  $('#selDataBtn').addEventListener('click', ()=>{
-    dpInput.value = state.customDate || todayISO();
-    dpOverlay.style.display='flex';
-    setTimeout(()=>dpInput.focus(),0);
-  });
-  $('#dpAnnulla').addEventListener('click', ()=> dpOverlay.style.display='none');
-  dpInput.addEventListener('change', ()=>{
-    if (dpInput.value){
-      state.customDate = dpInput.value;
-      state.day = null;
-      setDateBadgeISO(state.customDate);
-      clearRoute();     // pulisco percorso quando cambi data
-      renderMarkers();
-    }
-    dpOverlay.style.display='none';
-  });
-  dpOverlay.addEventListener('click', (e)=>{ if(e.target===dpOverlay) dpOverlay.style.display='none'; });
+  // ======= Caricamento dati dal DB (no view) =======
+  async function loadAndRender(){
+    clearMarkers();
 
-  function setDateBadgeISO(d1, d2){
-    $('#dateBadge').style.display='inline-block';
-    $('#dateBadge').textContent = d2 ? `${fmtIT(d1)} - ${fmtIT(d2)}` : fmtIT(d1);
+    // 1) Date range
+    let from = todayISO(), to = todayISO();
+    const active = $('.pill.active')?.dataset.day;
+    if (active === 'domani'){ from = to = addDays(todayISO(), 1); }
+    else if (active === 'weekend'){ const r=weekendRange(); from=r.from; to=r.to; }
+    else if (selDate){ from = to = selDate; }
+
+    // 2) Query occurrences nel range
+    const { data: occ, error: errO } = await sb
+      .from('occurrences')
+      .select('*')
+      .gte('date', from)
+      .lte('date', to)
+      .order('date', {ascending:true})
+      .limit(2000);
+
+    if (errO){ console.error('occ error', errO); setCounter(0); return; }
+    if (!occ?.length){ setCounter(0); return; }
+
+    // 3) Prendi gli eventi collegati
+    const ids = [...new Set(occ.map(o=>o.event_id))];
+    const { data: evs, error: errE } = await sb
+      .from('events')
+      .select('id,title,description,image_url,price_text,categories,published')
+      .in('id', ids)
+      .eq('published', true);
+
+    if (errE){ console.error('events error', errE); setCounter(0); return; }
+    const byId = new Map(evs.map(e => [e.id, e]));
+
+    // 4) Applica filtri categoria / ricerca
+    const activeCats = [...selCats];
+    const q = ($('#searchInput').value||'').trim().toLowerCase();
+
+    const filtered = occ.filter(o=>{
+      const ev = byId.get(o.event_id); if (!ev) return false;
+      // categorie
+      if (activeCats.length){
+        const evCats = normCats(ev.categories).map(s=>s.toLowerCase());
+        const hit = activeCats.some(c => evCats.includes(c.toLowerCase()));
+        if (!hit) return false;
+      }
+      // ricerca
+      if (q){
+        const hay = (ev.title+' '+ev.description+' '+o.venue+' '+o.address+' '+o.city).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    // 5) Render pin in viewport (tutti; puoi filtrare per bounds se vuoi)
+    filtered.forEach(o => {
+      const ev = byId.get(o.event_id);
+      if (!ev) return;
+      if (typeof o.lat !== 'number' || typeof o.lng !== 'number') return;
+      addMarker(ev, o);
+    });
+
+    setCounter(filtered.length);
+    if (filtered.length) fitIfNeeded();
   }
 
-  // Click su Oggi/Domani/Weekend
-  $$('#dayPills .pill').forEach(p => p.addEventListener('click', ()=>{
-    const k = p.getAttribute('data-day'); if(!k) return;
-    state.day = k; state.customDate=null;
-    clearRoute();      // pulisco percorso quando cambi filtro tempo
-    const t = todayISO();
-    if (k==='oggi')   setDateBadgeISO(t);
-    if (k==='domani') setDateBadgeISO(addDays(t,1));
-    if (k==='weekend'){
-      const now=new Date(), d=now.getDay();
-      const sat=addDays(t, (6-d+7)%7), sun=addDays(t, (7-d+7)%7);
-      setDateBadgeISO(sat, sun);
-    }
-    renderMarkers();
-  }));
-
-  // Categorie
-  $$('#chips .chip').forEach(ch => ch.addEventListener('click', ()=>{
-    ch.classList.toggle('active');
-    const c = ch.getAttribute('data-cat');
-    if (ch.classList.contains('active')) state.cats.add(c); else state.cats.delete(c);
-    clearRoute();      // pulisco percorso quando cambi categorie
-    renderMarkers();
-  }));
-
-  // Ricerca (solo su click o Invio)
-  $('#searchBtn').addEventListener('click', async ()=>{
-    state.query = ($('#searchInput').value||'').trim();
-    clearRoute();      // pulisco percorso quando fai una nuova ricerca
-    if (state.query){
-      if (USE_GMAPS){
-        GMAPS.geocoder.geocode({address:state.query}, (res, status)=>{
-          if(status==='OK' && res[0]) GMAPS.map.setCenter(res[0].geometry.location);
-          renderMarkers();
-        });
-      } else {
-        const g = await geocodeAddrOSM(state.query);
-        if (g) LEAF.map.setView([g.lat, g.lng], 13);
-        renderMarkers();
-      }
-    } else {
-      renderMarkers();
-    }
-  });
-  $('#searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') $('#searchBtn').click(); });
-
-  // Geolocalizzazione bottone
-  $('#locBtn').addEventListener('click', ()=>{
-    if (!navigator.geolocation){ alert('Geolocalizzazione non disponibile.'); return; }
-    navigator.geolocation.getCurrentPosition(pos=>{
-      ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
-      if (USE_GMAPS) GMAPS.map.setCenter({lat:ORIGIN.lat, lng:ORIGIN.lng});
-      else LEAF.map.setView([ORIGIN.lat, ORIGIN.lng], 13);
-    }, _=>{
-      const ask = prompt('Geolocalizzazione bloccata. Scrivi un indirizzo di partenza:','Torino');
-      if (!ask) return;
-      if (USE_GMAPS){
-        GMAPS.geocoder.geocode({address:ask.trim()}, (res, status)=>{
-          if(status==='OK' && res[0]){
-            ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
-            GMAPS.map.setCenter({lat:ORIGIN.lat, lng:ORIGIN.lng});
-          } else alert('Indirizzo non trovato.');
-        });
-      } else {
-        geocodeAddrOSM(ask).then(g=>{ if(!g) return alert('Indirizzo non trovato.'); ORIGIN={lat:g.lat,lng:g.lng,label:g.label}; LEAF.map.setView([g.lat,g.lng],13); });
-      }
+  // ======= UI bindings =======
+  $$('#chips .chip').forEach(ch=>{
+    ch.addEventListener('click', ()=>{
+      ch.classList.toggle('active');
+      const c = ch.dataset.cat;
+      if (ch.classList.contains('active')) selCats.add(c); else selCats.delete(c);
+      loadAndRender();
     });
   });
 
-  // ====== FILTRI LOGICA ======
-  function occPassesFilters(occ){
-    if (state.day==='oggi'   && occ.data!==todayISO()) return false;
-    if (state.day==='domani' && occ.data!==addDays(todayISO(),1)) return false;
-    if (state.day==='weekend'){ const w=weekday(occ.data); if (![5,6,0].includes(w)) return false; }
-    if (state.customDate && occ.data!==state.customDate) return false;
-
-    if (state.cats.size>0){
-      const ev = EVENTS_BY_ID.get(occ.event_id);
-      const evCats = (ev?.categories || ev?.categorie || []);
-      if (!evCats.some(c=>state.cats.has(c))) return false;
-    }
-
-    const q = (state.query||'').toLowerCase();
-    if (q){
-      const ev = EVENTS_BY_ID.get(occ.event_id)||{};
-      const text = [ev.title||ev.titolo||'', occ.luogo||'', occ.indirizzo||'', occ.citta||''].join(' ').toLowerCase();
-      if (!text.includes(q)) return false;
-    }
-    return true;
-  }
-
-  function updateCounter(){
-    const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
-    const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds.contains([lat,lng]);
-    const count = OCCS.filter(o => o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o)).length;
-    $('#counter').textContent = count===1 ? '1 evento visibile sulla mappa' : `${count} eventi visibili sulla mappa`;
-  }
-
-  function renderMarkers(){
-    // 🔴 NON cancelliamo più il percorso qui, così non sparisce dopo il fitBounds
-    if (USE_GMAPS){ gClearMarkers(); } else { lClearMarkers(); }
-
-    const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
-    const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds.contains([lat,lng]);
-
-    OCCS.forEach(occ=>{
-      if (occ.lat==null || occ.lng==null) return;
-      if (bounds && !contains(occ.lat,occ.lng)) return;
-      if (!occPassesFilters(occ)) return;
-
-      const ev = EVENTS_BY_ID.get(occ.event_id)||{};
-      if (USE_GMAPS) gAddMarker(occ, ev); else lAddMarker(occ, ev);
+  $$('#dayPills .pill').forEach(p=>{
+    p.addEventListener('click', ()=>{
+      $$('#dayPills .pill').forEach(x=>x.classList.remove('active'));
+      p.classList.add('active');
+      selDate = null; $('#dateField').style.display='none';
+      loadAndRender();
     });
-    updateCounter();
-  }
-
-  // Lista eventi visibili
-  $('#listBtn').addEventListener('click', ()=>{
-    const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
-    const contains = (lat,lng)=> USE_GMAPS ? bounds && bounds.contains(new google.maps.LatLng(lat,lng)) : bounds.contains([lat,lng]);
-    const occs = OCCS.filter(o => o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o))
-                     .sort((a,b)=> (a.data+a.ora).localeCompare(b.data+b.ora));
-    if (!occs.length){ alert('Nessun evento visibile nell’area attuale.'); return; }
-    const rows = occs.map(o=>{
-      const ev = EVENTS_BY_ID.get(o.event_id)||{};
-      return `• ${(ev.title||ev.titolo||'(evento)')} — ${fmtIT(o.data)} ore ${o.ora||''} — ${o.luogo||''}, ${o.indirizzo||''}, ${o.citta||''}`;
-    }).join('\n');
-    alert('Eventi visibili:\n\n'+rows);
   });
 
-  // ====== DATI ======
-  async function loadData(){
-    const { data: evs } = await sb.from('events').select('id, title, titolo, description, descrizione, categories, categorie, locandina_url');
-    EVENTS = evs||[]; EVENTS_BY_ID = new Map(EVENTS.map(e=>[e.id,e]));
-    const { data: occs } = await sb.from('occurrences').select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta');
-    OCCS = (occs||[]).filter(o=>o.lat!=null && o.lng!=null);
-    renderMarkers();
+  $('#pickDate').addEventListener('click', ()=>{
+    $('#dateField').style.display='inline-block';
+    $('#dateField').showPicker?.();
+  });
+  $('#dateField').addEventListener('change', ()=>{
+    selDate = $('#dateField').value || null;
+    $$('#dayPills .pill').forEach(x=>x.classList.remove('active'));
+    loadAndRender();
+  });
+
+  $('#searchInput').addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter'){ e.preventDefault(); loadAndRender(); }
+  });
+
+  $('#showList').addEventListener('click', ()=>{
+    if (!markers.length) return;
+    alert('Apri l’elenco in basso (funzione in arrivo): per ora usa i pin sulla mappa.');
+  });
+
+  // ======= Init Google Maps =======
+  window.initMap = function(){
+    map = new google.maps.Map(document.getElementById('map'), {
+      center:{lat:45.0703,lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false
+    });
+    // geolocalizza se consentito
+    if (navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(pos=>{
+        map.setCenter({lat:pos.coords.latitude, lng:pos.coords.longitude});
+        map.setZoom(13);
+      });
+    }
+    // default: Oggi attivo
+    const first = document.querySelector('.pill[data-day="oggi"]');
+    first?.classList.add('active');
+    loadAndRender();
   }
+</script>
+
+<!-- Google Maps JS (key dal tuo app-config.js) -->
+<script>
+  if (!GMAPS_KEY) { console.error('Manca GOOGLE_MAPS_API_KEY in assets/app-config.js'); }
+  else {
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&callback=initMap&libraries=geometry`;
+    s.async = true; s.defer = true;
+    document.body.appendChild(s);
+  }
+  document.getElementById('year').textContent = new Date().getFullYear();
 </script>
 </body>
 </html>
