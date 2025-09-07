@@ -67,6 +67,7 @@
     <input placeholder="Cerca città, zona o evento… (digita e poi premi Cerca)" id="searchInput" autocomplete="off">
     <button class="btn" id="searchBtn" type="button">Cerca</button>
     <button class="btn" id="locBtn" type="button">📍 Usa la mia posizione</button>
+    <button class="btn" id="resetOriginBtn" type="button">🗘 Reset posizione</button>
   </div>
 
   <!-- Filtri temporali -->
@@ -137,7 +138,7 @@
   let state = { day:null, customDate:null, cats:new Set(), query:'' };
   let ORIGIN = null;
 
-  // flag per auto-fit una sola volta quando non si vede niente
+  // una sola volta, per auto-fit quando non si vede nulla
   let _refitTried = false;
 
   const $ = s => document.querySelector(s);
@@ -184,7 +185,11 @@
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
     const cats  = (ev.categories||ev.categorie||[]).join(', ');
     const descr = ev.description||ev.descrizione||'';
-    const posterHTML = ev.locandina_url ? `<a class="btn light" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>` : '';
+
+    // Poster: giallo
+    const posterHTML = ev.locandina_url
+      ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
+      : '';
 
     const m = new google.maps.Marker({
       position:{lat:occ.lat, lng:occ.lng},
@@ -205,7 +210,7 @@
         ${when}<br>${where}
         ${descr? `<br><br>${descr}`:''}
         <div class="popup-actions" style="margin-top:10px">
-          <button class="btn" data-calc="1">Calcola percorso</button>
+          <button class="btn accent" data-calc="1">Calcola percorso</button>
           ${posterHTML}
         </div>
       </div>`;
@@ -235,29 +240,44 @@
     $('#routeInfo').style.display='none';
   }
 
-  function routeTo(dest){
-    const doCalc = (from)=> drawRouteGoogle(from, dest);
+  // forza nuova geolocalizzazione ogni volta (senza cache)
+  function getFreshPosition(){
+    return new Promise((resolve,reject)=>{
+      if (!navigator.geolocation){ reject(new Error('Geolocalizzazione non disponibile')); return; }
+      navigator.geolocation.getCurrentPosition(
+        pos=> resolve({lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'}),
+        err=> reject(new Error('Geolocalizzazione negata o non riuscita')),
+        { enableHighAccuracy:true, maximumAge:0, timeout:10000 }
+      );
+    });
+  }
 
-    if (!ORIGIN && navigator.geolocation){
-      navigator.geolocation.getCurrentPosition(pos=>{
-        ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
-        doCalc(ORIGIN);
-      }, _=>{
+  async function routeTo(dest){
+    try{
+      // Prova sempre a prendere la posizione corrente
+      ORIGIN = await getFreshPosition();
+      drawRouteGoogle(ORIGIN, dest);
+    }catch(e){
+      // Se fallisce: se c'è una vecchia origine usala, altrimenti chiedi un indirizzo
+      if (ORIGIN){
+        drawRouteGoogle(ORIGIN, dest);
+      } else {
         const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
         if (ask && ask.trim()){
           GMAPS.geocoder.geocode({address:ask.trim()}, (res, status)=>{
             if(status==='OK' && res[0]){
               ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
-              doCalc(ORIGIN);
-            } else { window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank'); }
+              drawRouteGoogle(ORIGIN, dest);
+            } else {
+              alert('Impossibile calcolare il percorso (status: '+status+'). Apro Google Maps.');
+              window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
+            }
           });
         } else {
           window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
         }
-      });
-      return;
+      }
     }
-    if (ORIGIN){ doCalc(ORIGIN); }
   }
 
   function drawRouteGoogle(from, to){
@@ -266,7 +286,10 @@
       destination: new google.maps.LatLng(to.lat, to.lng),
       travelMode: google.maps.TravelMode.DRIVING
     }, (res, status)=>{
-      if(status!=='OK'){ alert('Impossibile calcolare il percorso.'); return; }
+      if(status!=='OK'){
+        alert('Impossibile calcolare il percorso (status: '+status+').');
+        return;
+      }
       GMAPS.directionsRenderer.setDirections(res);
       const leg = res.routes[0].legs[0];
       const dist = leg.distance.text, dur = leg.duration.text;
@@ -324,17 +347,20 @@
     const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
     const cats  = (ev.categories||ev.categorie||[]).join(', ');
-    const thedescr = ev.description||ev.descrizione||'';
-    const posterHTML = ev.locandina_url ? `<a class="btn light" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>` : '';
+    const descr = ev.description||ev.descrizione||'';
+
+    const posterHTML = ev.locandina_url
+      ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
+      : '';
 
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:300px">
       <b>${ev.title||ev.titolo||'(evento)'}</b><br>
       <small>${cats||''}</small><br>
       ${when}<br>${where}
-      ${thedescr? `<br><br>${thedescr}`:''}
+      ${descr? `<br><br>${descr}`:''}
       <div class="popup-actions" style="margin-top:10px">
-         <button class="btn" data-calc="1">Calcola percorso</button>
+         <button class="btn accent" data-calc="1">Calcola percorso</button>
          ${posterHTML}
       </div>
     </div>`;
@@ -359,12 +385,15 @@
 
   async function drawRouteLeaflet(from, to){
     if (!from){
-      const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza:','Torino');
-      if (!ask) return;
-      const g = await geocodeAddrOSM(ask);
-      if(!g){ alert('Indirizzo non trovato.'); return; }
-      ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
-      from = ORIGIN;
+      try { from = await getFreshPosition(); ORIGIN = from; }
+      catch(_){}
+      if (!from){
+        const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza:','Torino');
+        if (!ask) return;
+        const g = await geocodeAddrOSM(ask);
+        if(!g){ alert('Indirizzo non trovato.'); return; }
+        ORIGIN = from = {lat:g.lat, lng:g.lng, label:g.label};
+      }
     }
     if (LEAF.routeLayer){ LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null; }
 
@@ -412,7 +441,7 @@
     if (dpInput.value){
       state.customDate = dpInput.value;
       state.day = null;
-      _refitTried = false;               // resetta per nuovo filtro
+      _refitTried = false;
       setDateBadgeISO(state.customDate);
       renderMarkers();
     }
@@ -429,7 +458,7 @@
   $$('#dayPills .pill').forEach(p => p.addEventListener('click', ()=>{
     const k = p.getAttribute('data-day'); if(!k) return;
     state.day = k; state.customDate=null;
-    _refitTried = false;                 // resetta per nuovo filtro
+    _refitTried = false;
     const t = todayISO();
     if (k==='oggi')   setDateBadgeISO(t);
     if (k==='domani') setDateBadgeISO(addDays(t,1));
@@ -446,14 +475,14 @@
     ch.classList.toggle('active');
     const c = ch.getAttribute('data-cat');
     if (ch.classList.contains('active')) state.cats.add(c); else state.cats.delete(c);
-    _refitTried = false;                 // resetta per nuovo filtro
+    _refitTried = false;
     renderMarkers();
   }));
 
   // Ricerca (solo su click o Invio)
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
-    _refitTried = false;                 // resetta per nuova ricerca
+    _refitTried = false;
     if (state.query){
       if (USE_GMAPS){
         GMAPS.geocoder.geocode({address:state.query}, (res, status)=>{
@@ -471,37 +500,22 @@
   });
   $('#searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') $('#searchBtn').click(); });
 
-  // Geolocalizzazione bottone
-  $('#locBtn').addEventListener('click', ()=>{
-    if (!navigator.geolocation){ alert('Geolocalizzazione non disponibile.'); return; }
-    navigator.geolocation.getCurrentPosition(pos=>{
-      ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
+  // Geolocalizzazione bottoni
+  $('#locBtn').addEventListener('click', async ()=>{
+    try{
+      ORIGIN = await getFreshPosition();
       if (USE_GMAPS) GMAPS.map.setCenter({lat:ORIGIN.lat, lng:ORIGIN.lng});
       else LEAF.map.setView([ORIGIN.lat, ORIGIN.lng], 13);
       _refitTried = false;
       renderMarkers();
-    }, _=>{
-      const ask = prompt('Geolocalizzazione bloccata. Scrivi un indirizzo di partenza:','Torino');
-      if (!ask) return;
-      if (USE_GMAPS){
-        GMAPS.geocoder.geocode({address:ask.trim()}, (res, status)=>{
-          if(status==='OK' && res[0]){
-            ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
-            GMAPS.map.setCenter({lat:ORIGIN.lat, lng:ORIGIN.lng});
-            _refitTried = false;
-            renderMarkers();
-          } else alert('Indirizzo non trovato.');
-        });
-      } else {
-        geocodeAddrOSM(ask).then(g=>{
-          if(!g) return alert('Indirizzo non trovato.');
-          ORIGIN={lat:g.lat,lng:g.lng,label:g.label};
-          LEAF.map.setView([g.lat,g.lng],13);
-          _refitTried = false;
-          renderMarkers();
-        });
-      }
-    });
+    }catch(e){
+      alert('Geolocalizzazione negata o non riuscita.');
+    }
+  });
+
+  $('#resetOriginBtn').addEventListener('click', ()=>{
+    ORIGIN = null;
+    alert('Posizione azzerata. Alla prossima richiesta verrà chiesta nuovamente.');
   });
 
   // ====== FILTRI LOGICA ======
@@ -548,7 +562,6 @@
   }
 
   function renderMarkers(){
-    // NON cancelliamo il percorso qui
     if (USE_GMAPS){ gClearMarkers(); } else { lClearMarkers(); }
 
     const bounds = USE_GMAPS ? GMAPS.map.getBounds() : LEAF.map.getBounds();
@@ -570,7 +583,6 @@
 
     updateCounter();
 
-    // Se non c'è nulla in vista, allarghiamo automaticamente (una sola volta)
     if (rendered===0 && !_refitTried && OCCS.length>0){
       const all = computeAllBounds();
       if (all){
