@@ -4,18 +4,18 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Pubblica evento — Stasera Qui</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=21">
+  <link rel="stylesheet" href="assets/style.css?v=22">
   <style>.modal{z-index:999999!important}</style>
 
-  <!-- Config chiavi (DEVE esistere e contenere SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
-  <script src="assets/app-config.js?v=1"></script>
+  <!-- Config chiavi (DEVE contenere SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
+  <script src="assets/app-config.js?v=2"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <header class="header">
   <div class="logo">
-    <!-- Logo approvato: pin azzurro + wordmark; la dimensione pin è nel CSS (.logo .pin) -->
+    <!-- Logo approvato: pin azzurro + wordmark; dimensione pin regolata da CSS (.logo .pin) -->
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
       <circle cx="32" cy="24" r="9" fill="#ffffff"/>
@@ -154,7 +154,7 @@
   const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
   const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/create-checkout-session';
 
-  // ====== CARICAMENTO Google Maps JS (per usare il Geocoder con referrer restrictions) ======
+  // ====== Carica Google Maps JS (per Geocoder con referrer restrictions) ======
   let mapsLoadedPromise = null;
   function loadGoogleMaps(){
     if (window.google && window.google.maps) return Promise.resolve();
@@ -344,6 +344,7 @@
         tel:(document.getElementById('sub_tel').value||''),
         email:(document.getElementById('sub_email').value||'')
       };
+      const partner_code = (document.getElementById('partner_code').value||'');
       if(!titolo||!descr||!file||!occ){ err.textContent='Compila i dati obbligatori e almeno una occorrenza completa.'; return; }
 
       // 1) Upload locandina su Storage
@@ -361,20 +362,29 @@
         try{
           const g = await geocode(o.indirizzo, o.citta);
           if(!g){ err.textContent = `Indirizzo non trovato per: ${o.indirizzo}, ${o.citta}`; return; }
-          occFull.push({ ...o, lat: g.lat, lng: g.lng });
+          occFull.push({ ...o, lat: +g.lat.toFixed(6), lng: +g.lng.toFixed(6) });
         }catch(geoErr){
           err.textContent = `Errore geocoding per: ${o.indirizzo}, ${o.citta} — ${geoErr.message}`;
           return;
         }
       }
 
-      // 3) Metadati per Stripe
+      // 3) Metadati compatti (sotto i 500 char per chiave)
+      const catsStr = (Array.prototype.map.call(document.getElementById('catBadges').children,b=>b.textContent).join('|')).slice(0,120);
+      const occMin  = occFull.map(o=>({l:o.luogo,i:o.indirizzo,c:o.citta,d:o.data,o:o.ora,la:o.lat,ln:o.lng}));
+      const occStr  = JSON.stringify(occMin);
+      if(occStr.length>450){ err.textContent='Troppo testo nelle occorrenze: riduci numero/descrizioni (max 4 occorrenze consigliate).'; return; }
+
       const metadata = {
-        titolo, prezzo, descrizione: descr, locandina_url,
-        categorie: JSON.stringify(cats),
-        occorrenze: JSON.stringify(occFull),
-        submitter: JSON.stringify(submitter),
-        partner_code: (document.getElementById('partner_code').value||'')
+        titolo: (titolo||'').slice(0,80),
+        descr: (descr||'').slice(0,180),
+        prezzo: (prezzo||'').slice(0,40),
+        locandina_url,
+        cats: catsStr,
+        occ: occStr,
+        submitter_email: (submitter.email||'').slice(0,120),
+        submitter_name: (`${submitter.nome} ${submitter.cognome}`.trim()).slice(0,80),
+        partner: (partner_code||'').slice(0,12)
       };
 
       const tipo = (occFull.length>1) ? 'multi' : 'single';
@@ -385,8 +395,20 @@
         headers:{'content-type':'application/json'},
         body: JSON.stringify({ tipo, metadata })
       });
-      const j = await resp.json();
-      if(!resp.ok){ throw new Error(j.error || 'Errore creazione checkout'); }
+
+      if(!resp.ok){
+        const txt = await resp.text().catch(()=>'(no body)');
+        throw new Error('create-checkout-session FAILED: ' + txt);
+      }
+
+      let j;
+      try { j = await resp.json(); }
+      catch {
+        const txt = await resp.text().catch(()=>'(no body)');
+        throw new Error('Risposta non-JSON dalla funzione: ' + txt);
+      }
+
+      if(!j?.url) throw new Error('Risposta senza URL da Supabase. Dettagli: ' + JSON.stringify(j));
 
       // 5) Vai al pagamento
       window.location.href = j.url;
