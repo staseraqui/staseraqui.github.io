@@ -36,6 +36,14 @@
   #dpBox{margin-top:80px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px}
   #dpInput{font-size:17px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#081421}
   #dpBtns{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+
+  /* Ricerca + bottoni compatti */
+  .search{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+  .search input{flex:1;min-width:220px}
+  .btn.small{padding:6px 8px;font-size:12px;line-height:1}
+  @media (max-width:480px){
+    .btn.small{padding:6px 7px;font-size:12px}
+  }
 </style>
 </head>
 <body>
@@ -63,11 +71,11 @@
   </div>
 
   <!-- Ricerca -->
-  <div class="search" style="gap:8px">
+  <div class="search">
     <input placeholder="Cerca città, zona o evento… (digita e poi premi Cerca)" id="searchInput" autocomplete="off">
-    <button class="btn" id="searchBtn" type="button">Cerca</button>
-    <button class="btn" id="locBtn" type="button">📍 Usa la mia posizione</button>
-    <button class="btn" id="resetOriginBtn" type="button">🗘 Reset posizione</button>
+    <button class="btn"        id="searchBtn" type="button">Cerca</button>
+    <button class="btn small"  id="locBtn"    type="button" title="Usa la mia posizione">📍 usa posizione</button>
+    <button class="btn small"  id="resetOriginBtn" type="button" title="Reset posizione">🗘 reset</button>
   </div>
 
   <!-- Filtri temporali -->
@@ -103,7 +111,7 @@
   <!-- CTA -->
   <div class="cta-row">
     <a class="cta primary" href="pubblica-evento.html">Pubblica evento</a>
-    <a class="cta accent" href="lavora-con-noi.html">Lavora con noi</a>
+    <a class="cta accent"  href="lavora-con-noi.html">Lavora con noi</a>
   </div>
 </main>
 
@@ -131,14 +139,14 @@
   const hasGoogleKey = GMAPS_API_KEY && !/^INSERISCI_/.test(GMAPS_API_KEY);
   let USE_GMAPS = false;
 
-  let GMAPS = { map:null, infowindow:null, directionsService:null, directionsRenderer:null, geocoder:null };
+  let GMAPS = { map:null, infowindow:null, directionsService:null, directionsRenderer:null, geocoder:null, osrmPolyline:null };
   let LEAF = { map:null, pinIcon:null, routeLayer:null };
 
   let EVENTS=[], OCCS=[], EVENTS_BY_ID=new Map(), markers=[];
   let state = { day:null, customDate:null, cats:new Set(), query:'' };
   let ORIGIN = null;
 
-  // una sola volta, per auto-fit quando non si vede nulla
+  // Per un refit automatico solo una volta
   let _refitTried = false;
 
   const $ = s => document.querySelector(s);
@@ -185,8 +193,6 @@
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
     const cats  = (ev.categories||ev.categorie||[]).join(', ');
     const descr = ev.description||ev.descrizione||'';
-
-    // Poster: giallo
     const posterHTML = ev.locandina_url
       ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
       : '';
@@ -209,7 +215,7 @@
         <small>${cats||''}</small><br>
         ${when}<br>${where}
         ${descr? `<br><br>${descr}`:''}
-        <div class="popup-actions" style="margin-top:10px">
+        <div class="popup-actions">
           <button class="btn accent" data-calc="1">Calcola percorso</button>
           ${posterHTML}
         </div>
@@ -226,21 +232,18 @@
     markers.push(m);
   }
 
-  function gClearMarkers(){
-    markers.forEach(m=>m.setMap(null));
-    markers=[];
-  }
+  function gClearMarkers(){ markers.forEach(m=>m.setMap(null)); markers=[]; }
 
   function clearRoute(){
     if (USE_GMAPS){
       GMAPS.directionsRenderer.set('directions', null);
+      if (GMAPS.osrmPolyline){ GMAPS.osrmPolyline.setMap(null); GMAPS.osrmPolyline=null; }
     } else if (LEAF.routeLayer){
       LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null;
     }
     $('#routeInfo').style.display='none';
   }
 
-  // forza nuova geolocalizzazione ogni volta (senza cache)
   function getFreshPosition(){
     return new Promise((resolve,reject)=>{
       if (!navigator.geolocation){ reject(new Error('Geolocalizzazione non disponibile')); return; }
@@ -254,73 +257,95 @@
 
   async function routeTo(dest){
     try{
-      // Prova sempre a prendere la posizione corrente
-      ORIGIN = await getFreshPosition();
-      drawRouteGoogle(ORIGIN, dest);
-    }catch(e){
-      // Se fallisce: se c'è una vecchia origine usala, altrimenti chiedi un indirizzo
-      if (ORIGIN){
-        drawRouteGoogle(ORIGIN, dest);
-      } else {
+      ORIGIN = await getFreshPosition();            // prova geoloc fresca
+    }catch(_){
+      if (!ORIGIN){
         const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
         if (ask && ask.trim()){
           GMAPS.geocoder.geocode({address:ask.trim()}, (res, status)=>{
             if(status==='OK' && res[0]){
               ORIGIN = {lat:res[0].geometry.location.lat(), lng:res[0].geometry.location.lng(), label:res[0].formatted_address};
-              drawRouteGoogle(ORIGIN, dest);
+              drawRouteAuto(ORIGIN, dest);
             } else {
-              alert('Impossibile calcolare il percorso (status: '+status+'). Apro Google Maps.');
               window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
             }
           });
+          return;
         } else {
           window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
+          return;
         }
       }
     }
+    drawRouteAuto(ORIGIN, dest);
   }
 
-  function drawRouteGoogle(from, to){
+  // Primo tentativo: Google Directions; se fallisce → OSRM fallback
+  function drawRouteAuto(from, to){
+    if (!USE_GMAPS){ drawRouteLeaflet(from, to); return; }
     GMAPS.directionsService.route({
       origin: new google.maps.LatLng(from.lat, from.lng),
       destination: new google.maps.LatLng(to.lat, to.lng),
       travelMode: google.maps.TravelMode.DRIVING
     }, (res, status)=>{
-      if(status!=='OK'){
-        alert('Impossibile calcolare il percorso (status: '+status+').');
-        return;
+      if(status==='OK'){
+        GMAPS.directionsRenderer.setDirections(res);
+        const leg = res.routes[0].legs[0];
+        const dist = leg.distance.text, dur = leg.duration.text;
+        GMAPS.map.fitBounds(res.routes[0].bounds);
+        showRouteInfo(from, to, dist, dur);
+      } else {
+        // Fallback OSRM (nessuna dipendenza da Directions API)
+        drawRouteOSRMOnGoogle(from, to);
       }
-      GMAPS.directionsRenderer.setDirections(res);
-      const leg = res.routes[0].legs[0];
-      const dist = leg.distance.text, dur = leg.duration.text;
-      GMAPS.map.fitBounds(res.routes[0].bounds);
-
-      const info = $('#routeInfo');
-      info.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-          <div><b>Percorso</b> — <span class="small">${from.label||'Origine'} → ${to.label||'Destinazione'}</span><br>
-          Distanza: <b>${dist}</b> · Tempo stimato: <b>${dur}</b></div>
-          <div style="display:flex;gap:8px">
-            <button class="btn" id="chiudiRoute">Chiudi percorso</button>
-            <button class="btn" id="cambiaOrigine">Cambia origine</button>
-            <a class="btn" target="_blank" rel="noopener"
-               href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.lat+','+from.lng)}&destination=${encodeURIComponent(to.lat+','+to.lng)}&travelmode=driving">Apri in Google Maps</a>
-          </div>
-        </div>`;
-      info.style.display='block';
-      $('#chiudiRoute').onclick = ()=> clearRoute();
-      $('#cambiaOrigine').onclick = ()=>{
-        const ask = prompt('Nuova origine (indirizzo):', from.label||'');
-        if (ask && ask.trim()){
-          GMAPS.geocoder.geocode({address:ask.trim()}, (res2, status2)=>{
-            if(status2==='OK' && res2[0]){
-              ORIGIN = {lat:res2[0].geometry.location.lat(), lng:res2[0].geometry.location.lng(), label:res2[0].formatted_address};
-              drawRouteGoogle(ORIGIN, to);
-            } else { alert('Indirizzo non trovato.'); }
-          });
-        }
-      };
     });
+  }
+
+  function showRouteInfo(from, to, distTxt, durTxt){
+    const info = $('#routeInfo');
+    info.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div><b>Percorso</b> — <span class="small">${from.label||'Origine'} → ${to.label||'Destinazione'}</span><br>
+        Distanza: <b>${distTxt}</b> · Tempo stimato: <b>${durTxt}</b></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="chiudiRoute">Chiudi percorso</button>
+          <button class="btn" id="cambiaOrigine">Cambia origine</button>
+          <a class="btn" target="_blank" rel="noopener"
+             href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.lat+','+from.lng)}&destination=${encodeURIComponent(to.lat+','+to.lng)}&travelmode=driving">Apri in Google Maps</a>
+        </div>
+      </div>`;
+    info.style.display='block';
+    $('#chiudiRoute').onclick = ()=> clearRoute();
+    $('#cambiaOrigine').onclick = ()=>{
+      const ask = prompt('Nuova origine (indirizzo):', from.label||'');
+      if (ask && ask.trim()){
+        GMAPS.geocoder.geocode({address:ask.trim()}, (res2, status2)=>{
+          if(status2==='OK' && res2[0]){
+            ORIGIN = {lat:res2[0].geometry.location.lat(), lng:res2[0].geometry.location.lng(), label:res2[0].formatted_address};
+            drawRouteAuto(ORIGIN, to);
+          } else { alert('Indirizzo non trovato.'); }
+        });
+      }
+    };
+  }
+
+  // Fallback OSRM anche su Google Maps
+  async function drawRouteOSRMOnGoogle(from, to){
+    try{
+      if (GMAPS.osrmPolyline){ GMAPS.osrmPolyline.setMap(null); GMAPS.osrmPolyline=null; }
+      const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+      const r = await fetch(url); const j = await r.json();
+      if (!j || !j.routes || !j.routes.length){ alert('Impossibile calcolare il percorso (fallback).'); return; }
+      const route = j.routes[0];
+      const coords = route.geometry.coordinates.map(([lng,lat])=> new google.maps.LatLng(lat,lng));
+      GMAPS.osrmPolyline = new google.maps.Polyline({ path:coords, strokeColor:'#22b3f0', strokeOpacity:0.95, strokeWeight:5 });
+      GMAPS.osrmPolyline.setMap(GMAPS.map);
+      const b = new google.maps.LatLngBounds(); coords.forEach(c=>b.extend(c)); GMAPS.map.fitBounds(b);
+      const km = (route.distance/1000).toFixed(1), min = Math.round(route.duration/60);
+      showRouteInfo(from, to, `${km} km`, `${min} min`);
+    }catch(_){
+      alert('Impossibile calcolare il percorso.');
+    }
   }
 
   // ====== LEAFLET (fallback OSM) ======
@@ -348,7 +373,6 @@
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
     const cats  = (ev.categories||ev.categorie||[]).join(', ');
     const descr = ev.description||ev.descrizione||'';
-
     const posterHTML = ev.locandina_url
       ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
       : '';
@@ -359,7 +383,7 @@
       <small>${cats||''}</small><br>
       ${when}<br>${where}
       ${descr? `<br><br>${descr}`:''}
-      <div class="popup-actions" style="margin-top:10px">
+      <div class="popup-actions">
          <button class="btn accent" data-calc="1">Calcola percorso</button>
          ${posterHTML}
       </div>
@@ -371,10 +395,7 @@
     markers.push(m);
   }
 
-  function lClearMarkers(){
-    markers.forEach(m=>LEAF.map.removeLayer(m));
-    markers=[];
-  }
+  function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   async function geocodeAddrOSM(addr){
     const url = 'https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr);
@@ -405,28 +426,7 @@
     LEAF.map.fitBounds(LEAF.routeLayer.getBounds(), {padding:[40,40]});
 
     const km = (route.distance/1000).toFixed(1), min = Math.round(route.duration/60);
-    const info = $('#routeInfo');
-    info.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-        <div><b>Percorso</b> — <span class="small">${from.label||'Origine'} → ${to.label||'Destinazione'}</span><br>
-        Distanza: <b>${km} km</b> · Tempo stimato: <b>${min} min</b></div>
-        <div style="display:flex;gap:8px">
-          <button class="btn" id="chiudiRoute">Chiudi percorso</button>
-          <button class="btn" id="cambiaOrigine">Cambia origine</button>
-          <a class="btn" target="_blank" rel="noopener"
-             href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.lat+','+from.lng)}&destination=${encodeURIComponent(to.lat+','+to.lng)}&travelmode=driving">Apri in Google Maps</a>
-        </div>
-      </div>`;
-    info.style.display='block';
-    $('#chiudiRoute').onclick = ()=> clearRoute();
-    $('#cambiaOrigine').onclick = async ()=>{
-      const ask = prompt('Nuova origine (indirizzo):', from.label||'');
-      if(!ask) return;
-      const g = await geocodeAddrOSM(ask);
-      if(!g){ alert('Indirizzo non trovato.'); return; }
-      ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
-      drawRouteLeaflet(ORIGIN, to);
-    };
+    showRouteInfo(from, to, `${km} km`, `${min} min`);
   }
 
   // ====== DATEPICKER OVERLAY ======
@@ -547,11 +547,9 @@
     $('#counter').textContent = count===1 ? '1 evento visibile sulla mappa' : `${count} eventi visibili sulla mappa`;
   }
 
-  // Calcolo bounds globali (tutte le occorrenze)
   function computeAllBounds(){
     const pts = OCCS.filter(o => o.lat!=null && o.lng!=null);
     if (!pts.length) return null;
-
     if (USE_GMAPS){
       const b = new google.maps.LatLngBounds();
       pts.forEach(o => b.extend(new google.maps.LatLng(o.lat, o.lng)));
@@ -610,13 +608,11 @@
 
   // ====== DATI ======
   async function loadData(){
-    // Eventi
     const { data: evs } = await sb.from('events')
       .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url');
     EVENTS = evs||[];
     EVENTS_BY_ID = new Map(EVENTS.map(e=>[e.id,e]));
 
-    // Occorrenze — prendo sia i nomi ITA che ENG e poi normalizzo
     const { data: occsRaw } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city');
 
