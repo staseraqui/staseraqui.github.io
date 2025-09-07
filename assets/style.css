@@ -46,7 +46,13 @@ a{color:var(--fg);text-decoration:none}
   padding:14px;border-radius:12px}
 .cta.primary{background:var(--primary);border:2px solid var(--primary-border);color:#081421;font-weight:800}
 .cta.accent{background:var(--accent);border:2px solid #1fa2d8;color:#081421;font-weight:800}
-
+/* CTA verde per "Lavora con noi" (Google Maps-like) */
+.cta.success{
+  background:#57C27C;            /* verde chiaro */
+  border:2px solid #44AD68;      /* bordo leggermente più scuro */
+  color:#081421;
+  font-weight:800;
+}
 .footer{color:var(--muted);text-align:center;padding:30px 10px 60px}
 
 .btn{display:inline-block;cursor:pointer;border-radius:10px;padding:10px 14px;font-weight:800;
