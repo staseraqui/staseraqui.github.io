@@ -9,7 +9,7 @@
     .wrap{max-width:1100px;margin:0 auto;padding:16px}
     .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
     .filters{display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:10px;margin:12px 0}
-    @media(max-width:980px){.filters{grid-template-columns:1fr 1fr;}}
+    @media(max-width:980px){.filters{grid-template-columns:1fr 1fr}}
     .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0}
     .kpi{background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;padding:14px}
     .kpi b{font-size:28px;display:block}
@@ -19,8 +19,8 @@
     table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;overflow:hidden}
     th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}
     th{background:#0f1c2d;position:sticky;top:0}
-    .pill{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;padding:6px 10px;border-radius:999px;margin:2px}
     .smallmuted{font-size:12px;color:#b8c2ce}
+    #errBox{display:none;background:#3a0f0f;border:1px solid #7a2b2b;color:#ffdede;border-radius:12px;padding:12px;margin:12px 0}
   </style>
   <script src="assets/app-config.js?v=2"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
@@ -41,14 +41,14 @@
     </div>
   </div>
 
+  <div id="errBox"></div>
+
   <!-- FILTRI -->
   <div class="card">
     <div class="filters">
       <div>
         <label for="fCity" class="smallmuted">Città</label>
-        <select id="fCity">
-          <option value="">(Tutte)</option>
-        </select>
+        <select id="fCity"><option value="">(Tutte)</option></select>
       </div>
       <div>
         <label for="fStart" class="smallmuted">Dal (data occorrenza)</label>
@@ -61,7 +61,7 @@
       <div style="display:flex;align-items:flex-end"><button class="btn primary" id="applyBtn" type="button">Applica filtri</button></div>
       <div style="display:flex;align-items:flex-end"><button class="btn" id="clearBtn" type="button">Azzera</button></div>
     </div>
-    <div class="smallmuted">I filtri agiscono sulle <b>occorrenze</b> (date e città). Un evento compare se ha almeno un’occorrenza che soddisfa i filtri.</div>
+    <div class="smallmuted">I filtri agiscono sulle <b>occorrenze</b> (date e città). Un evento appare se ha almeno un’occorrenza nel filtro.</div>
   </div>
 
   <!-- KPI -->
@@ -98,17 +98,18 @@
 
 <script>
 (function(){
-  // ====== Supabase client dall'unica config ======
+  // ====== Supabase client da assets/app-config.js ======
   const CFG = window.SQ || window.SQ_CONFIG || {};
   const sb  = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
   // ====== DOM ======
   const els = {
-    fCity:  document.getElementById('fCity'),
-    fStart: document.getElementById('fStart'),
-    fEnd:   document.getElementById('fEnd'),
-    apply:  document.getElementById('applyBtn'),
-    clear:  document.getElementById('clearBtn'),
+    errBox:   document.getElementById('errBox'),
+    fCity:    document.getElementById('fCity'),
+    fStart:   document.getElementById('fStart'),
+    fEnd:     document.getElementById('fEnd'),
+    apply:    document.getElementById('applyBtn'),
+    clear:    document.getElementById('clearBtn'),
     k_events: document.getElementById('k_events'),
     k_occs:   document.getElementById('k_occs'),
     k_cities: document.getElementById('k_cities'),
@@ -124,10 +125,9 @@
 
   // ====== Utils ======
   const fmt = n => n.toLocaleString('it-IT');
-  const pad2 = n => String(n).padStart(2,'0');
   const fmtDate = s => { if(!s) return ''; const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; };
   const inRange = (d, start, end) => {
-    if (!d) return false;
+    if (!d) return true;            // <- se manca la data NON scartiamo a priori
     if (start && d < start) return false;
     if (end   && d > end)   return false;
     return true;
@@ -153,23 +153,36 @@
   }
 
   function firstOccInFilter(evId, occsFiltered){
-    const list = occsFiltered.filter(o => o.event_id===evId).sort((a,b)=>(a.data+a.ora).localeCompare(b.data+b.ora));
+    const list = occsFiltered.filter(o => o.event_id===evId)
+      .sort((a,b)=>((a.data||'')+(a.ora||'')).localeCompare((b.data||'')+(b.ora||'')));
     return list[0] || null;
   }
 
-  // ====== Caricamento dati una sola volta ======
+  function showError(msg){
+    els.errBox.textContent = msg;
+    els.errBox.style.display = 'block';
+  }
+
+  // ====== Caricamento dati (robusto, senza ORDER su colonne non garantite) ======
   (async function load(){
-    // Eventi
-    const { data: events } = await sb.from('events')
-      .select('id, title, titolo, categories, categorie, created_at')
-      .order('created_at', {ascending:false});
+    els.errBox.style.display='none';
 
-    // Occorrenze (con nomi multipli)
-    const { data: occsRaw } = await sb.from('occurrences')
-      .select('id, event_id, data, date, ora, time, citta, city');
+    const [evRes, ocRes] = await Promise.all([
+      sb.from('events')
+        .select('id, title, titolo, categories, categorie'), // niente order fragile
+      sb.from('occurrences')
+        .select('id, event_id, data, date, ora, time, citta, city')
+    ]);
 
-    EVENTS = events || [];
-    const oc = (occsRaw || []).map(o => ({
+    if (evRes.error){
+      showError('Errore caricamento eventi: ' + evRes.error.message);
+    }
+    if (ocRes.error){
+      showError('Errore caricamento occorrenze: ' + ocRes.error.message);
+    }
+
+    EVENTS = evRes.data || [];
+    const oc = (ocRes.data || []).map(o => ({
       id:o.id,
       event_id:o.event_id,
       data:o.data || o.date || null,
@@ -193,7 +206,6 @@
       els.fCity.appendChild(opt);
     });
 
-    // Imposta periodo di default: vuoto (tutto)
     render();
   })();
 
