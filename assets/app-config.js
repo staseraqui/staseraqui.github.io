@@ -11,6 +11,6 @@ window.SQ_CONFIG = {
 
   // Prezzi (SOLO per mostrare in pagina; Stripe resta come già configurato)
   PRICE_SINGLE_EUR: 9,   // evento con 1 occorrenza
-  PRICE_MULTI_EUR: 15    // evento con 2+ occorrenze
+  PRICE_MULTI_EUR: 14    // evento con 2+ occorrenze fino ad un massimo di 4 occorrenze diverse
 };
 </script>
