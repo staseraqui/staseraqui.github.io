@@ -20,7 +20,8 @@
     th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}
     th{background:#0f1c2d;position:sticky;top:0}
     .smallmuted{font-size:12px;color:#b8c2ce}
-    #errBox{display:none;background:#3a0f0f;border:1px solid #7a2b2b;color:#ffdede;border-radius:12px;padding:12px;margin:12px 0}
+    #errBox{display:none;background:#3a0f0f;border:1px solid #7a2b2b;color:#ffdede;border-radius:12px;padding:12px;margin:12px 0;white-space:pre-wrap}
+    #dbg{font-size:12px;color:#b8c2ce;margin-top:6px}
   </style>
   <script src="assets/app-config.js?v=2"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
@@ -61,7 +62,7 @@
       <div style="display:flex;align-items:flex-end"><button class="btn primary" id="applyBtn" type="button">Applica filtri</button></div>
       <div style="display:flex;align-items:flex-end"><button class="btn" id="clearBtn" type="button">Azzera</button></div>
     </div>
-    <div class="smallmuted">I filtri agiscono sulle <b>occorrenze</b> (date e città). Un evento appare se ha almeno un’occorrenza nel filtro.</div>
+    <div id="dbg" class="smallmuted">—</div>
   </div>
 
   <!-- KPI -->
@@ -98,13 +99,19 @@
 
 <script>
 (function(){
-  // ====== Supabase client da assets/app-config.js ======
-  const CFG = window.SQ || window.SQ_CONFIG || {};
-  const sb  = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  // ====== Supabase client (stesse chiavi di index/pubb-evento) ======
+  const CFG = window.SQ || {};
+  if (!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY){
+    document.getElementById('errBox').textContent = 'Chiavi mancanti in assets/app-config.js (SUPABASE_URL / SUPABASE_ANON_KEY).';
+    document.getElementById('errBox').style.display='block';
+    return;
+  }
+  const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
   // ====== DOM ======
   const els = {
     errBox:   document.getElementById('errBox'),
+    dbg:      document.getElementById('dbg'),
     fCity:    document.getElementById('fCity'),
     fStart:   document.getElementById('fStart'),
     fEnd:     document.getElementById('fEnd'),
@@ -127,7 +134,7 @@
   const fmt = n => n.toLocaleString('it-IT');
   const fmtDate = s => { if(!s) return ''; const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; };
   const inRange = (d, start, end) => {
-    if (!d) return true;            // <- se manca la data NON scartiamo a priori
+    if (!d) return true;
     if (start && d < start) return false;
     if (end   && d > end)   return false;
     return true;
@@ -156,54 +163,65 @@
     const list = occsFiltered.filter(o => o.event_id===evId)
       .sort((a,b)=>((a.data||'')+(a.ora||'')).localeCompare((b.data||'')+(b.ora||'')));
     return list[0] || null;
-  }
+    }
 
   function showError(msg){
     els.errBox.textContent = msg;
     els.errBox.style.display = 'block';
   }
 
-  // ====== Caricamento dati (robusto, senza ORDER su colonne non garantite) ======
+  // ====== Caricamento dati (identico a index: stesse colonne + normalizzazione) ======
   (async function load(){
     els.errBox.style.display='none';
 
     const [evRes, ocRes] = await Promise.all([
       sb.from('events')
-        .select('id, title, titolo, categories, categorie'), // niente order fragile
+        .select('id, title, titolo, categories, categorie'),
       sb.from('occurrences')
-        .select('id, event_id, data, date, ora, time, citta, city')
+        .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city')
     ]);
 
-    if (evRes.error){
-      showError('Errore caricamento eventi: ' + evRes.error.message);
-    }
-    if (ocRes.error){
-      showError('Errore caricamento occorrenze: ' + ocRes.error.message);
+    if (evRes.error || ocRes.error){
+      let msg = '';
+      if (evRes.error) msg += 'Errore eventi: ' + evRes.error.message + '\n';
+      if (ocRes.error) msg += 'Errore occorrenze: ' + ocRes.error.message;
+      showError(msg||'Errore sconosciuto');
+      // Anche se c'è errore, provo a non bloccare del tutto
     }
 
     EVENTS = evRes.data || [];
-    const oc = (ocRes.data || []).map(o => ({
-      id:o.id,
-      event_id:o.event_id,
-      data:o.data || o.date || null,
-      ora:o.ora || o.time || '',
-      citta:(o.citta||o.city||'').trim()
+
+    const norm = (ocRes.data || []).map(o => ({
+      id: o.id,
+      event_id: o.event_id,
+      lat: o.lat,
+      lng: o.lng,
+      data: o.data || o.date || null,
+      ora: o.ora || o.time || '',
+      luogo: o.luogo || o.venue || '',
+      indirizzo: o.indirizzo || o.address || '',
+      citta: (o.citta || o.city || '').trim()
     }));
-    OCCS = oc;
+    OCCS = norm;
+
+    // Debug numeri grezzi
+    els.dbg.textContent = `Dati caricati — Eventi totali: ${fmt(EVENTS.length)} · Occorrenze totali: ${fmt(OCCS.length)}`;
+
+    // Popola select città (come index: da citta||city)
+    const cities = Array.from(new Set(OCCS.map(o=>o.citta).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'it'));
+    if (cities.length){
+      cities.forEach(c=>{
+        const opt=document.createElement('option');
+        opt.value=c; opt.textContent=c;
+        els.fCity.appendChild(opt);
+      });
+    }
 
     // Mappa occorrenze per evento
     OCCS_BY_EVENT = new Map();
     OCCS.forEach(o=>{
       if (!OCCS_BY_EVENT.has(o.event_id)) OCCS_BY_EVENT.set(o.event_id, []);
       OCCS_BY_EVENT.get(o.event_id).push(o);
-    });
-
-    // Popola select città (tutte le città uniche ord. alfabetico)
-    const cities = Array.from(new Set(OCCS.map(o=>o.citta).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'it'));
-    cities.forEach(c=>{
-      const opt=document.createElement('option');
-      opt.value=c; opt.textContent=c;
-      els.fCity.appendChild(opt);
     });
 
     render();
@@ -230,20 +248,20 @@
     els.k_cities.textContent = fmt(new Set(occsFiltered.map(o=>o.citta).filter(Boolean)).size);
     els.k_range.textContent  = (start||end) ? `${start?fmtDate(start):'∞'} → ${end?fmtDate(end):'∞'}` : 'Tutto';
 
-    // Categorie (conteggio su eventi filtrati)
+    // Categorie
     const catList = eventsFiltered.flatMap(e=>parseCats(e));
     const catPairs = groupCount(catList, x=>x);
     els.catsBox.innerHTML = catPairs.length
       ? catPairs.map(([c,n])=> `<div>${c} — <b>${fmt(n)}</b></div>`).join('')
       : '—';
 
-    // Città (tutte nel filtro)
+    // Città
     const cityPairs = groupCount(occsFiltered, o=>o.citta);
     els.citiesBox.innerHTML = cityPairs.length
       ? cityPairs.map(([c,n])=> `<div>${c||'—'} — <b>${fmt(n)}</b></div>`).join('')
       : '—';
 
-    // Tabella eventi (max 200)
+    // Tabella eventi
     const rows = eventsFiltered.slice(0,200).map(e=>{
       const cats = parseCats(e);
       const first = firstOccInFilter(e.id, occsFiltered);
