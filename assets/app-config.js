@@ -1,6 +1,4 @@
-<!-- assets/app-config.js -->
-<script>
-// assets/app-config.js — CONFIG UNICA (con prezzi visivi)
+// assets/app-config.js — CONFIG UNICA (con prezzi in vetrina)
 window.SQ_CONFIG = {
   // Supabase
   SUPABASE_URL: "https://rubdzlnolxcgpjklfggk.supabase.co",
@@ -9,8 +7,10 @@ window.SQ_CONFIG = {
   // Google Maps
   GOOGLE_MAPS_API_KEY: "AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg",
 
-  // Prezzi (SOLO per mostrare in pagina; Stripe resta come già configurato)
-  PRICE_SINGLE_EUR: 9,   // evento con 1 occorrenza
-  PRICE_MULTI_EUR: 14    // evento con 2+ occorrenze fino ad un massimo di 4 occorrenze diverse
+  // 👇 Questi due valori fanno comparire i prezzi nella pagina “Prezzi & Condizioni”
+  PRICE_SINGLE_EUR: 9,   // Evento con 1 occorrenza
+  PRICE_MULTI_EUR: 14    // Evento con 2+ occorrenze
 };
-</script>
+
+// (opzionale) alias per eventuale codice vecchio
+window.SQ = window.SQ || window.SQ_CONFIG;
