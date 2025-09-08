@@ -26,6 +26,8 @@
   <style>
     .wrap{max-width:1100px;margin:0 auto;padding:16px}
     .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .search{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .search input{flex:1;min-width:220px;background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:10px 12px}
     #map{height:440px;border:1px solid rgba(255,255,255,.12);border-radius:12px;overflow:hidden;margin:12px 0}
     .panel{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media(max-width:960px){.panel{grid-template-columns:1fr}}
@@ -37,6 +39,8 @@
     #err{color:#ffb4b4;font-weight:700;margin:8px 0}
     .badge{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;
       padding:4px 8px;border-radius:999px;margin-left:6px;font-size:12px}
+    .popup-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+    .small-muted{font-size:12px;color:#7f8b98}
   </style>
 </head>
 <body>
@@ -57,6 +61,14 @@
 
   <div class="card">
     <p class="small">Clicca un <b>pin</b> per selezionare l’evento (riclicca per deselezionare). La selezione vale per <i>tutte</i> le occorrenze di quell’evento. Prima della cancellazione, verrà scritto un <b>log</b> nella tabella <code>event_deletions</code> con titolo, città e timestamp.</p>
+
+    <!-- 🔎 Ricerca indirizzo -->
+    <div class="search">
+      <input id="addrInput" placeholder="Cerca indirizzo o città (es. Milano, Piazza Duomo)">
+      <button class="btn" id="addrBtn" type="button">Cerca</button>
+      <button class="btn secondary" id="fitAllBtn" type="button">Mostra tutti</button>
+    </div>
+
     <div id="err"></div>
     <div id="map"></div>
 
@@ -95,8 +107,8 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
   // ====== STATO ======
-  let GMAP=null, INFO=null;
-  const EVENTS = new Map();         // event_id -> {id,title,titolo}
+  let GMAP=null, INFO=null, GEOCODER=null;
+  const EVENTS = new Map();         // event_id -> {id,title,titolo,description,descrizione,categories,categorie,locandina_url}
   const OCCS   = new Map();         // event_id -> [occurrences...]
   const MARKERS= new Map();         // event_id -> [markers...]
   const SELECTED = new Set();       // event_id selezionati
@@ -112,7 +124,7 @@
       const occ = (OCCS.get(id)||[])[0]||{};
       const titolo = ev.title || ev.titolo || '(evento)';
       const city = occ.citta || occ.city || '';
-      list.push(`<div class="item"><div><b>${titolo}</b> <span class="badge">${city||'—'}</span><br><small>${occ.indirizzo||''} ${occ.citta||occ.city||''}</small></div></div>`);
+      list.push(`<div class="item"><div><b>${escapeHtml(titolo)}</b> <span class="badge">${escapeHtml(city||'—')}</span><br><small>${escapeHtml(occ.luogo||'')} — ${escapeHtml(occ.indirizzo||'')} ${escapeHtml(occ.citta||occ.city||'')}</small></div></div>`);
     });
     $('#selList').innerHTML = list.join('') || '—';
   }
@@ -129,20 +141,32 @@
     });
   }
 
+  function fitAll(){
+    const pts=[];
+    OCCS.forEach(list=> list.forEach(o=>{ if(o.lat!=null&&o.lng!=null) pts.push(new google.maps.LatLng(o.lat,o.lng)); }));
+    if (pts.length){
+      const b = new google.maps.LatLngBounds(); pts.forEach(p=>b.extend(p)); GMAP.fitBounds(b);
+    }
+  }
+
   // ====== MAPPA ======
   function initMap(){
     GMAP = new google.maps.Map(document.getElementById('map'),{
       center:{lat:45.0703, lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false
     });
     INFO = new google.maps.InfoWindow();
+    GEOCODER = new google.maps.Geocoder();
+    bindSearch();
     loadData();
   }
 
   async function loadData(){
     $('#err').textContent = '';
     $('#hint').textContent = 'Carico eventi…';
-    // eventi
-    const evRes = await sb.from('events').select('id, title, titolo').limit(2000);
+    // eventi (prendiamo anche campi utili al popup)
+    const evRes = await sb.from('events')
+      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url')
+      .limit(2000);
     if (evRes.error){ $('#err').textContent = evRes.error.message; return; }
     evRes.data.forEach(e=>EVENTS.set(e.id, e));
 
@@ -168,26 +192,70 @@
                  anchor:new google.maps.Point(32,64), fillColor:'#22b3f0', fillOpacity:1, strokeColor:'#fff', strokeWeight:3, scale:0.85 }
         });
         marker.addListener('click', ()=>{
+          // Toggle selezione
           if (SELECTED.has(eventId)){ SELECTED.delete(eventId); setMarkersStyle(eventId,false); }
           else { SELECTED.add(eventId); setMarkersStyle(eventId,true); }
           updateSelectionUI();
-          const ev = EVENTS.get(eventId)||{};
-          const titolo = ev.title || ev.titolo || '(evento)';
-          INFO.setContent('<b>'+titolo+'</b><br>'+ (occ.luogo||'') + ', ' + (occ.indirizzo||'') + ', ' + (occ.citta||''));
-          INFO.open(GMAP, marker);
+
+          // Popup ricco
+          showEventPopup(eventId, marker, occ);
         });
         if (!MARKERS.has(eventId)) MARKERS.set(eventId, []);
         MARKERS.get(eventId).push(marker);
       });
     });
 
-    // fit bounds
-    const pts=[];
-    OCCS.forEach(list=> list.forEach(o=>{ if(o.lat!=null&&o.lng!=null) pts.push(new google.maps.LatLng(o.lat,o.lng)); }));
-    if (pts.length){
-      const b = new google.maps.LatLngBounds(); pts.forEach(p=>b.extend(p)); GMAP.fitBounds(b);
-    }
+    fitAll();
     $('#hint').textContent = 'Suggerimento: seleziona i pin da cancellare, poi premi “Elimina selezionati”.';
+  }
+
+  function showEventPopup(eventId, marker, occClicked){
+    const ev = EVENTS.get(eventId)||{};
+    const titolo = ev.title || ev.titolo || '(evento)';
+    const cats = (ev.categories || ev.categorie || []).join(', ');
+    const descrRaw = (ev.description || ev.descrizione || '') || '';
+    const descr = descrRaw.length > 220 ? descrRaw.slice(0,220)+'…' : descrRaw;
+    const poster = ev.locandina_url ? `<a class="btn primary" target="_blank" rel="noopener" href="${escapeAttr(ev.locandina_url)}">Apri locandina</a>` : '';
+
+    // Mostra fino a 3 occorrenze (ordinando per data/ora)
+    const occs = (OCCS.get(eventId)||[]).slice().sort((a,b)=> (a.data+a.ora).localeCompare(b.data+b.ora));
+    const list = occs.slice(0,3).map(o=>{
+      const when = (o.data||'') + (o.ora? ' ore '+o.ora : '');
+      const where = [o.luogo, o.indirizzo, o.citta].filter(Boolean).join(', ');
+      return `<li>${escapeHtml(when)} — ${escapeHtml(where)}</li>`;
+    }).join('');
+
+    const selected = SELECTED.has(eventId);
+    const html = `
+      <div style="max-width:320px;color:#081421">
+        <b>${escapeHtml(titolo)}</b><br>
+        ${cats ? `<small>${escapeHtml(cats)}</small><br>` : ''}
+        <ul style="padding-left:18px;margin:6px 0">${list || '<li>—</li>'}</ul>
+        ${descr ? `<div class="small-muted">${escapeHtml(descr)}</div>` : ''}
+        <div class="popup-actions" style="margin-top:8px">
+          <a class="btn ${selected?'secondary':'accent'}" href="javascript:void(0)" id="sqToggleSel"> ${selected?'Deseleziona':'Seleziona'} </a>
+          <a class="btn" href="javascript:void(0)" id="sqZoomHere">Zoom qui</a>
+          ${poster}
+        </div>
+      </div>`;
+
+    INFO.setContent(html);
+    INFO.open(GMAP, marker);
+
+    google.maps.event.addListenerOnce(INFO, 'domready', ()=>{
+      const btnSel  = document.getElementById('sqToggleSel');
+      const btnZoom = document.getElementById('sqZoomHere');
+      if (btnSel){ btnSel.onclick = ()=>{ 
+        if (SELECTED.has(eventId)){ SELECTED.delete(eventId); setMarkersStyle(eventId,false); }
+        else { SELECTED.add(eventId); setMarkersStyle(eventId,true); }
+        updateSelectionUI();
+        showEventPopup(eventId, marker, occClicked); // refresh testo bottone
+      }; }
+      if (btnZoom){ btnZoom.onclick = ()=>{
+        GMAP.setCenter(marker.getPosition());
+        GMAP.setZoom(Math.max(GMAP.getZoom(), 15));
+      }; }
+    });
   }
 
   // ====== CANCELLAZIONE + LOG ======
@@ -236,13 +304,37 @@
     $('#hint').textContent = 'Fatto.';
   }
 
-  // ====== BIND UI ======
+  // ====== SEARCH (geocoding indirizzo) ======
+  function bindSearch(){
+    $('#addrBtn').addEventListener('click', doSearch);
+    $('#addrInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); doSearch(); }});
+    $('#fitAllBtn').addEventListener('click', fitAll);
+  }
+
+  function doSearch(){
+    const q = ($('#addrInput').value||'').trim();
+    if (!q) return;
+    GEOCODER.geocode({address:q}, (res, status)=>{
+      if (status==='OK' && res && res[0]){
+        GMAP.setCenter(res[0].geometry.location);
+        if (GMAP.getZoom() < 14) GMAP.setZoom(14);
+      } else {
+        alert('Indirizzo non trovato.');
+      }
+    });
+  }
+
+  // ====== BIND UI PULSANTI ======
   document.getElementById('deleteBtn').addEventListener('click', deleteSelected);
   document.getElementById('clearSel').addEventListener('click', ()=>{
     SELECTED.forEach(id=> setMarkersStyle(id,false));
     SELECTED.clear();
     updateSelectionUI();
   });
+
+  // ====== UTILS ======
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+  function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
 
   // ====== START ======
   if (window.google && window.google.maps) initMap();
