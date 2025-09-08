@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Importa eventi — Stasera Qui</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=12">
+  <script src="assets/app-config.js?v=2"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .uploader{border:2px dashed rgba(255,255,255,.25);padding:14px;border-radius:12px;text-align:center}
+    .small{color:#b8c2ce}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top}
+    th{text-align:left;color:#b8c2ce}
+    tbody tr:hover{background:rgba(255,255,255,.03)}
+    input[type="file"]{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:8px}
+    input[type="text"], input[type="date"], input[type="time"]{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:8px}
+    select{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:8px}
+    #err{color:#ffb4b4;font-weight:700;margin:10px 0}
+    .ok{color:#7be28c}
+  </style>
+</head>
+<body>
+<header class="header">
+  <a href="admin.html" class="logo">
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
+    <span class="wordmark">stasera qui</span>
+  </a>
+</header>
+
+<main class="wrap">
+  <h1 style="margin:8px 0 12px">Importa eventi</h1>
+  <div id="err"></div>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <h3 style="margin:0 0 8px">1) Carica CSV</h3>
+        <div class="uploader">
+          <input id="csvFile" type="file" accept=".csv">
+          <div class="small" style="margin-top:6px">
+            Template colonne richieste:<br>
+            <code>titolo, descrizione, categorie, locandina_url, luogo, indirizzo, citta, data(YYYY-MM-DD), ora(HH:MM), lat(opz), lng(opz)</code>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <button class="btn" id="dlTemplate" type="button">Scarica template CSV</button>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin:0 0 8px">2) Opzioni</h3>
+        <div class="grid">
+          <div>
+            <label>PIN admin</label>
+            <input id="pin" type="text" placeholder="Il PIN che hai messo nei Secrets">
+          </div>
+          <div>
+            <label>Funzione (URL)</label>
+            <input id="fnUrl" type="text" placeholder="Edge Function URL" />
+          </div>
+        </div>
+        <p class="small" style="margin-top:6px">
+          La pagina usa <b>assets/app-config.js</b> per Supabase (URL/ANON) e Google.  
+          Per la URL funzione: apri da Supabase la funzione <i>admin-insert-events</i> e copia la <b>Function URL</b> (finisce con <i>/admin-insert-events</i>).
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">3) Geocoding & locandine</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="geoAll" type="button">Geocodifica tutte le righe senza lat/lng</button>
+      <span class="small">Per singola riga puoi anche caricare una locandina: verrà creato l’URL pubblico.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">Anteprima CSV</h3>
+    <div style="overflow:auto">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>#</th><th>Titolo</th><th>Descrizione</th><th>Categorie</th><th>Locandina URL</th>
+            <th>Luogo</th><th>Indirizzo</th><th>Città</th><th>Data</th><th>Ora</th><th>Lat</th><th>Lng</th><th>Upload img</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">4) Invia</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" id="sendBtn" type="button">Invia a Supabase (PIN richiesto)</button>
+      <a class="btn" href="index.html">← Torna alla mappa</a>
+    </div>
+    <div id="out" class="small" style="margin-top:8px"></div>
+  </div>
+</main>
+
+<script>
+(function(){
+  // === CONFIG ===
+  const CFG = window.SQ_CONFIG || {};
+  const SB_URL  = CFG.SUPABASE_URL;
+  const SB_ANON = CFG.SUPABASE_ANON;
+  const GOOGLE  = CFG.GOOGLE_MAPS_API_KEY;
+  const sb = (SB_URL && SB_ANON) ? supabase.createClient(SB_URL, SB_ANON) : null;
+
+  if (!sb) {
+    document.getElementById('err').textContent = 'Chiavi Supabase mancanti in assets/app-config.js';
+  }
+
+  // carico Google Maps Geocoder (per referrer restrictions)
+  let mapsLoaded = null;
+  function loadGoogle(){
+    if (window.google && window.google.maps) return Promise.resolve();
+    if (mapsLoaded) return mapsLoaded;
+    mapsLoaded = new Promise((resolve, reject)=>{
+      const s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GOOGLE)+'&libraries=places&v=quarterly';
+      s.async = true; s.defer = true;
+      s.onload = resolve; s.onerror = ()=>reject(new Error('Google Maps JS load failed'));
+      document.head.appendChild(s);
+    });
+    return mapsLoaded;
+  }
+
+  // === CSV PARSE SEMPLICE ===
+  function parseCSV(text){
+    // parser minimale: supporta separatore virgola, quote "
+    const rows = [];
+    let i=0, cur=[], cell='', inQ=false;
+    while (i < text.length){
+      const ch = text[i++];
+      if (inQ){
+        if (ch === '"'){
+          if (text[i] === '"'){ cell+='"'; i++; }
+          else inQ=false;
+        } else cell += ch;
+      } else {
+        if (ch === '"'){ inQ=true; }
+        else if (ch === ','){ cur.push(cell); cell=''; }
+        else if (ch === '\n'){ cur.push(cell); rows.push(cur); cur=[]; cell=''; }
+        else if (ch === '\r'){ /* skip */ }
+        else cell += ch;
+      }
+    }
+    if (cell.length || cur.length) { cur.push(cell); rows.push(cur); }
+    return rows;
+  }
+
+  // === UI ELEMENTS ===
+  const $ = s => document.querySelector(s);
+  const tbody = $('#tbl tbody');
+  const out = $('#out');
+  const err = $('#err');
+  const fnUrl = $('#fnUrl');
+
+  let rows = []; // oggetti normalizzati
+  let geocoder = null;
+
+  // template
+  $('#dlTemplate').addEventListener('click', ()=>{
+    const csv = [
+      'titolo,descrizione,categorie,locandina_url,luogo,indirizzo,citta,data,ora,lat,lng',
+      'Festa in piazza,Musica dal vivo e street food,Musica|Food & Drink,,Piazza Castello,Via Roma 1,Torino,2025-12-24,21:00,,',
+      'Mercatino di Natale,Bancarelle artigianali e vin brulé,Shopping|Mercatini,,Piazza Duomo,Piazza Duomo,Milano,2025-12-08,10:00,,'
+    ].join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='template_import.csv';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+
+  // carica CSV
+  $('#csvFile').addEventListener('change', async (e)=>{
+    const f = e.target.files?.[0]; if (!f) return;
+    const text = await f.text();
+    const raw = parseCSV(text);
+    if (!raw.length) { err.textContent='CSV vuoto'; return; }
+    const header = raw[0].map(h => (h||'').trim().toLowerCase());
+    const idx = (name)=> header.indexOf(name);
+    const need = ["titolo","descrizione","categorie","locandina_url","luogo","indirizzo","citta","data","ora","lat","lng"];
+    for (const n of need){ if (idx(n) === -1){ err.textContent='Colonna mancante: '+n; return; } }
+    err.textContent='';
+
+    rows = raw.slice(1).filter(r=>r.some(x=>String(x).trim().length)).map((r, i)=>({
+      i: i+1,
+      titolo: (r[idx('titolo')]||'').trim(),
+      descrizione: (r[idx('descrizione')]||'').trim(),
+      categorie: (r[idx('categorie')]||'').trim(),
+      locandina_url: (r[idx('locandina_url')]||'').trim(),
+      luogo: (r[idx('luogo')]||'').trim(),
+      indirizzo: (r[idx('indirizzo')]||'').trim(),
+      citta: (r[idx('citta')]||'').trim(),
+      data: (r[idx('data')]||'').trim().slice(0,10),
+      ora: (r[idx('ora')]||'').trim().slice(0,5),
+      lat: (r[idx('lat')]||'').trim(),
+      lng: (r[idx('lng')]||'').trim()
+    }));
+    renderTable();
+  });
+
+  function renderTable(){
+    tbody.innerHTML = rows.map((r, n)=>`
+      <tr>
+        <td>${n+1}</td>
+        <td><input value="${esc(r.titolo)}" onchange="upd(${n},'titolo',this.value)"></td>
+        <td><input value="${esc(r.descrizione)}" onchange="upd(${n},'descrizione',this.value)"></td>
+        <td><input value="${esc(r.categorie)}" onchange="upd(${n},'categorie',this.value)"></td>
+        <td><input value="${esc(r.locandina_url)}" onchange="upd(${n},'locandina_url',this.value)"></td>
+        <td><input value="${esc(r.luogo)}" onchange="upd(${n},'luogo',this.value)"></td>
+        <td><input value="${esc(r.indirizzo)}" onchange="upd(${n},'indirizzo',this.value)"></td>
+        <td><input value="${esc(r.citta)}" onchange="upd(${n},'citta',this.value)"></td>
+        <td><input type="date" value="${esc(r.data)}" onchange="upd(${n},'data',this.value)"></td>
+        <td><input type="time" value="${esc(r.ora)}" onchange="upd(${n},'ora',this.value)"></td>
+        <td><input value="${esc(r.lat)}" onchange="upd(${n},'lat',this.value)"></td>
+        <td><input value="${esc(r.lng)}" onchange="upd(${n},'lng',this.value)"></td>
+        <td><input type="file" accept="image/png,image/jpeg" onchange="uploadImg(${n}, this.files[0])"></td>
+      </tr>
+    `).join('');
+    // esponi funzioni globali per gli onchange
+    window.upd = (i,k,v)=>{ rows[i][k]=v; };
+    window.uploadImg = uploadImg;
+  }
+  function esc(s){ return String(s||'').replace(/"/g,'&quot;'); }
+
+  // Upload immagine → Storage (event-images) → set locandina_url
+  async function uploadImg(i, file){
+    try{
+      if (!file || !sb){ alert('File mancante o Supabase non configurato'); return; }
+      const ext = file.type==='image/png' ? 'png' : 'jpg';
+      const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+      const rand = Math.random().toString(36).slice(2,10);
+      const path = `events/${stamp}_${rand}.${ext}`;
+      const up = await sb.storage.from('event-images').upload(path, file, { upsert:false, contentType:file.type });
+      if (up.error){ alert('Upload fallito: '+up.error.message); return; }
+      const pub = sb.storage.from('event-images').getPublicUrl(path);
+      const url = pub?.data?.publicUrl || '';
+      rows[i].locandina_url = url;
+      renderTable();
+    }catch(e){ alert('Errore upload: '+String(e.message||e)); }
+  }
+
+  // Geocoding tutte le righe senza lat/lng
+  $('#geoAll').addEventListener('click', async ()=>{
+    try{
+      await loadGoogle(); geocoder = geocoder || new google.maps.Geocoder();
+      const toDo = rows.map((r,idx)=>({idx,r})).filter(x=>!(Number(x.r.lat)&&Number(x.r.lng)));
+      if (!toDo.length){ alert('Tutte le righe hanno già lat/lng.'); return; }
+      for (const item of toDo){
+        const q = `${item.r.indirizzo}, ${item.r.citta}, Italia`;
+        const res = await new Promise((res)=> geocoder.geocode({ address:q, componentRestrictions:{country:'IT'}}, (results, status)=>{
+          if(status==='OK' && results && results[0]){
+            const loc = results[0].geometry.location;
+            res({lat:loc.lat(), lng:loc.lng()});
+          } else res(null);
+        }));
+        if (res){ rows[item.idx].lat = res.lat.toFixed(6); rows[item.idx].lng = res.lng.toFixed(6); }
+        await new Promise(r=>setTimeout(r, 150)); // piccola pausa anti-rate
+      }
+      renderTable();
+      alert('Geocoding completato.');
+    }catch(e){
+      alert('Geocoding fallito: '+String(e.message||e));
+    }
+  });
+
+  // Invio a funzione
+  $('#sendBtn').addEventListener('click', async ()=>{
+    try{
+      err.textContent=''; out.textContent='';
+      const pin = ($('#pin').value||'').trim();
+      const url = ($('#fnUrl').value||'').trim();
+      if (!pin){ err.textContent='Inserisci il PIN admin.'; return; }
+      if (!url){ err.textContent='Inserisci la Function URL (admin-insert-events).'; return; }
+      if (!rows.length){ err.textContent='Nessuna riga importata.'; return; }
+
+      // Raggruppa per titolo → 1 evento con più occorrenze
+      const byTitle = new Map();
+      for (const r of rows){
+        const key = (r.titolo||'').trim();
+        if (!key) continue;
+        if (!byTitle.has(key)){
+          byTitle.set(key, {
+            title: r.titolo,
+            description: r.descrizione,
+            categories: (r.categorie||'').split(/[|,]+/).map(s=>s.trim()).filter(Boolean),
+            locandina_url: r.locandina_url||'',
+            occurrences: []
+          });
+        }
+        const ev = byTitle.get(key);
+        ev.occurrences.push({
+          luogo: r.luogo, indirizzo: r.indirizzo, citta: r.citta,
+          data: r.data, ora: r.ora,
+          lat: r.lat ? Number(r.lat) : null,
+          lng: r.lng ? Number(r.lng) : null
+        });
+      }
+      const payload = { pin, events: Array.from(byTitle.values()) };
+
+      const resp = await fetch(url, {
+        method:'POST',
+        headers:{ 'content-type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const j = await resp.json().catch(()=> ({}));
+      if (!resp.ok){ throw new Error(j?.error || 'Errore funzione'); }
+
+      out.innerHTML = `<span class="ok">OK</span> — Inseriti <b>${j.inserted_events}</b> eventi e <b>${j.inserted_occurrences}</b> occorrenze`;
+    }catch(e){
+      err.textContent = String(e.message||e);
+    }
+  });
+})();
+</script>
+</body>
+</html>
