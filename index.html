@@ -300,8 +300,7 @@
     markers.push(m);
   }
 
-  function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[];
-  }
+  function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
     if (LEAF.myPosMarker){ LEAF.map.removeLayer(LEAF.myPosMarker); LEAF.myPosMarker=null; }
@@ -319,10 +318,7 @@
   }
 
   function routeTo(dest){
-    // ✅ FIX: usa il calcolatore corretto in base alla mappa in uso
-    const doCalc = (from)=> USE_GMAPS ? drawRouteGoogle(from, dest)
-                                      : drawRouteLeaflet(from, dest);
-
+    const doCalc = (from)=> drawRouteGoogle(from, dest);
     if (!ORIGIN && navigator.geolocation){
       navigator.geolocation.getCurrentPosition(pos=>{
         ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
@@ -557,7 +553,7 @@
       const evCats = (ev?.categories || ev?.categorie || []);
       if (!evCats.some(c=>state.cats.has(c))) return false;
     }
-    return true; // niente filtro testuale sulla ricerca: i pin restano
+    return true; // 🔔 niente più filtro testuale sulla ricerca: i pin restano
   }
 
   function updateCounter(){
