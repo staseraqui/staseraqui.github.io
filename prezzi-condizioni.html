@@ -1,24 +1,67 @@
 <!doctype html>
 <html lang="it">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Prezzi e condizioni — Stasera Qui</title>
-<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Prezzi & Condizioni — Stasera Qui</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=12">
+  <style>
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    .pricetable{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+    @media (max-width:720px){.pricetable{grid-template-columns:1fr}}
+    .pricecard{background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;padding:16px}
+    .price{font-size:28px;font-weight:800;margin:8px 0}
+    ul{margin:8px 0 0;padding-left:18px}
+    .muted{color:var(--muted);font-size:13px}
+  </style>
 </head>
 <body>
-<header class="header">
-  <div class="logo">
+<header class="header" style="padding:0 16px">
+  <a href="index.html" class="logo">
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
     <span class="wordmark">stasera qui</span>
-  </div>
+  </a>
 </header>
-<main class="container">
-  <h1>Prezzi e condizioni</h1>
-  <div class="card">
-    <p class="small">Esempio placeholder: confermeremo insieme i prezzi al lancio. Metodi previsti: Carte/Apple/Google Pay/Satispay (via Stripe). Fino all’attivazione del gateway, gestione via email.</p>
+
+<main class="wrap">
+  <h1 style="margin-top:8px">Prezzi & Condizioni</h1>
+  <p>Paghi in modo sicuro con <b>Stripe</b>. Il prezzo esatto viene mostrato nel checkout prima del pagamento.</p>
+
+  <div class="pricetable">
+    <div class="pricecard">
+      <h2 style="margin:0">Evento singolo</h2>
+      <div class="price">€ 9</div>
+      <ul>
+        <li>1 data</li>
+        <li>Foto/locandina inclusa</li>
+        <li>Pubblicazione immediata</li>
+      </ul>
+    </div>
+    <div class="pricecard">
+      <h2 style="margin:0">Evento con più date</h2>
+      <div class="price">€ 19</div>
+      <ul>
+        <li>2 o più occorrenze</li>
+        <li>Foto/locandina inclusa</li>
+        <li>Pubblicazione immediata</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Condizioni principali</h2>
+  <ul>
+    <li>L’evento deve rispettare le leggi e i regolamenti locali.</li>
+    <li>Contenuti chiari e veritieri; ci riserviamo il diritto di rimozione in caso di violazioni.</li>
+    <li>Pagamenti gestiti da Stripe; riceverai conferma a transazione completata.</li>
+    <li>In caso di annullamento, contattaci per assistenza: <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a>.</li>
+  </ul>
+
+  <p class="muted" style="margin-top:12px">Nota: i prezzi possono variare; fa fede quanto visualizzato nel checkout Stripe.</p>
+
+  <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+    <a class="btn" href="pubblica-evento.html">Pubblica un evento</a>
+    <a class="btn" href="index.html">← Torna alla mappa</a>
   </div>
 </main>
-<footer class="page-footer"><a href="pubblica-evento.html" class="btn">← Torna a pubblicare un evento</a></footer>
 </body>
 </html>
