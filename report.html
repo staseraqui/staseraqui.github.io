@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Report — Stasera Qui</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=10">
+  <style>
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0}
+    .kpi{background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;padding:14px}
+    .kpi b{font-size:28px;display:block}
+    .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+    @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
+    table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;overflow:hidden}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}
+    th{background:#0f1c2d}
+    .pill{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;padding:6px 10px;border-radius:999px;margin:2px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  </style>
+  <script src="assets/app-config.js?v=2"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header class="header">
+  <a href="index.html" class="logo">
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
+    <span class="wordmark">stasera qui</span>
+  </a>
+</header>
+
+<main class="wrap">
+  <div class="topbar">
+    <h1 style="margin:8px 0">Report</h1>
+    <div class="actions">
+      <a class="btn" href="index.html">← Torna alla mappa</a>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpis">
+    <div class="kpi"><div class="small">Eventi pubblicati</div><b id="k_events">—</b></div>
+    <div class="kpi"><div class="small">Occorrenze totali</div><b id="k_occs">—</b></div>
+    <div class="kpi"><div class="small">Città coperte</div><b id="k_cities">—</b></div>
+    <div class="kpi"><div class="small">Ultimi 30 giorni</div><b id="k_30d">—</b></div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <h3 class="block-title">Eventi per categoria</h3>
+      <div id="catsBox" class="card small">—</div>
+    </div>
+    <div>
+      <h3 class="block-title">Eventi per città (top 10)</h3>
+      <div id="citiesBox" class="card small">—</div>
+    </div>
+  </div>
+
+  <div>
+    <h3 class="block-title">Ultimi 50 eventi</h3>
+    <div class="card" style="overflow:auto">
+      <table id="tbl">
+        <thead><tr>
+          <th>Titolo</th><th>Categorie</th><th>Prima data</th><th>Città</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+(function(){
+  const CFG = window.SQ || window.SQ_CONFIG || {};
+  const sb  = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+
+  const els = {
+    k_events: document.getElementById('k_events'),
+    k_occs:   document.getElementById('k_occs'),
+    k_cities: document.getElementById('k_cities'),
+    k_30d:    document.getElementById('k_30d'),
+    catsBox:  document.getElementById('catsBox'),
+    citiesBox:document.getElementById('citiesBox'),
+    tblBody:  document.querySelector('#tbl tbody')
+  };
+
+  function txt(n){ return n.toLocaleString('it-IT'); }
+
+  function pills(list){
+    if (!list || !list.length) return '—';
+    return list.map(s=>`<span class="pill">${s}</span>`).join(' ');
+  }
+
+  function groupCount(arr, keyFn){
+    const map = new Map();
+    arr.forEach(x=>{
+      const k = keyFn(x);
+      if (!k) return;
+      map.set(k, (map.get(k)||0)+1);
+    });
+    return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]);
+  }
+
+  function parseCats(ev){
+    // accetta sia array (categories) che stringa pipe (categorie)
+    if (Array.isArray(ev.categories)) return ev.categories;
+    if (Array.isArray(ev.categorie))  return ev.categorie;
+    const s = ev.categories || ev.categorie || '';
+    if (typeof s === 'string' && s.includes('|')) return s.split('|').map(x=>x.trim()).filter(Boolean);
+    if (typeof s === 'string' && s.includes(',')) return s.split(',').map(x=>x.trim()).filter(Boolean);
+    return s ? [String(s)] : [];
+  }
+
+  function firstOccCity(ev, occsByEvent){
+    const occs = occsByEvent.get(ev.id) || [];
+    if (!occs.length) return '';
+    const o = occs.sort((a,b)=>(a.data+a.ora).localeCompare(b.data+b.ora))[0];
+    return o.citta || o.city || '';
+  }
+
+  (async function load(){
+    // Eventi
+    const { data: events } = await sb.from('events')
+      .select('id, title, titolo, categories, categorie, created_at')
+      .order('created_at', {ascending:false});
+
+    // Occorrenze
+    const { data: occs } = await sb.from('occurrences')
+      .select('id, event_id, data, date, ora, time, citta, city')
+      .order('data', {ascending:false});
+
+    const evs = events || [];
+    const oc  = occs || [];
+
+    // Map occorrenze per evento
+    const occsByEvent = new Map();
+    oc.forEach(o=>{
+      const k = o.event_id;
+      if (!occsByEvent.has(k)) occsByEvent.set(k, []);
+      occsByEvent.get(k).push({
+        data: o.data || o.date || '',
+        ora:  o.ora  || o.time || '',
+        citta:o.citta|| o.city || ''
+      });
+    });
+
+    // KPI
+    els.k_events.textContent = txt(evs.length);
+    els.k_occs.textContent   = txt(oc.length);
+    els.k_cities.textContent = txt(new Set(oc.map(o=> (o.citta||o.city||'').trim()).filter(Boolean)).size);
+
+    const d30 = new Date(); d30.setDate(d30.getDate()-30);
+    const evs30 = evs.filter(e => new Date(e.created_at) >= d30);
+    els.k_30d.textContent = txt(evs30.length);
+
+    // Categorie
+    const cats = groupCount(evs.flatMap(e=>parseCats(e)), x=>x);
+    els.catsBox.innerHTML = cats.length
+      ? cats.map(([c,n])=> `<div>${c} — <b>${txt(n)}</b></div>`).join('')
+      : '—';
+
+    // Città (top 10)
+    const cityPairs = groupCount(evs, e=> firstOccCity(e, occsByEvent)).slice(0,10);
+    els.citiesBox.innerHTML = cityPairs.length
+      ? cityPairs.map(([c,n])=> `<div>${c||'—'} — <b>${txt(n)}</b></div>`).join('')
+      : '—';
+
+    // Ultimi 50 eventi
+    const rows = evs.slice(0,50).map(e=>{
+      const cats = parseCats(e);
+      const occs = occsByEvent.get(e.id)||[];
+      const first = occs.sort((a,b)=>(a.data+a.ora).localeCompare(b.data+b.ora))[0] || {};
+      const titolo = e.title || e.titolo || '(evento)';
+      return `<tr>
+        <td>${titolo}</td>
+        <td>${cats.join(', ')||'—'}</td>
+        <td>${(first?.data||'').replace(/-/g,'/')} ${first?.ora||''}</td>
+        <td>${first?.citta||'—'}</td>
+      </tr>`;
+    }).join('');
+    els.tblBody.innerHTML = rows || `<tr><td colspan="4">Nessun evento</td></tr>`;
+  })();
+})();
+</script>
+</body>
+</html>
