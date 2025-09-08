@@ -48,7 +48,7 @@ a{color:var(--fg);text-decoration:none}
 .cta.accent{background:var(--accent);border:2px solid #1fa2d8;color:#081421;font-weight:800}
 /* CTA verde per "Lavora con noi" (Google Maps-like) */
 .cta.success{
-  background:#57C27C;            /* verde chiaro */
+  background:#a7f3c6;            /* verde chiaro */
   border:2px solid #44AD68;      /* bordo leggermente più scuro */
   color:#081421;
   font-weight:800;
