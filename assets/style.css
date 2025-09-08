@@ -85,11 +85,4 @@ textarea{min-height:120px;resize:vertical}
 /* Footer semplice */
 .page-footer{display:flex;justify-content:center;padding:20px 0 50px}
 
-/* Solo Mission: font più grande */
-body:has(title:contains("Mission")) p { font-size:18px; line-height:1.6; }
-/* Solo Contatti: font più grande */
-body:has(title:contains("Contatti")) p { font-size:18px; line-height:1.6; }
-/* Solo Chi siamo: font più grande */
-body:has(title:contains("Chi siamo")) p { font-size:18px; line-height:1.6; }
-/* Solo Come funziona: font più grande */
-body:has(title:contains("Come funziona")) p { font-size:18px; line-height:1.6; }
+
