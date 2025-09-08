@@ -99,14 +99,19 @@
 
 <script>
 (function(){
-  // ====== Supabase client (stesse chiavi di index/pubb-evento) ======
-  const CFG = window.SQ || {};
-  if (!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY){
-    document.getElementById('errBox').textContent = 'Chiavi mancanti in assets/app-config.js (SUPABASE_URL / SUPABASE_ANON_KEY).';
-    document.getElementById('errBox').style.display='block';
+  // ====== Legge le chiavi nello stesso modo di pubblica-evento.html ======
+  const CFG = window.SQ_CONFIG || {};   // <-- usa il tuo oggetto
+  const SUPABASE_URL = CFG.SUPABASE_URL;
+  const SUPABASE_ANON = CFG.SUPABASE_ANON || CFG.SUPABASE_ANON_KEY; // compatibile con entrambe le varianti
+
+  if (!SUPABASE_URL || !SUPABASE_ANON){
+    const box = document.getElementById('errBox');
+    box.textContent = 'Chiavi mancanti in assets/app-config.js (SUPABASE_URL / SUPABASE_ANON o SUPABASE_ANON_KEY).';
+    box.style.display='block';
     return;
   }
-  const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
   // ====== DOM ======
   const els = {
@@ -163,14 +168,14 @@
     const list = occsFiltered.filter(o => o.event_id===evId)
       .sort((a,b)=>((a.data||'')+(a.ora||'')).localeCompare((b.data||'')+(b.ora||'')));
     return list[0] || null;
-    }
+  }
 
   function showError(msg){
     els.errBox.textContent = msg;
     els.errBox.style.display = 'block';
   }
 
-  // ====== Caricamento dati (identico a index: stesse colonne + normalizzazione) ======
+  // ====== Caricamento dati ======
   (async function load(){
     els.errBox.style.display='none';
 
@@ -186,7 +191,6 @@
       if (evRes.error) msg += 'Errore eventi: ' + evRes.error.message + '\n';
       if (ocRes.error) msg += 'Errore occorrenze: ' + ocRes.error.message;
       showError(msg||'Errore sconosciuto');
-      // Anche se c'è errore, provo a non bloccare del tutto
     }
 
     EVENTS = evRes.data || [];
@@ -207,7 +211,7 @@
     // Debug numeri grezzi
     els.dbg.textContent = `Dati caricati — Eventi totali: ${fmt(EVENTS.length)} · Occorrenze totali: ${fmt(OCCS.length)}`;
 
-    // Popola select città (come index: da citta||city)
+    // Popola select città
     const cities = Array.from(new Set(OCCS.map(o=>o.citta).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'it'));
     if (cities.length){
       cities.forEach(c=>{
@@ -231,14 +235,12 @@
   function render(){
     const { city, start, end } = FILTERS;
 
-    // Filtra occorrenze
     const occsFiltered = OCCS.filter(o=>{
       if (city && o.citta!==city) return false;
       if (!inRange(o.data, start, end)) return false;
       return true;
     });
 
-    // Eventi con almeno 1 occorrenza filtrata
     const eventIds = new Set(occsFiltered.map(o=>o.event_id));
     const eventsFiltered = EVENTS.filter(e => eventIds.has(e.id));
 
@@ -277,13 +279,13 @@
   }
 
   // ====== Eventi UI ======
-  els.apply.addEventListener('click', ()=>{
+  document.getElementById('applyBtn').addEventListener('click', ()=>{
     FILTERS.city  = els.fCity.value || '';
     FILTERS.start = els.fStart.value || null;
     FILTERS.end   = els.fEnd.value   || null;
     render();
   });
-  els.clear.addEventListener('click', ()=>{
+  document.getElementById('clearBtn').addEventListener('click', ()=>{
     els.fCity.value = '';
     els.fStart.value = '';
     els.fEnd.value = '';
