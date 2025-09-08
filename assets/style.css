@@ -85,4 +85,7 @@ textarea{min-height:120px;resize:vertical}
 /* Footer semplice */
 .page-footer{display:flex;justify-content:center;padding:20px 0 50px}
 
-
+/* Solo Mission */
+.page-mission p{ font-size:18px; line-height:1.6; }
+/* Solo Chi siamo */
+.page-chi siamo p{ font-size:18px; line-height:1.6; }
