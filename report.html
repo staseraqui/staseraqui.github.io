@@ -8,21 +8,21 @@
   <script src="assets/app-config.js?v=2"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
-    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .wrap{max-width:1080px;margin:0 auto;padding:16px}
     .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
-    .controls .field{display:flex;flex-direction:column;gap:6px}
-    .controls input,.controls select{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:10px 12px}
-    .muted{color:#b8c2ce}
-    .cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0}
-    @media (max-width:960px){.cards{grid-template-columns:1fr 1fr}}
-    @media (max-width:640px){.cards{grid-template-columns:1fr}}
-    .kpi{background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;padding:14px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field input,.field select{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:10px 12px}
+    .kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    @media (max-width:900px){.kpis{grid-template-columns:1fr 1fr}}
+    @media (max-width:620px){.kpis{grid-template-columns:1fr}}
     .kpi h3{margin:0 0 6px}
+    .kpi .big{font-size:28px;font-weight:800}
     table{width:100%;border-collapse:collapse}
     th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top}
-    th{color:#b8c2ce;text-align:left}
+    th{text-align:left;color:#b8c2ce}
     tbody tr:hover{background:rgba(255,255,255,.03)}
     #err{color:#ffb4b4;font-weight:700;margin:10px 0}
+    .muted{color:#b8c2ce}
   </style>
 </head>
 <body>
@@ -38,7 +38,7 @@
 
   <div id="err"></div>
 
-  <div class="card">
+  <div class="card" style="margin-bottom:12px">
     <div class="controls">
       <div class="field">
         <label for="mode">Modalità</label>
@@ -73,26 +73,26 @@
     </div>
   </div>
 
-  <div class="cards">
-    <div class="kpi">
+  <div class="kpis">
+    <div class="card kpi">
       <h3>Totale eventi</h3>
-      <div id="kpiEvents" style="font-size:28px;font-weight:800">—</div>
-      <div class="muted small" id="kpiEventsNote"> </div>
+      <div id="kpiEvents" class="big">—</div>
+      <div class="muted small" id="kpiEventsNote"></div>
     </div>
-    <div class="kpi">
+    <div class="card kpi">
       <h3>Totale occorrenze</h3>
-      <div id="kpiOccs" style="font-size:28px;font-weight:800">—</div>
-      <div class="muted small" id="kpiOccsNote"> </div>
+      <div id="kpiOccs" class="big">—</div>
+      <div class="muted small" id="kpiOccsNote"></div>
     </div>
-    <div class="kpi">
+    <div class="card kpi">
       <h3>Città</h3>
-      <div id="kpiCities" style="font-size:28px;font-weight:800">—</div>
-      <div class="muted small" id="kpiCitiesNote"> </div>
+      <div id="kpiCities" class="big">—</div>
+      <div class="muted small" id="kpiCitiesNote"></div>
     </div>
   </div>
 
-  <div class="card">
-    <h3 id="tblTitle" style="margin-top:0">Risultati</h3>
+  <div class="card" style="margin-top:12px">
+    <h3 id="tblTitle" style="margin:0 0 4px">Risultati</h3>
     <div class="muted small" id="tblSubtitle"></div>
     <div style="overflow:auto;margin-top:8px">
       <table id="tbl">
@@ -119,14 +119,13 @@
   // ====== UTILS ======
   const $ = s => document.querySelector(s);
   const fmtIT = iso => { if(!iso) return ''; const [y,m,d]=iso.split('T')[0].split('-'); return `${d}/${m}/${y}`; };
+  const normCity = s => (s||'').trim().toLowerCase();
   const properCity = s => {
-    s = (s||'').trim();
-    if(!s) return '';
+    s = (s||'').trim(); if(!s) return '';
     const low = s.toLowerCase();
-    // Capitalizza ogni parola
     return low.replace(/\b\p{L}+/gu, w => w.charAt(0).toUpperCase()+w.slice(1));
   };
-  const normCity = s => (s||'').trim().toLowerCase();
+  const escapeHtml = s => String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
   function rangeNote(from, to){
     const a = from ? fmtIT(from) : '—';
@@ -140,54 +139,49 @@
   const kEvN = $('#kpiEventsNote'), kOcN = $('#kpiOccsNote'), kCiN = $('#kpiCitiesNote');
   const th = $('#tbl thead'), tb = $('#tbl tbody'), sub = $('#tblSubtitle'), title = $('#tblTitle');
 
-  // Default: ultimi 30 giorni
-  const today = new Date(); const toISO = today.toISOString().slice(0,10);
+  // Default periodo = ultimi 30 giorni
+  const today = new Date();
+  const toISO = today.toISOString().slice(0,10);
   const fromISO = new Date(today.getFullYear(), today.getMonth(), today.getDate()-30).toISOString().slice(0,10);
   fromEl.value = fromISO; toEl.value = toISO;
 
-  // ====== CARICAMENTO BASE (per menu Città) ======
-  // Carico qualche dato per popolare la tendina città in modo robusto:
-  // - tutte le occorrenze ultimi 180 giorni (basta per menu), e in più tutti i deletions ultimi 180 giorni
-  // - normalizzazione case-insensitive
-  let CITY_SET = new Map(); // normCity -> displayCity
+  // ====== MENU CITTÀ (prime) ======
   async function primeCities(){
-    CITY_SET.clear();
     const since = new Date(); since.setDate(since.getDate()-180);
     const sinceISO = since.toISOString().slice(0,10);
 
-    // Occorrenze per città (ultimi 6 mesi)
+    const cities = new Map(); // norm -> display
+
+    // Occorrenze (ultimi 6 mesi)
     const oc = await sb.from('occurrences')
       .select('citta')
       .gte('data', sinceISO)
       .limit(20000);
-    if (!oc.error && oc.data){
+    if(!oc.error && oc.data){
       oc.data.forEach(r=>{
-        const n = normCity(r.citta);
-        if(n && !CITY_SET.has(n)) CITY_SET.set(n, properCity(r.citta));
+        const n = normCity(r.citta); if(n && !cities.has(n)) cities.set(n, properCity(r.citta));
       });
     }
-    // Deletions per città (ultimi 6 mesi)
+    // Deletions (ultimi 6 mesi)
     const del = await sb.from('event_deletions')
       .select('city, created_at')
       .gte('created_at', sinceISO)
       .limit(20000);
-    if (!del.error && del.data){
+    if(!del.error && del.data){
       del.data.forEach(r=>{
-        const n = normCity(r.city);
-        if(n && !CITY_SET.has(n)) CITY_SET.set(n, properCity(r.city));
+        const n = normCity(r.city); if(n && !cities.has(n)) cities.set(n, properCity(r.city));
       });
     }
 
-    // Riempie il menu
-    cityEl.innerHTML = '<option value="">(Tutte)</option>' +
-      Array.from(CITY_SET.values()).sort().map(c=>`<option value="${normCity(c)}">${c}</option>`).join('');
+    cityEl.innerHTML = '<option value="">(Tutte)</option>'+
+      Array.from(cities.values()).sort().map(c=>`<option value="${normCity(c)}">${c}</option>`).join('');
   }
 
-  // ====== LOGICA PRINCIPALE ======
+  // ====== RUN ======
   async function run(){
     $('#err').textContent = '';
     th.innerHTML = ''; tb.innerHTML = '';
-    kEv.textContent = '—'; kOc.textContent = '—'; kCi.textContent = '—';
+    kEv.textContent = kOc.textContent = kCi.textContent = '—';
     kEvN.textContent = kOcN.textContent = kCiN.textContent = '';
 
     const mode = modeEl.value;
@@ -195,42 +189,37 @@
     const to   = toEl.value   || null;
     const cityNorm = cityEl.value || '';
 
-    if (mode === 'occ'){
-      await runOcc(from, to, cityNorm);
-    } else if (mode === 'pub'){
-      await runPub(from, to, cityNorm);
-    } else {
-      await runDel(from, to, cityNorm);
-    }
+    if (mode==='occ')      await runOcc(from, to, cityNorm);
+    else if (mode==='pub') await runPub(from, to, cityNorm);
+    else                   await runDel(from, to, cityNorm);
   }
 
-  // ------- Modalità: Eventi per data occorrenza -------
+  // --- Eventi per data occorrenza ---
   async function runOcc(from, to, cityNorm){
     title.textContent = 'Eventi per data occorrenza';
 
-    let q = sb.from('occurrences').select('id,event_id,data,ora,luogo,indirizzo,citta,lat,lng').order('data',{ascending:true}).limit(20000);
+    let q = sb.from('occurrences')
+      .select('id,event_id,data,ora,luogo,indirizzo,citta,lat,lng')
+      .order('data',{ascending:true})
+      .limit(20000);
     if (from) q = q.gte('data', from);
     if (to)   q = q.lte('data', to);
     const ocRes = await q;
     if (ocRes.error){ $('#err').textContent = ocRes.error.message; return; }
 
-    // City filter
     let occs = ocRes.data || [];
-    if (cityNorm) occs = occs.filter(o => normCity(o.citta) === cityNorm);
+    if (cityNorm) occs = occs.filter(o => normCity(o.citta)===cityNorm);
 
-    // Event ids
     const ids = Array.from(new Set(occs.map(o=>o.event_id))).filter(Boolean);
     let events = [];
     if (ids.length){
-      // Carico eventi per quegli id
       const evRes = await sb.from('events')
         .select('id,title,titolo,categories,categorie,description,descrizione')
         .in('id', ids);
-      if (!evRes.error && evRes.data) events = evRes.data;
+      if(!evRes.error && evRes.data) events = evRes.data;
     }
     const evById = new Map(events.map(e=>[e.id,e]));
 
-    // KPI
     const cities = new Set(occs.map(o=> normCity(o.citta) ).filter(Boolean));
     kEv.textContent = ids.length;
     kOc.textContent = occs.length;
@@ -239,7 +228,6 @@
     kOcN.textContent = cityNorm ? `Città: ${properCity(cityNorm)}` : 'Città: tutte';
     kCiN.textContent = 'Città distinte nel range';
 
-    // Tabella
     th.innerHTML = `<tr>
       <th>Data</th><th>Ora</th><th>Titolo</th><th>Città</th><th>Luogo</th><th>Indirizzo</th><th>Categorie</th>
     </tr>`;
@@ -261,19 +249,22 @@
     sub.textContent = `${occs.length} occorrenze — ${ids.length} eventi — ${cities.size} città. ${rangeNote(from,to)} ${cityNorm?(' — Città: '+properCity(cityNorm)) : ''}`;
   }
 
-  // ------- Modalità: Eventi per data pubblicazione -------
+  // --- Eventi per data pubblicazione ---
   async function runPub(from, to, cityNorm){
     title.textContent = 'Eventi per data pubblicazione';
 
-    // Carico eventi per data pubblicazione (created_at / inserted_at / createdAt)
-    let q = sb.from('events').select('id,title,titolo,categories,categorie,description,descrizione,created_at,inserted_at,createdAt').order('created_at',{ascending:true}).limit(20000);
+    // ⚠️ SOLO colonne esistenti: created_at
+    let q = sb.from('events')
+      .select('id,title,titolo,categories,categorie,description,descrizione,created_at')
+      .order('created_at',{ascending:true})
+      .limit(20000);
     if (from) q = q.gte('created_at', from);
     if (to)   q = q.lte('created_at', to);
     const evRes = await q;
     if (evRes.error){ $('#err').textContent = evRes.error.message; return; }
     let events = evRes.data || [];
 
-    // Occorrenze per ricavare città & conteggio
+    // Occorrenze per città / conteggio
     const ids = events.map(e=>e.id);
     let occByEvent = new Map();
     if (ids.length){
@@ -288,7 +279,6 @@
       }
     }
 
-    // Filtro città (se richiesto)
     if (cityNorm){
       events = events.filter(e=>{
         const arr = occByEvent.get(e.id)||[];
@@ -296,7 +286,6 @@
       });
     }
 
-    // KPI
     const occCount = events.reduce((sum,e)=> sum + ((occByEvent.get(e.id)||[]).length), 0);
     const cities = new Set();
     events.forEach(e=> (occByEvent.get(e.id)||[]).forEach(o=> cities.add(normCity(o.citta)) ));
@@ -307,12 +296,11 @@
     kOcN.textContent = cityNorm ? `Città: ${properCity(cityNorm)}` : 'Città: tutte';
     kCiN.textContent = 'Città degli eventi pubblicati';
 
-    // Tabella
     th.innerHTML = `<tr>
       <th>Pubblicato</th><th>Titolo</th><th>Città (prima occ.)</th><th>#Occorrenze</th><th>Categorie</th>
     </tr>`;
     tb.innerHTML = events.map(e=>{
-      const created = e.created_at || e.inserted_at || e.createdAt || '';
+      const created = e.created_at || '';
       const occs = occByEvent.get(e.id)||[];
       const firstCity = properCity((occs[0]?.citta)||'');
       const cats = (e.categories || e.categorie || []).join(', ');
@@ -329,11 +317,14 @@
     sub.textContent = `${events.length} eventi pubblicati — ${occCount} occorrenze collegate. ${rangeNote(from,to)} ${cityNorm?(' — Città: '+properCity(cityNorm)) : ''}`;
   }
 
-  // ------- Modalità: Eventi annullati -------
+  // --- Eventi annullati ---
   async function runDel(from, to, cityNorm){
     title.textContent = 'Eventi annullati';
 
-    let q = sb.from('event_deletions').select('event_id,title,city,created_at').order('created_at',{ascending:true}).limit(20000);
+    let q = sb.from('event_deletions')
+      .select('event_id,title,city,created_at')
+      .order('created_at',{ascending:true})
+      .limit(20000);
     if (from) q = q.gte('created_at', from);
     if (to)   q = q.lte('created_at', to);
     const delRes = await q;
@@ -342,7 +333,6 @@
 
     if (cityNorm) rows = rows.filter(r => normCity(r.city)===cityNorm);
 
-    // KPI
     const evIds = new Set(rows.map(r=>r.event_id));
     const cities = new Set(rows.map(r=>normCity(r.city)).filter(Boolean));
     kEv.textContent = evIds.size;
@@ -352,7 +342,6 @@
     kOcN.textContent = cityNorm ? `Città: ${properCity(cityNorm)}` : 'Città: tutte';
     kCiN.textContent = 'Città (annullati)';
 
-    // Tabella
     th.innerHTML = `<tr>
       <th>Data annullamento</th><th>Titolo</th><th>Città</th><th>Event ID</th>
     </tr>`;
@@ -368,15 +357,12 @@
     sub.textContent = `${rows.length} record di annullamento — ${evIds.size} eventi. ${rangeNote(from,to)} ${cityNorm?(' — Città: '+properCity(cityNorm)) : ''}`;
   }
 
-  // ====== HELPERS ======
-  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-
   // ====== BIND ======
-  $('#runBtn').addEventListener('click', run);
-  modeEl.addEventListener('change', ()=> run());
-  fromEl.addEventListener('change', ()=> run());
-  toEl.addEventListener('change', ()=> run());
-  cityEl.addEventListener('change', ()=> run());
+  document.getElementById('runBtn').addEventListener('click', run);
+  document.getElementById('mode').addEventListener('change', run);
+  document.getElementById('from').addEventListener('change', run);
+  document.getElementById('to').addEventListener('change', run);
+  document.getElementById('city').addEventListener('change', run);
 
   // ====== START ======
   (async ()=>{ await primeCities(); await run(); })();
