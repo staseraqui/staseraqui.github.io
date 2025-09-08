@@ -7,8 +7,10 @@
   <link rel="stylesheet" href="assets/style.css?v=12">
   <script src="assets/app-config.js?v=2"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <!-- Chart.js per i grafici -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <style>
-    .wrap{max-width:1080px;margin:0 auto;padding:16px}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
     .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
     .field{display:flex;flex-direction:column;gap:6px}
     .field input,.field select{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:10px 12px}
@@ -23,6 +25,9 @@
     tbody tr:hover{background:rgba(255,255,255,.03)}
     #err{color:#ffb4b4;font-weight:700;margin:10px 0}
     .muted{color:#b8c2ce}
+    .chart-wrap{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:960px){.chart-wrap{grid-template-columns:1fr 1fr}}
+    canvas{background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px}
   </style>
 </head>
 <body>
@@ -35,7 +40,6 @@
 
 <main class="wrap">
   <h1 style="margin:8px 0 12px">Report</h1>
-
   <div id="err"></div>
 
   <div class="card" style="margin-bottom:12px">
@@ -68,6 +72,10 @@
       </div>
       <div class="field">
         <label>&nbsp;</label>
+        <button class="btn" id="csvBtn" type="button">Esporta CSV</button>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
         <a class="btn" href="admin.html">← Torna ad Admin</a>
       </div>
     </div>
@@ -88,6 +96,14 @@
       <h3>Città</h3>
       <div id="kpiCities" class="big">—</div>
       <div class="muted small" id="kpiCitiesNote"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">Grafici</h3>
+    <div class="chart-wrap">
+      <canvas id="chartTrend" height="220"></canvas>
+      <canvas id="chartCities" height="220"></canvas>
     </div>
   </div>
 
@@ -118,7 +134,7 @@
 
   // ====== UTILS ======
   const $ = s => document.querySelector(s);
-  const fmtIT = iso => { if(!iso) return ''; const [y,m,d]=iso.split('T')[0].split('-'); return `${d}/${m}/${y}`; };
+  const fmtIT = iso => { if(!iso) return ''; const d=(iso||'').slice(0,10); const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}`; };
   const normCity = s => (s||'').trim().toLowerCase();
   const properCity = s => {
     s = (s||'').trim(); if(!s) return '';
@@ -126,89 +142,115 @@
     return low.replace(/\b\p{L}+/gu, w => w.charAt(0).toUpperCase()+w.slice(1));
   };
   const escapeHtml = s => String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
-
-  function rangeNote(from, to){
-    const a = from ? fmtIT(from) : '—';
-    const b = to   ? fmtIT(to)   : '—';
-    return `Periodo: ${a} → ${b}`;
-  }
+  const dateInRange = (d, from, to) => {
+    if(!d) return false; const ds = (d||'').slice(0,10);
+    if(from && ds < from) return false;
+    if(to   && ds > to)   return false;
+    return true;
+  };
+  const today = new Date();
+  const toISO = today.toISOString().slice(0,10);
+  const fromISO = new Date(today.getFullYear(), today.getMonth(), today.getDate()-30).toISOString().slice(0,10);
 
   // ====== ELEMENTI ======
   const modeEl = $('#mode'), fromEl = $('#from'), toEl = $('#to'), cityEl = $('#city');
   const kEv = $('#kpiEvents'), kOc = $('#kpiOccs'), kCi = $('#kpiCities');
   const kEvN = $('#kpiEventsNote'), kOcN = $('#kpiOccsNote'), kCiN = $('#kpiCitiesNote');
   const th = $('#tbl thead'), tb = $('#tbl tbody'), sub = $('#tblSubtitle'), title = $('#tblTitle');
+  let lastRowsCSV = []; // per export
 
-  // Default periodo = ultimi 30 giorni
-  const today = new Date();
-  const toISO = today.toISOString().slice(0,10);
-  const fromISO = new Date(today.getFullYear(), today.getMonth(), today.getDate()-30).toISOString().slice(0,10);
+  // ====== CHARTS ======
+  let chartTrend, chartCities;
+  function drawTrend(dataByDay){
+    const labels = Object.keys(dataByDay).sort();
+    const values = labels.map(d => dataByDay[d]);
+    if (chartTrend) chartTrend.destroy();
+    chartTrend = new Chart(document.getElementById('chartTrend'), {
+      type:'line',
+      data:{ labels, datasets:[{ label:'Occorrenze per giorno', data:values, tension:0.2 }] },
+      options:{ responsive:true, plugins:{ legend:{display:true} }, scales:{ x:{ ticks:{ color:'#b8c2ce' }}, y:{ ticks:{ color:'#b8c2ce' }}}}
+    });
+  }
+  function drawCities(cityCounts){
+    const entries = Object.entries(cityCounts).sort((a,b)=> b[1]-a[1]).slice(0,12);
+    const labels = entries.map(([k])=> properCity(k));
+    const values = entries.map(([,v])=> v);
+    if (chartCities) chartCities.destroy();
+    chartCities = new Chart(document.getElementById('chartCities'), {
+      type:'bar',
+      data:{ labels, datasets:[{ label:'Occorrenze per città', data:values }] },
+      options:{ responsive:true, plugins:{ legend:{display:true} }, scales:{ x:{ ticks:{ color:'#b8c2ce' }}, y:{ ticks:{ color:'#b8c2ce' }}}}
+    });
+  }
+
+  // ====== DEFAULT RANGE ======
   fromEl.value = fromISO; toEl.value = toISO;
 
-  // ====== MENU CITTÀ (prime) ======
+  // ====== MENU CITTÀ ======
   async function primeCities(){
-    const since = new Date(); since.setDate(since.getDate()-180);
-    const sinceISO = since.toISOString().slice(0,10);
-
-    const cities = new Map(); // norm -> display
-
-    // Occorrenze (ultimi 6 mesi)
-    const oc = await sb.from('occurrences')
-      .select('citta')
-      .gte('data', sinceISO)
-      .limit(20000);
+    const cities = new Map();
+    const oc = await sb.from('occurrences').select('*').limit(50000);
     if(!oc.error && oc.data){
       oc.data.forEach(r=>{
-        const n = normCity(r.citta); if(n && !cities.has(n)) cities.set(n, properCity(r.citta));
+        const c = r.citta ?? r.city ?? '';
+        const n = normCity(c); if(n && !cities.has(n)) cities.set(n, properCity(c));
       });
     }
-    // Deletions (ultimi 6 mesi)
-    const del = await sb.from('event_deletions')
-      .select('city, created_at')
-      .gte('created_at', sinceISO)
-      .limit(20000);
+    const del = await sb.from('event_deletions').select('*').limit(20000);
     if(!del.error && del.data){
       del.data.forEach(r=>{
-        const n = normCity(r.city); if(n && !cities.has(n)) cities.set(n, properCity(r.city));
+        const c = r.city ?? r.citta ?? '';
+        const n = normCity(c); if(n && !cities.has(n)) cities.set(n, properCity(c));
       });
     }
-
     cityEl.innerHTML = '<option value="">(Tutte)</option>'+
       Array.from(cities.values()).sort().map(c=>`<option value="${normCity(c)}">${c}</option>`).join('');
   }
 
   // ====== RUN ======
+  document.getElementById('runBtn').addEventListener('click', run);
+  document.getElementById('mode').addEventListener('change', run);
+  document.getElementById('from').addEventListener('change', run);
+  document.getElementById('to').addEventListener('change', run);
+  document.getElementById('city').addEventListener('change', run);
+  document.getElementById('csvBtn').addEventListener('click', exportCSV);
+
   async function run(){
     $('#err').textContent = '';
     th.innerHTML = ''; tb.innerHTML = '';
     kEv.textContent = kOc.textContent = kCi.textContent = '—';
     kEvN.textContent = kOcN.textContent = kCiN.textContent = '';
+    lastRowsCSV = [];
 
     const mode = modeEl.value;
     const from = fromEl.value || null;
     const to   = toEl.value   || null;
     const cityNorm = cityEl.value || '';
 
-    if (mode==='occ')      await runOcc(from, to, cityNorm);
-    else if (mode==='pub') await runPub(from, to, cityNorm);
-    else                   await runDel(from, to, cityNorm);
+    if (mode==='occ')      await runOcc(from,to,cityNorm);
+    else if (mode==='pub') await runPub(from,to,cityNorm);
+    else                   await runDel(from,to,cityNorm);
   }
 
-  // --- Eventi per data occorrenza ---
+  // --- OCCORRENZE ---
   async function runOcc(from, to, cityNorm){
     title.textContent = 'Eventi per data occorrenza';
 
-    let q = sb.from('occurrences')
-      .select('id,event_id,data,ora,luogo,indirizzo,citta,lat,lng')
-      .order('data',{ascending:true})
-      .limit(20000);
-    if (from) q = q.gte('data', from);
-    if (to)   q = q.lte('data', to);
-    const ocRes = await q;
+    const ocRes = await sb.from('occurrences').select('*').limit(50000);
     if (ocRes.error){ $('#err').textContent = ocRes.error.message; return; }
 
-    let occs = ocRes.data || [];
-    if (cityNorm) occs = occs.filter(o => normCity(o.citta)===cityNorm);
+    let occs = (ocRes.data||[]).map(o=>({
+      id: o.id, event_id: o.event_id,
+      data: o.data ?? o.date ?? null,
+      ora:  o.ora  ?? o.time ?? '',
+      luogo: o.luogo ?? o.venue ?? '',
+      indirizzo: o.indirizzo ?? o.address ?? '',
+      citta: o.citta ?? o.city ?? '',
+      lat: o.lat, lng: o.lng
+    }));
+
+    if (from || to) occs = occs.filter(o => dateInRange(o.data, from, to));
+    if (cityNorm)   occs = occs.filter(o => normCity(o.citta)===cityNorm);
 
     const ids = Array.from(new Set(occs.map(o=>o.event_id))).filter(Boolean);
     let events = [];
@@ -220,6 +262,7 @@
     }
     const evById = new Map(events.map(e=>[e.id,e]));
 
+    // KPI
     const cities = new Set(occs.map(o=> normCity(o.citta) ).filter(Boolean));
     kEv.textContent = ids.length;
     kOc.textContent = occs.length;
@@ -228,6 +271,17 @@
     kOcN.textContent = cityNorm ? `Città: ${properCity(cityNorm)}` : 'Città: tutte';
     kCiN.textContent = 'Città distinte nel range';
 
+    // Grafici
+    const byDay = {};
+    const byCity = {};
+    occs.forEach(o=>{
+      const d = (o.data||'').slice(0,10); if(d) byDay[d] = (byDay[d]||0)+1;
+      const c = normCity(o.citta); if(c) byCity[c] = (byCity[c]||0)+1;
+    });
+    drawTrend(byDay);
+    drawCities(byCity);
+
+    // Tabella
     th.innerHTML = `<tr>
       <th>Data</th><th>Ora</th><th>Titolo</th><th>Città</th><th>Luogo</th><th>Indirizzo</th><th>Categorie</th>
     </tr>`;
@@ -246,14 +300,22 @@
       </tr>`;
     }).join('') || `<tr><td colspan="7" class="muted">Nessun dato</td></tr>`;
 
+    lastRowsCSV = occs.map(o=>{
+      const ev = evById.get(o.event_id)||{};
+      return {
+        data:o.data, ora:o.ora, titolo:(ev.title||ev.titolo||''), citta:o.citta,
+        luogo:o.luogo, indirizzo:o.indirizzo, categorie:(ev.categories||ev.categorie||[]).join('|'),
+        event_id:o.event_id
+      };
+    });
+
     sub.textContent = `${occs.length} occorrenze — ${ids.length} eventi — ${cities.size} città. ${rangeNote(from,to)} ${cityNorm?(' — Città: '+properCity(cityNorm)) : ''}`;
   }
 
-  // --- Eventi per data pubblicazione ---
+  // --- PUBBLICAZIONE ---
   async function runPub(from, to, cityNorm){
     title.textContent = 'Eventi per data pubblicazione';
 
-    // ⚠️ SOLO colonne esistenti: created_at
     let q = sb.from('events')
       .select('id,title,titolo,categories,categorie,description,descrizione,created_at')
       .order('created_at',{ascending:true})
@@ -264,21 +326,20 @@
     if (evRes.error){ $('#err').textContent = evRes.error.message; return; }
     let events = evRes.data || [];
 
-    // Occorrenze per città / conteggio
     const ids = events.map(e=>e.id);
     let occByEvent = new Map();
     if (ids.length){
-      const ocRes = await sb.from('occurrences').select('event_id,citta').in('event_id', ids).limit(50000);
+      const ocRes = await sb.from('occurrences').select('*').in('event_id', ids).limit(50000);
       if (!ocRes.error && ocRes.data){
         const map = new Map();
         ocRes.data.forEach(o=>{
+          const city = o.citta ?? o.city ?? '';
           if (!map.has(o.event_id)) map.set(o.event_id, []);
-          map.get(o.event_id).push(o);
+          map.get(o.event_id).push({citta:city, data:o.data??o.date??null});
         });
         occByEvent = map;
       }
     }
-
     if (cityNorm){
       events = events.filter(e=>{
         const arr = occByEvent.get(e.id)||[];
@@ -289,12 +350,22 @@
     const occCount = events.reduce((sum,e)=> sum + ((occByEvent.get(e.id)||[]).length), 0);
     const cities = new Set();
     events.forEach(e=> (occByEvent.get(e.id)||[]).forEach(o=> cities.add(normCity(o.citta)) ));
-    kEv.textContent = events.length;
-    kOc.textContent = occCount;
-    kCi.textContent = cities.has('') ? cities.size-1 : cities.size;
+    if (cities.has('')) cities.delete('');
+    kEv.textContent = events.length; kOc.textContent = occCount; kCi.textContent = cities.size;
     kEvN.textContent = rangeNote(from,to);
     kOcN.textContent = cityNorm ? `Città: ${properCity(cityNorm)}` : 'Città: tutte';
     kCiN.textContent = 'Città degli eventi pubblicati';
+
+    // Grafici: trend su created_at e top città (dalla prima occorrenza)
+    const byDay = {};
+    const byCity = {};
+    events.forEach(e=>{
+      const d=(e.created_at||'').slice(0,10); if(d) byDay[d]=(byDay[d]||0)+1;
+      const occs = occByEvent.get(e.id)||[];
+      const city = occs[0]?.citta || '';
+      const n=normCity(city); if(n) byCity[n]=(byCity[n]||0)+1;
+    });
+    drawTrend(byDay); drawCities(byCity);
 
     th.innerHTML = `<tr>
       <th>Pubblicato</th><th>Titolo</th><th>Città (prima occ.)</th><th>#Occorrenze</th><th>Categorie</th>
@@ -314,26 +385,41 @@
       </tr>`;
     }).join('') || `<tr><td colspan="5" class="muted">Nessun dato</td></tr>`;
 
+    lastRowsCSV = events.map(e=>{
+      const occs = occByEvent.get(e.id)||[];
+      return {
+        pubblicato: e.created_at||'',
+        titolo: e.title||e.titolo||'',
+        citta_prima_occorrenza: occs[0]?.citta||'',
+        occorrenze: occs.length,
+        categorie: (e.categories||e.categorie||[]).join('|'),
+        event_id: e.id
+      };
+    });
+
     sub.textContent = `${events.length} eventi pubblicati — ${occCount} occorrenze collegate. ${rangeNote(from,to)} ${cityNorm?(' — Città: '+properCity(cityNorm)) : ''}`;
   }
 
-  // --- Eventi annullati ---
+  // --- ANNULLATI ---
   async function runDel(from, to, cityNorm){
     title.textContent = 'Eventi annullati';
 
-    let q = sb.from('event_deletions')
-      .select('event_id,title,city,created_at')
-      .order('created_at',{ascending:true})
-      .limit(20000);
-    if (from) q = q.gte('created_at', from);
-    if (to)   q = q.lte('created_at', to);
-    const delRes = await q;
+    const delRes = await sb.from('event_deletions').select('*').limit(20000);
     if (delRes.error){ $('#err').textContent = delRes.error.message; return; }
-    let rows = delRes.data || [];
+    let rows = (delRes.data||[]).map(r=>{
+      const when = r.created_at ?? r.deleted_at ?? r.ts ?? r.timestamp ?? r.date ?? r.data ?? null;
+      const city = r.city ?? r.citta ?? '';
+      return {
+        event_id: r.event_id ?? r.id ?? '',
+        title: r.title ?? r.event_title ?? '(evento)',
+        city, when
+      };
+    });
 
-    if (cityNorm) rows = rows.filter(r => normCity(r.city)===cityNorm);
+    if (from || to) rows = rows.filter(r => dateInRange(r.when, from, to));
+    if (cityNorm)   rows = rows.filter(r => normCity(r.city)===cityNorm);
 
-    const evIds = new Set(rows.map(r=>r.event_id));
+    const evIds = new Set(rows.map(r=>r.event_id).filter(Boolean));
     const cities = new Set(rows.map(r=>normCity(r.city)).filter(Boolean));
     kEv.textContent = evIds.size;
     kOc.textContent = rows.length;
@@ -342,29 +428,56 @@
     kOcN.textContent = cityNorm ? `Città: ${properCity(cityNorm)}` : 'Città: tutte';
     kCiN.textContent = 'Città (annullati)';
 
+    // Grafici: trend annullamenti e top città
+    const byDay = {}, byCity = {};
+    rows.forEach(r=>{ const d=(r.when||'').slice(0,10); if(d) byDay[d]=(byDay[d]||0)+1;
+                      const n=normCity(r.city); if(n) byCity[n]=(byCity[n]||0)+1; });
+    drawTrend(byDay); drawCities(byCity);
+
     th.innerHTML = `<tr>
       <th>Data annullamento</th><th>Titolo</th><th>Città</th><th>Event ID</th>
     </tr>`;
     tb.innerHTML = rows.map(r=>`
       <tr>
-        <td>${fmtIT(r.created_at||'')}</td>
+        <td>${fmtIT(r.when||'')}</td>
         <td>${escapeHtml(r.title||'(evento)')}</td>
         <td>${escapeHtml(properCity(r.city))}</td>
         <td>${escapeHtml(r.event_id||'')}</td>
       </tr>
     `).join('') || `<tr><td colspan="4" class="muted">Nessun dato</td></tr>`;
 
+    lastRowsCSV = rows.map(r=>({
+      data_annullamento: r.when||'',
+      titolo: r.title||'',
+      citta: r.city||'',
+      event_id: r.event_id||''
+    }));
+
     sub.textContent = `${rows.length} record di annullamento — ${evIds.size} eventi. ${rangeNote(from,to)} ${cityNorm?(' — Città: '+properCity(cityNorm)) : ''}`;
   }
 
-  // ====== BIND ======
-  document.getElementById('runBtn').addEventListener('click', run);
-  document.getElementById('mode').addEventListener('change', run);
-  document.getElementById('from').addEventListener('change', run);
-  document.getElementById('to').addEventListener('change', run);
-  document.getElementById('city').addEventListener('change', run);
+  function rangeNote(from, to){
+    const a = from ? fmtIT(from) : '—';
+    const b = to   ? fmtIT(to)   : '—';
+    return `Periodo: ${a} → ${b}`;
+  }
 
-  // ====== START ======
+  function exportCSV(){
+    if (!lastRowsCSV.length){ alert('Niente da esportare.'); return; }
+    const keys = Object.keys(lastRowsCSV[0]);
+    const escapeCSV = v => {
+      const s = (v==null ? '' : String(v));
+      if (/[",;\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+      return s;
+    };
+    const csv = [keys.join(','), ...lastRowsCSV.map(r => keys.map(k=>escapeCSV(r[k])).join(','))].join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'report_staseraqui.csv';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
+  // START
   (async ()=>{ await primeCities(); await run(); })();
 })();
 </script>
