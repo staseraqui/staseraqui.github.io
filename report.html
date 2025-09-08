@@ -7,16 +7,20 @@
   <link rel="stylesheet" href="assets/style.css?v=10">
   <style>
     .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .filters{display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:10px;margin:12px 0}
+    @media(max-width:980px){.filters{grid-template-columns:1fr 1fr;}}
     .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0}
     .kpi{background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;padding:14px}
     .kpi b{font-size:28px;display:block}
     .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
-    @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
+    @media(max-width:980px){.kpis{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
+    .card.scroll{max-height:340px;overflow:auto}
     table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;overflow:hidden}
     th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}
-    th{background:#0f1c2d}
+    th{background:#0f1c2d;position:sticky;top:0}
     .pill{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;padding:6px 10px;border-radius:999px;margin:2px}
-    .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .smallmuted{font-size:12px;color:#b8c2ce}
   </style>
   <script src="assets/app-config.js?v=2"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
@@ -37,31 +41,54 @@
     </div>
   </div>
 
+  <!-- FILTRI -->
+  <div class="card">
+    <div class="filters">
+      <div>
+        <label for="fCity" class="smallmuted">Città</label>
+        <select id="fCity">
+          <option value="">(Tutte)</option>
+        </select>
+      </div>
+      <div>
+        <label for="fStart" class="smallmuted">Dal (data occorrenza)</label>
+        <input type="date" id="fStart">
+      </div>
+      <div>
+        <label for="fEnd" class="smallmuted">Al (data occorrenza)</label>
+        <input type="date" id="fEnd">
+      </div>
+      <div style="display:flex;align-items:flex-end"><button class="btn primary" id="applyBtn" type="button">Applica filtri</button></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn" id="clearBtn" type="button">Azzera</button></div>
+    </div>
+    <div class="smallmuted">I filtri agiscono sulle <b>occorrenze</b> (date e città). Un evento compare se ha almeno un’occorrenza che soddisfa i filtri.</div>
+  </div>
+
   <!-- KPI -->
   <div class="kpis">
-    <div class="kpi"><div class="small">Eventi pubblicati</div><b id="k_events">—</b></div>
-    <div class="kpi"><div class="small">Occorrenze totali</div><b id="k_occs">—</b></div>
-    <div class="kpi"><div class="small">Città coperte</div><b id="k_cities">—</b></div>
-    <div class="kpi"><div class="small">Ultimi 30 giorni</div><b id="k_30d">—</b></div>
+    <div class="kpi"><div class="small">Eventi (filtrati)</div><b id="k_events">—</b></div>
+    <div class="kpi"><div class="small">Occorrenze (filtrate)</div><b id="k_occs">—</b></div>
+    <div class="kpi"><div class="small">Città coperte (filtrate)</div><b id="k_cities">—</b></div>
+    <div class="kpi"><div class="small">Periodo selezionato</div><b id="k_range">—</b></div>
   </div>
 
   <div class="cols">
     <div>
-      <h3 class="block-title">Eventi per categoria</h3>
+      <h3 class="block-title">Eventi per categoria (filtrati)</h3>
       <div id="catsBox" class="card small">—</div>
     </div>
     <div>
-      <h3 class="block-title">Eventi per città (top 10)</h3>
-      <div id="citiesBox" class="card small">—</div>
+      <h3 class="block-title">Eventi per città (filtrate — tutte)</h3>
+      <div id="citiesBox" class="card small scroll">—</div>
     </div>
   </div>
 
   <div>
-    <h3 class="block-title">Ultimi 50 eventi</h3>
+    <h3 class="block-title">Eventi (max 200, filtrati)</h3>
     <div class="card" style="overflow:auto">
       <table id="tbl">
         <thead><tr>
-          <th>Titolo</th><th>Categorie</th><th>Prima data</th><th>Città</th>
+          <th>Titolo</th><th>Categorie</th><th>Prima data (nel filtro)</th><th>Città</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -71,24 +98,48 @@
 
 <script>
 (function(){
+  // ====== Supabase client dall'unica config ======
   const CFG = window.SQ || window.SQ_CONFIG || {};
   const sb  = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
+  // ====== DOM ======
   const els = {
+    fCity:  document.getElementById('fCity'),
+    fStart: document.getElementById('fStart'),
+    fEnd:   document.getElementById('fEnd'),
+    apply:  document.getElementById('applyBtn'),
+    clear:  document.getElementById('clearBtn'),
     k_events: document.getElementById('k_events'),
     k_occs:   document.getElementById('k_occs'),
     k_cities: document.getElementById('k_cities'),
-    k_30d:    document.getElementById('k_30d'),
+    k_range:  document.getElementById('k_range'),
     catsBox:  document.getElementById('catsBox'),
     citiesBox:document.getElementById('citiesBox'),
-    tblBody:  document.querySelector('#tbl tbody')
+    tblBody:  document.querySelector('#tbl tbody'),
   };
 
-  function txt(n){ return n.toLocaleString('it-IT'); }
+  // ====== Stato & dati ======
+  let EVENTS=[], OCCS=[], OCCS_BY_EVENT=new Map();
+  let FILTERS = { city:'', start:null, end:null };
 
-  function pills(list){
-    if (!list || !list.length) return '—';
-    return list.map(s=>`<span class="pill">${s}</span>`).join(' ');
+  // ====== Utils ======
+  const fmt = n => n.toLocaleString('it-IT');
+  const pad2 = n => String(n).padStart(2,'0');
+  const fmtDate = s => { if(!s) return ''; const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; };
+  const inRange = (d, start, end) => {
+    if (!d) return false;
+    if (start && d < start) return false;
+    if (end   && d > end)   return false;
+    return true;
+  };
+
+  function parseCats(ev){
+    if (Array.isArray(ev.categories)) return ev.categories;
+    if (Array.isArray(ev.categorie))  return ev.categorie;
+    const s = ev.categories || ev.categorie || '';
+    if (typeof s === 'string' && s.includes('|')) return s.split('|').map(x=>x.trim()).filter(Boolean);
+    if (typeof s === 'string' && s.includes(',')) return s.split(',').map(x=>x.trim()).filter(Boolean);
+    return s ? [String(s)] : [];
   }
 
   function groupCount(arr, keyFn){
@@ -101,85 +152,114 @@
     return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]);
   }
 
-  function parseCats(ev){
-    // accetta sia array (categories) che stringa pipe (categorie)
-    if (Array.isArray(ev.categories)) return ev.categories;
-    if (Array.isArray(ev.categorie))  return ev.categorie;
-    const s = ev.categories || ev.categorie || '';
-    if (typeof s === 'string' && s.includes('|')) return s.split('|').map(x=>x.trim()).filter(Boolean);
-    if (typeof s === 'string' && s.includes(',')) return s.split(',').map(x=>x.trim()).filter(Boolean);
-    return s ? [String(s)] : [];
+  function firstOccInFilter(evId, occsFiltered){
+    const list = occsFiltered.filter(o => o.event_id===evId).sort((a,b)=>(a.data+a.ora).localeCompare(b.data+b.ora));
+    return list[0] || null;
   }
 
-  function firstOccCity(ev, occsByEvent){
-    const occs = occsByEvent.get(ev.id) || [];
-    if (!occs.length) return '';
-    const o = occs.sort((a,b)=>(a.data+a.ora).localeCompare(b.data+b.ora))[0];
-    return o.citta || o.city || '';
-  }
-
+  // ====== Caricamento dati una sola volta ======
   (async function load(){
     // Eventi
     const { data: events } = await sb.from('events')
       .select('id, title, titolo, categories, categorie, created_at')
       .order('created_at', {ascending:false});
 
-    // Occorrenze
-    const { data: occs } = await sb.from('occurrences')
-      .select('id, event_id, data, date, ora, time, citta, city')
-      .order('data', {ascending:false});
+    // Occorrenze (con nomi multipli)
+    const { data: occsRaw } = await sb.from('occurrences')
+      .select('id, event_id, data, date, ora, time, citta, city');
 
-    const evs = events || [];
-    const oc  = occs || [];
+    EVENTS = events || [];
+    const oc = (occsRaw || []).map(o => ({
+      id:o.id,
+      event_id:o.event_id,
+      data:o.data || o.date || null,
+      ora:o.ora || o.time || '',
+      citta:(o.citta||o.city||'').trim()
+    }));
+    OCCS = oc;
 
-    // Map occorrenze per evento
-    const occsByEvent = new Map();
-    oc.forEach(o=>{
-      const k = o.event_id;
-      if (!occsByEvent.has(k)) occsByEvent.set(k, []);
-      occsByEvent.get(k).push({
-        data: o.data || o.date || '',
-        ora:  o.ora  || o.time || '',
-        citta:o.citta|| o.city || ''
-      });
+    // Mappa occorrenze per evento
+    OCCS_BY_EVENT = new Map();
+    OCCS.forEach(o=>{
+      if (!OCCS_BY_EVENT.has(o.event_id)) OCCS_BY_EVENT.set(o.event_id, []);
+      OCCS_BY_EVENT.get(o.event_id).push(o);
     });
 
+    // Popola select città (tutte le città uniche ord. alfabetico)
+    const cities = Array.from(new Set(OCCS.map(o=>o.citta).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'it'));
+    cities.forEach(c=>{
+      const opt=document.createElement('option');
+      opt.value=c; opt.textContent=c;
+      els.fCity.appendChild(opt);
+    });
+
+    // Imposta periodo di default: vuoto (tutto)
+    render();
+  })();
+
+  // ====== Filtra e renderizza ======
+  function render(){
+    const { city, start, end } = FILTERS;
+
+    // Filtra occorrenze
+    const occsFiltered = OCCS.filter(o=>{
+      if (city && o.citta!==city) return false;
+      if (!inRange(o.data, start, end)) return false;
+      return true;
+    });
+
+    // Eventi con almeno 1 occorrenza filtrata
+    const eventIds = new Set(occsFiltered.map(o=>o.event_id));
+    const eventsFiltered = EVENTS.filter(e => eventIds.has(e.id));
+
     // KPI
-    els.k_events.textContent = txt(evs.length);
-    els.k_occs.textContent   = txt(oc.length);
-    els.k_cities.textContent = txt(new Set(oc.map(o=> (o.citta||o.city||'').trim()).filter(Boolean)).size);
+    els.k_events.textContent = fmt(eventsFiltered.length);
+    els.k_occs.textContent   = fmt(occsFiltered.length);
+    els.k_cities.textContent = fmt(new Set(occsFiltered.map(o=>o.citta).filter(Boolean)).size);
+    els.k_range.textContent  = (start||end) ? `${start?fmtDate(start):'∞'} → ${end?fmtDate(end):'∞'}` : 'Tutto';
 
-    const d30 = new Date(); d30.setDate(d30.getDate()-30);
-    const evs30 = evs.filter(e => new Date(e.created_at) >= d30);
-    els.k_30d.textContent = txt(evs30.length);
-
-    // Categorie
-    const cats = groupCount(evs.flatMap(e=>parseCats(e)), x=>x);
-    els.catsBox.innerHTML = cats.length
-      ? cats.map(([c,n])=> `<div>${c} — <b>${txt(n)}</b></div>`).join('')
+    // Categorie (conteggio su eventi filtrati)
+    const catList = eventsFiltered.flatMap(e=>parseCats(e));
+    const catPairs = groupCount(catList, x=>x);
+    els.catsBox.innerHTML = catPairs.length
+      ? catPairs.map(([c,n])=> `<div>${c} — <b>${fmt(n)}</b></div>`).join('')
       : '—';
 
-    // Città (top 10)
-    const cityPairs = groupCount(evs, e=> firstOccCity(e, occsByEvent)).slice(0,10);
+    // Città (tutte nel filtro)
+    const cityPairs = groupCount(occsFiltered, o=>o.citta);
     els.citiesBox.innerHTML = cityPairs.length
-      ? cityPairs.map(([c,n])=> `<div>${c||'—'} — <b>${txt(n)}</b></div>`).join('')
+      ? cityPairs.map(([c,n])=> `<div>${c||'—'} — <b>${fmt(n)}</b></div>`).join('')
       : '—';
 
-    // Ultimi 50 eventi
-    const rows = evs.slice(0,50).map(e=>{
+    // Tabella eventi (max 200)
+    const rows = eventsFiltered.slice(0,200).map(e=>{
       const cats = parseCats(e);
-      const occs = occsByEvent.get(e.id)||[];
-      const first = occs.sort((a,b)=>(a.data+a.ora).localeCompare(b.data+b.ora))[0] || {};
+      const first = firstOccInFilter(e.id, occsFiltered);
       const titolo = e.title || e.titolo || '(evento)';
       return `<tr>
         <td>${titolo}</td>
         <td>${cats.join(', ')||'—'}</td>
-        <td>${(first?.data||'').replace(/-/g,'/')} ${first?.ora||''}</td>
-        <td>${first?.citta||'—'}</td>
+        <td>${first ? (fmtDate(first.data)+' '+(first.ora||'')) : '—'}</td>
+        <td>${first ? (first.citta||'—') : '—'}</td>
       </tr>`;
     }).join('');
-    els.tblBody.innerHTML = rows || `<tr><td colspan="4">Nessun evento</td></tr>`;
-  })();
+    els.tblBody.innerHTML = rows || `<tr><td colspan="4">Nessun evento nel filtro selezionato</td></tr>`;
+  }
+
+  // ====== Eventi UI ======
+  els.apply.addEventListener('click', ()=>{
+    FILTERS.city  = els.fCity.value || '';
+    FILTERS.start = els.fStart.value || null;
+    FILTERS.end   = els.fEnd.value   || null;
+    render();
+  });
+  els.clear.addEventListener('click', ()=>{
+    els.fCity.value = '';
+    els.fStart.value = '';
+    els.fEnd.value = '';
+    FILTERS = { city:'', start:null, end:null };
+    render();
+  });
 })();
 </script>
 </body>
