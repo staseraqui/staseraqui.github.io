@@ -4,29 +4,26 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Report — Stasera Qui</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=10">
-  <style>
-    .wrap{max-width:1100px;margin:0 auto;padding:16px}
-    .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
-    .filters{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto auto;gap:10px;margin:12px 0}
-    @media(max-width:1100px){.filters{grid-template-columns:1fr 1fr}}
-    .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:12px 0}
-    .kpi{background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;padding:14px}
-    .kpi b{font-size:24px;display:block}
-    .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
-    @media(max-width:980px){.kpis{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
-    .card.scroll{max-height:340px;overflow:auto}
-    table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;overflow:hidden}
-    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}
-    th{background:#0f1c2d;position:sticky;top:0}
-    .smallmuted{font-size:12px;color:#b8c2ce}
-    #errBox{display:none;background:#3a0f0f;border:1px solid #7a2b2b;color:#ffdede;border-radius:12px;padding:12px;margin:12px 0;white-space:pre-wrap}
-    #dbg{font-size:12px;color:#b8c2ce;margin-top:6px}
-    #trendCard{display:flex;flex-direction:column;gap:6px}
-    #trendCanvas{width:100%;height:90px;background:#0f1c2d;border:1px solid var(--panel-border);border-radius:8px}
-  </style>
+  <link rel="stylesheet" href="assets/style.css?v=12">
   <script src="assets/app-config.js?v=2"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+    .controls .field{display:flex;flex-direction:column;gap:6px}
+    .controls input,.controls select{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:10px 12px}
+    .muted{color:#b8c2ce}
+    .cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0}
+    @media (max-width:960px){.cards{grid-template-columns:1fr 1fr}}
+    @media (max-width:640px){.cards{grid-template-columns:1fr}}
+    .kpi{background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;padding:14px}
+    .kpi h3{margin:0 0 6px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top}
+    th{color:#b8c2ce;text-align:left}
+    tbody tr:hover{background:rgba(255,255,255,.03)}
+    #err{color:#ffb4b4;font-weight:700;margin:10px 0}
+  </style>
 </head>
 <body>
 <header class="header">
@@ -37,75 +34,69 @@
 </header>
 
 <main class="wrap">
-  <div class="topbar">
-    <h1 style="margin:8px 0">Report</h1>
-    <div class="actions">
-      <a class="btn" href="index.html">← Torna alla mappa</a>
-    </div>
-  </div>
+  <h1 style="margin:8px 0 12px">Report</h1>
 
-  <div id="errBox"></div>
+  <div id="err"></div>
 
-  <!-- FILTRI -->
   <div class="card">
-    <div class="filters">
-      <div>
-        <label for="fMode" class="smallmuted">Modalità</label>
-        <select id="fMode">
+    <div class="controls">
+      <div class="field">
+        <label for="mode">Modalità</label>
+        <select id="mode">
           <option value="occ">Eventi per data occorrenza</option>
           <option value="pub">Eventi per data pubblicazione</option>
-          <option value="cancel">Eventi annullati</option>
+          <option value="del">Eventi annullati</option>
         </select>
       </div>
-      <div>
-        <label for="fCity" class="smallmuted">Città</label>
-        <select id="fCity"><option value="">(Tutte)</option></select>
+      <div class="field">
+        <label for="from">Dal</label>
+        <input type="date" id="from">
       </div>
-      <div>
-        <label for="fStart" class="smallmuted">Dal</label>
-        <input type="date" id="fStart">
+      <div class="field">
+        <label for="to">Al</label>
+        <input type="date" id="to">
       </div>
-      <div>
-        <label for="fEnd" class="smallmuted">Al</label>
-        <input type="date" id="fEnd">
+      <div class="field" style="min-width:220px">
+        <label for="city">Città</label>
+        <select id="city">
+          <option value="">(Tutte)</option>
+        </select>
       </div>
-      <div style="display:flex;align-items:flex-end"><button class="btn primary" id="applyBtn" type="button">Applica filtri</button></div>
-      <div style="display:flex;align-items:flex-end"><button class="btn" id="clearBtn" type="button">Azzera</button></div>
-    </div>
-    <div id="dbg" class="smallmuted">—</div>
-  </div>
-
-  <!-- KPI -->
-  <div class="kpis">
-    <div class="kpi"><div class="small">Eventi (filtrati)</div><b id="k_events">—</b></div>
-    <div class="kpi"><div class="small">Occorrenze (filtrate)</div><b id="k_occs">—</b></div>
-    <div class="kpi"><div class="small">Città coperte (filtrate)</div><b id="k_cities">—</b></div>
-    <div class="kpi"><div class="small">Periodo selezionato</div><b id="k_range">—</b></div>
-    <div class="kpi" id="trendCard">
-      <div class="small">Δ vs periodo precedente</div>
-      <b id="k_delta">—</b>
-      <canvas id="trendCanvas"></canvas>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button class="btn primary" id="runBtn" type="button">Aggiorna</button>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <a class="btn" href="admin.html">← Torna ad Admin</a>
+      </div>
     </div>
   </div>
 
-  <div class="cols">
-    <div>
-      <h3 class="block-title">Eventi per categoria (filtrati)</h3>
-      <div id="catsBox" class="card small">—</div>
+  <div class="cards">
+    <div class="kpi">
+      <h3>Totale eventi</h3>
+      <div id="kpiEvents" style="font-size:28px;font-weight:800">—</div>
+      <div class="muted small" id="kpiEventsNote"> </div>
     </div>
-    <div>
-      <h3 class="block-title">Eventi per città (filtrate — tutte)</h3>
-      <div id="citiesBox" class="card small scroll">—</div>
+    <div class="kpi">
+      <h3>Totale occorrenze</h3>
+      <div id="kpiOccs" style="font-size:28px;font-weight:800">—</div>
+      <div class="muted small" id="kpiOccsNote"> </div>
+    </div>
+    <div class="kpi">
+      <h3>Città</h3>
+      <div id="kpiCities" style="font-size:28px;font-weight:800">—</div>
+      <div class="muted small" id="kpiCitiesNote"> </div>
     </div>
   </div>
 
-  <div>
-    <h3 class="block-title">Eventi (max 200, filtrati)</h3>
-    <div class="card" style="overflow:auto">
+  <div class="card">
+    <h3 id="tblTitle" style="margin-top:0">Risultati</h3>
+    <div class="muted small" id="tblSubtitle"></div>
+    <div style="overflow:auto;margin-top:8px">
       <table id="tbl">
-        <thead><tr>
-          <th>Titolo</th><th>Categorie</th><th>Prima data nel filtro</th><th>Città</th><th>#Occorrenze nel filtro</th>
-        </tr></thead>
+        <thead></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -116,393 +107,279 @@
 (function(){
   // ====== CONFIG ======
   const CFG = window.SQ_CONFIG || {};
-  const SUPABASE_URL  = CFG.SUPABASE_URL;
-  const SUPABASE_ANON = CFG.SUPABASE_ANON || CFG.SUPABASE_ANON_KEY;
-
-  if (!SUPABASE_URL || !SUPABASE_ANON){
-    const box = document.getElementById('errBox');
-    box.textContent = 'Chiavi mancanti in assets/app-config.js (SUPABASE_URL / SUPABASE_ANON).';
-    box.style.display='block';
+  const SB_URL  = CFG.SUPABASE_URL;
+  const SB_ANON = CFG.SUPABASE_ANON;
+  if(!SB_URL || !SB_ANON){
+    document.getElementById('err').textContent =
+      'Chiavi mancanti in assets/app-config.js (SUPABASE_URL / SUPABASE_ANON).';
     return;
   }
+  const sb = supabase.createClient(SB_URL, SB_ANON);
 
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-
-  // ====== DOM ======
-  const els = {
-    errBox:   document.getElementById('errBox'),
-    dbg:      document.getElementById('dbg'),
-    fMode:    document.getElementById('fMode'),
-    fCity:    document.getElementById('fCity'),
-    fStart:   document.getElementById('fStart'),
-    fEnd:     document.getElementById('fEnd'),
-    apply:    document.getElementById('applyBtn'),
-    clear:    document.getElementById('clearBtn'),
-    k_events: document.getElementById('k_events'),
-    k_occs:   document.getElementById('k_occs'),
-    k_cities: document.getElementById('k_cities'),
-    k_range:  document.getElementById('k_range'),
-    k_delta:  document.getElementById('k_delta'),
-    catsBox:  document.getElementById('catsBox'),
-    citiesBox:document.getElementById('citiesBox'),
-    tblBody:  document.querySelector('#tbl tbody'),
-    trendCv:  document.getElementById('trendCanvas'),
-  };
-
-  // ====== Stato & dati ======
-  let EVENTS=[], OCCS=[], OCCS_BY_EVENT=new Map(), CANCELS=[];
-  let FILTERS = { mode:'occ', cityKey:'', start:null, end:null };
-
-  // ====== Utils ======
-  const fmt = n => (n==null? '—' : n.toLocaleString('it-IT'));
-  const fmtDate = s => { if(!s) return ''; const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; };
-  const inRange = (d, start, end) => (!d || ((start? d>=start : true) && (end? d<=end : true)));
-
-  function normCityLabel(s){
+  // ====== UTILS ======
+  const $ = s => document.querySelector(s);
+  const fmtIT = iso => { if(!iso) return ''; const [y,m,d]=iso.split('T')[0].split('-'); return `${d}/${m}/${y}`; };
+  const properCity = s => {
     s = (s||'').trim();
-    if (!s) return '';
-    // proper-case semplice
-    return s.toLowerCase().split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
-  }
-  function cityKey(s){ return (s||'').trim().toLowerCase(); }
+    if(!s) return '';
+    const low = s.toLowerCase();
+    // Capitalizza ogni parola
+    return low.replace(/\b\p{L}+/gu, w => w.charAt(0).toUpperCase()+w.slice(1));
+  };
+  const normCity = s => (s||'').trim().toLowerCase();
 
-  function parseCats(ev){
-    if (Array.isArray(ev.categories)) return ev.categories;
-    if (Array.isArray(ev.categorie))  return ev.categorie;
-    const s = ev.categories || ev.categorie || '';
-    if (typeof s === 'string' && s.includes('|')) return s.split('|').map(x=>x.trim()).filter(Boolean);
-    if (typeof s === 'string' && s.includes(',')) return s.split(',').map(x=>x.trim()).filter(Boolean);
-    return s ? [String(s)] : [];
+  function rangeNote(from, to){
+    const a = from ? fmtIT(from) : '—';
+    const b = to   ? fmtIT(to)   : '—';
+    return `Periodo: ${a} → ${b}`;
   }
 
-  function groupCount(arr, keyFn){
-    const map = new Map();
-    arr.forEach(x=>{
-      const k = keyFn(x);
-      if (!k) return;
-      map.set(k, (map.get(k)||0)+1);
-    });
-    return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]);
-  }
+  // ====== ELEMENTI ======
+  const modeEl = $('#mode'), fromEl = $('#from'), toEl = $('#to'), cityEl = $('#city');
+  const kEv = $('#kpiEvents'), kOc = $('#kpiOccs'), kCi = $('#kpiCities');
+  const kEvN = $('#kpiEventsNote'), kOcN = $('#kpiOccsNote'), kCiN = $('#kpiCitiesNote');
+  const th = $('#tbl thead'), tb = $('#tbl tbody'), sub = $('#tblSubtitle'), title = $('#tblTitle');
 
-  function firstOccInFilter(evId, occsFiltered){
-    const list = occsFiltered.filter(o => o.event_id===evId)
-      .sort((a,b)=>((a.data||'')+(a.ora||'')).localeCompare((b.data||'')+(b.ora||'')));
-    return list[0] || null;
-  }
+  // Default: ultimi 30 giorni
+  const today = new Date(); const toISO = today.toISOString().slice(0,10);
+  const fromISO = new Date(today.getFullYear(), today.getMonth(), today.getDate()-30).toISOString().slice(0,10);
+  fromEl.value = fromISO; toEl.value = toISO;
 
-  function occCountInFilter(evId, occsFiltered){
-    return occsFiltered.filter(o => o.event_id===evId).length;
-  }
+  // ====== CARICAMENTO BASE (per menu Città) ======
+  // Carico qualche dato per popolare la tendina città in modo robusto:
+  // - tutte le occorrenze ultimi 180 giorni (basta per menu), e in più tutti i deletions ultimi 180 giorni
+  // - normalizzazione case-insensitive
+  let CITY_SET = new Map(); // normCity -> displayCity
+  async function primeCities(){
+    CITY_SET.clear();
+    const since = new Date(); since.setDate(since.getDate()-180);
+    const sinceISO = since.toISOString().slice(0,10);
 
-  function showError(msg){
-    els.errBox.textContent = msg;
-    els.errBox.style.display = 'block';
-  }
-
-  // ====== Caricamento dati ======
-  (async function load(){
-    els.errBox.style.display='none';
-
-    const [evRes, ocRes, delRes] = await Promise.all([
-      sb.from('events').select('id, title, titolo, categories, categorie, created_at, inserted_at'),
-      sb.from('occurrences').select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city'),
-      sb.from('event_deletions').select('event_id, title, deleted_at, city').limit(10000)
-        .then(r => ('error' in r && r.error)? { data:[], error:r.error } : r) // se la tabella non esiste, ignora
-    ]);
-
-    if (evRes.error || ocRes.error){
-      let msg = '';
-      if (evRes.error) msg += 'Errore eventi: ' + evRes.error.message + '\n';
-      if (ocRes.error) msg += 'Errore occorrenze: ' + ocRes.error.message;
-      showError(msg||'Errore sconosciuto');
+    // Occorrenze per città (ultimi 6 mesi)
+    const oc = await sb.from('occurrences')
+      .select('citta')
+      .gte('data', sinceISO)
+      .limit(20000);
+    if (!oc.error && oc.data){
+      oc.data.forEach(r=>{
+        const n = normCity(r.citta);
+        if(n && !CITY_SET.has(n)) CITY_SET.set(n, properCity(r.citta));
+      });
+    }
+    // Deletions per città (ultimi 6 mesi)
+    const del = await sb.from('event_deletions')
+      .select('city, created_at')
+      .gte('created_at', sinceISO)
+      .limit(20000);
+    if (!del.error && del.data){
+      del.data.forEach(r=>{
+        const n = normCity(r.city);
+        if(n && !CITY_SET.has(n)) CITY_SET.set(n, properCity(r.city));
+      });
     }
 
-    EVENTS = (evRes.data||[]).map(e=>({
-      ...e,
-      created_any: (e.created_at || e.inserted_at || '').slice(0,10) || null
-    }));
-
-    const norm = (ocRes.data || []).map(o => {
-      const label = normCityLabel(o.citta || o.city || '');
-      return {
-        id: o.id,
-        event_id: o.event_id,
-        lat: o.lat, lng: o.lng,
-        data: (o.data || o.date || null),
-        ora:  (o.ora || o.time || ''),
-        luogo: o.luogo || o.venue || '',
-        indirizzo: o.indirizzo || o.address || '',
-        city_label: label,
-        city_key: cityKey(label)
-      };
-    });
-    OCCS = norm;
-
-    CANCELS = Array.isArray(delRes.data) ? (delRes.data||[]).map(d=>({
-      ...d,
-      date: (d.deleted_at||'').slice(0,10) || null,
-      city_label: normCityLabel(d.city||''),
-      city_key: cityKey(d.city||'')
-    })) : [];
-
-    // Debug numeri grezzi
-    els.dbg.textContent = `Dati caricati — Eventi totali: ${fmt(EVENTS.length)} · Occorrenze totali: ${fmt(OCCS.length)} · Annullamenti loggati: ${fmt(CANCELS.length)}`;
-
-    // Popola select città (normalizzata)
-    const cityPairs = Array.from(new Map(
-      OCCS.map(o=>[o.city_key, o.city_label]).filter(([k,l])=>k)
-    ).entries()).sort((a,b)=>a[1].localeCompare(b[1],'it'));
-    cityPairs.forEach(([key,label])=>{
-      const opt=document.createElement('option');
-      opt.value=key; opt.textContent=label;
-      els.fCity.appendChild(opt);
-    });
-
-    // Mappa occorrenze per evento
-    OCCS_BY_EVENT = new Map();
-    OCCS.forEach(o=>{
-      if (!OCCS_BY_EVENT.has(o.event_id)) OCCS_BY_EVENT.set(o.event_id, []);
-      OCCS_BY_EVENT.get(o.event_id).push(o);
-    });
-
-    // Range default = ultimi 30 giorni (per trend sensato)
-    const today = new Date();
-    const start = new Date(today); start.setDate(start.getDate()-30);
-    els.fStart.value = start.toISOString().slice(0,10);
-    els.fEnd.value   = today.toISOString().slice(0,10);
-
-    render();
-  })();
-
-  // ====== Calcolo per modalità ======
-  function getFiltered(mode, cityKeySel, start, end){
-    // Occorrenze filtrate (per città/range) — usate in più punti
-    const occsFiltered_byDateCity = OCCS.filter(o=>{
-      if (cityKeySel && o.city_key!==cityKeySel) return false;
-      return inRange(o.data, start, end);
-    });
-
-    if (mode==='occ'){
-      const occs = occsFiltered_byDateCity;
-      const evIds = new Set(occs.map(o=>o.event_id));
-      const evs = EVENTS.filter(e => evIds.has(e.id));
-      return { events: evs, occs };
-    }
-
-    if (mode==='pub'){
-      // Eventi pubblicati nel periodo; occorrenze di quegli eventi (poi filtrate per città se serve)
-      const evs = EVENTS.filter(e => inRange(e.created_any, start, end));
-      const evIds = new Set(evs.map(e=>e.id));
-      const occs = OCCS.filter(o=> evIds.has(o.event_id) && (!cityKeySel || o.city_key===cityKeySel));
-      return { events: evs, occs };
-    }
-
-    if (mode==='cancel'){
-      // Richiede tabella event_deletions
-      const canc = CANCELS.filter(c => inRange(c.date, start, end) && (!cityKeySel || c.city_key===cityKeySel));
-      // events = annullamenti distinti per event_id
-      const evMap = new Map();
-      canc.forEach(c=>{ evMap.set(c.event_id, { id:c.event_id, title:c.title, titolo:c.title, categories:[], categorie:[] }); });
-      const evs = Array.from(evMap.values());
-      return { events: evs, occs: [] , canc };
-    }
-
-    return { events:[], occs:[] };
+    // Riempie il menu
+    cityEl.innerHTML = '<option value="">(Tutte)</option>' +
+      Array.from(CITY_SET.values()).sort().map(c=>`<option value="${normCity(c)}">${c}</option>`).join('');
   }
 
-  // ====== Trend & delta ======
-  function buildBuckets(dates, start, end){
-    // Se range > 35 gg → bucket settimanali, altrimenti giornalieri
-    const s = start ? new Date(start+'T00:00:00') : null;
-    const e = end   ? new Date(end+'T00:00:00')   : null;
-    const days = (s&&e)? Math.max(1, Math.round((e - s)/86400000)+1) : 30;
-    const weekly = days > 35;
+  // ====== LOGICA PRINCIPALE ======
+  async function run(){
+    $('#err').textContent = '';
+    th.innerHTML = ''; tb.innerHTML = '';
+    kEv.textContent = '—'; kOc.textContent = '—'; kCi.textContent = '—';
+    kEvN.textContent = kOcN.textContent = kCiN.textContent = '';
 
-    const buckets = [];
-    if (weekly){
-      // 8 settimane circa partendo da start
-      let d0 = s ? new Date(s) : new Date(); d0.setDate(d0.getDate()-56);
-      for (let i=0;i<8;i++){
-        const d1 = new Date(d0); d1.setDate(d1.getDate()+6);
-        buckets.push({ label: `${d0.toISOString().slice(5,10)}–${d1.toISOString().slice(5,10)}`, start: d0.toISOString().slice(0,10), end: d1.toISOString().slice(0,10), count:0 });
-        d0.setDate(d0.getDate()+7);
-      }
+    const mode = modeEl.value;
+    const from = fromEl.value || null;
+    const to   = toEl.value   || null;
+    const cityNorm = cityEl.value || '';
+
+    if (mode === 'occ'){
+      await runOcc(from, to, cityNorm);
+    } else if (mode === 'pub'){
+      await runPub(from, to, cityNorm);
     } else {
-      const n = Math.min(30, days);
-      let d0 = s ? new Date(s) : new Date(); if (!s) d0.setDate(d0.getDate()-n+1);
-      for (let i=0;i<n;i++){
-        const lab = d0.toISOString().slice(5,10);
-        const key = d0.toISOString().slice(0,10);
-        buckets.push({ label: lab, start: key, end: key, count:0 });
-        d0.setDate(d0.getDate()+1);
+      await runDel(from, to, cityNorm);
+    }
+  }
+
+  // ------- Modalità: Eventi per data occorrenza -------
+  async function runOcc(from, to, cityNorm){
+    title.textContent = 'Eventi per data occorrenza';
+
+    let q = sb.from('occurrences').select('id,event_id,data,ora,luogo,indirizzo,citta,lat,lng').order('data',{ascending:true}).limit(20000);
+    if (from) q = q.gte('data', from);
+    if (to)   q = q.lte('data', to);
+    const ocRes = await q;
+    if (ocRes.error){ $('#err').textContent = ocRes.error.message; return; }
+
+    // City filter
+    let occs = ocRes.data || [];
+    if (cityNorm) occs = occs.filter(o => normCity(o.citta) === cityNorm);
+
+    // Event ids
+    const ids = Array.from(new Set(occs.map(o=>o.event_id))).filter(Boolean);
+    let events = [];
+    if (ids.length){
+      // Carico eventi per quegli id
+      const evRes = await sb.from('events')
+        .select('id,title,titolo,categories,categorie,description,descrizione')
+        .in('id', ids);
+      if (!evRes.error && evRes.data) events = evRes.data;
+    }
+    const evById = new Map(events.map(e=>[e.id,e]));
+
+    // KPI
+    const cities = new Set(occs.map(o=> normCity(o.citta) ).filter(Boolean));
+    kEv.textContent = ids.length;
+    kOc.textContent = occs.length;
+    kCi.textContent = cities.size;
+    kEvN.textContent = rangeNote(from,to);
+    kOcN.textContent = cityNorm ? `Città: ${properCity(cityNorm)}` : 'Città: tutte';
+    kCiN.textContent = 'Città distinte nel range';
+
+    // Tabella
+    th.innerHTML = `<tr>
+      <th>Data</th><th>Ora</th><th>Titolo</th><th>Città</th><th>Luogo</th><th>Indirizzo</th><th>Categorie</th>
+    </tr>`;
+    tb.innerHTML = occs.map(o=>{
+      const ev = evById.get(o.event_id)||{};
+      const title = ev.title || ev.titolo || '(evento)';
+      const cats = (ev.categories || ev.categorie || []).join(', ');
+      return `<tr>
+        <td>${fmtIT(o.data)}</td>
+        <td>${o.ora||''}</td>
+        <td>${escapeHtml(title)}</td>
+        <td>${escapeHtml(properCity(o.citta))}</td>
+        <td>${escapeHtml(o.luogo||'')}</td>
+        <td>${escapeHtml(o.indirizzo||'')}</td>
+        <td>${escapeHtml(cats)}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="7" class="muted">Nessun dato</td></tr>`;
+
+    sub.textContent = `${occs.length} occorrenze — ${ids.length} eventi — ${cities.size} città. ${rangeNote(from,to)} ${cityNorm?(' — Città: '+properCity(cityNorm)) : ''}`;
+  }
+
+  // ------- Modalità: Eventi per data pubblicazione -------
+  async function runPub(from, to, cityNorm){
+    title.textContent = 'Eventi per data pubblicazione';
+
+    // Carico eventi per data pubblicazione (created_at / inserted_at / createdAt)
+    let q = sb.from('events').select('id,title,titolo,categories,categorie,description,descrizione,created_at,inserted_at,createdAt').order('created_at',{ascending:true}).limit(20000);
+    if (from) q = q.gte('created_at', from);
+    if (to)   q = q.lte('created_at', to);
+    const evRes = await q;
+    if (evRes.error){ $('#err').textContent = evRes.error.message; return; }
+    let events = evRes.data || [];
+
+    // Occorrenze per ricavare città & conteggio
+    const ids = events.map(e=>e.id);
+    let occByEvent = new Map();
+    if (ids.length){
+      const ocRes = await sb.from('occurrences').select('event_id,citta').in('event_id', ids).limit(50000);
+      if (!ocRes.error && ocRes.data){
+        const map = new Map();
+        ocRes.data.forEach(o=>{
+          if (!map.has(o.event_id)) map.set(o.event_id, []);
+          map.get(o.event_id).push(o);
+        });
+        occByEvent = map;
       }
     }
-    // Conta
-    dates.forEach(d=>{
-      for (const b of buckets){
-        if (inRange(d, b.start, b.end)){ b.count++; break; }
-      }
-    });
-    return buckets;
-  }
 
-  function drawTrend(buckets){
-    const cv = els.trendCv;
-    const w = cv.clientWidth, h = cv.clientHeight;
-    cv.width = w; cv.height = h;
-    const ctx = cv.getContext('2d');
-    ctx.clearRect(0,0,w,h);
-
-    const vals = buckets.map(b=>b.count);
-    const max = Math.max(1, ...vals);
-    const stepX = w / Math.max(1, buckets.length-1);
-    const pad = 6;
-
-    // line
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#22b3f0';
-    ctx.beginPath();
-    buckets.forEach((b,i)=>{
-      const x = i*stepX;
-      const y = h - pad - (b.count / max) * (h - pad*2);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    });
-    ctx.stroke();
-
-    // fill
-    ctx.fillStyle = 'rgba(34,179,240,0.2)';
-    ctx.lineTo(w, h-pad);
-    ctx.lineTo(0, h-pad);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  function computeDelta(current, previous){
-    const a = current||0, b = previous||0;
-    if (b===0) return (a>0)? '+∞%' : '0%';
-    const p = ((a-b)/b)*100;
-    const s = (p>=0? '+' : '') + p.toFixed(0) + '%';
-    return s;
-  }
-
-  // ====== Render ======
-  function render(){
-    const mode  = els.fMode.value;
-    const cKey  = els.fCity.value || '';
-    const start = els.fStart.value || null;
-    const end   = els.fEnd.value   || null;
-
-    const { events, occs, canc } = getFiltered(mode, cKey, start, end);
-
-    // KPI principali
-    els.k_events.textContent = fmt(events.length);
-    els.k_occs.textContent   = fmt(occs.length);
-    const citySet = new Set((occs.length? occs : (canc||[])).map(o=>o.city_key).filter(Boolean));
-    els.k_cities.textContent = fmt(citySet.size);
-    els.k_range.textContent  = (start||end) ? `${start?fmtDate(start):'∞'} → ${end?fmtDate(end):'∞'}` : 'Tutto';
-
-    // Categorie
-    const catList = events.flatMap(e=>parseCats(e));
-    const catPairs = groupCount(catList, x=>x);
-    els.catsBox.innerHTML = catPairs.length
-      ? catPairs.map(([c,n])=> `<div>${c} — <b>${fmt(n)}</b></div>`).join('')
-      : '—';
-
-    // Città (conteggio occorrenze o annullamenti a seconda della modalità)
-    if (mode==='cancel'){
-      const cityPairs = groupCount((canc||[]), o=>o.city_label || '—');
-      els.citiesBox.innerHTML = cityPairs.length
-        ? cityPairs.map(([c,n])=> `<div>${c} — <b>${fmt(n)}</b></div>`).join('')
-        : '—';
-    } else {
-      const cityPairs = groupCount(occs, o=>o.city_label || '—');
-      els.citiesBox.innerHTML = cityPairs.length
-        ? cityPairs.map(([c,n])=> `<div>${c} — <b>${fmt(n)}</b></div>`).join('')
-        : '—';
+    // Filtro città (se richiesto)
+    if (cityNorm){
+      events = events.filter(e=>{
+        const arr = occByEvent.get(e.id)||[];
+        return arr.some(o=> normCity(o.citta)===cityNorm );
+      });
     }
 
-    // Tabella eventi
-    if (mode==='cancel'){
-      const rows = (canc||[]).slice(0,200).map(c=>{
-        return `<tr>
-          <td>${c.title||'(evento annullato)'}</td>
-          <td>—</td>
-          <td>${fmtDate(c.date)}</td>
-          <td>${c.city_label||'—'}</td>
-          <td>—</td>
-        </tr>`;
-      }).join('');
-      els.tblBody.innerHTML = rows || `<tr><td colspan="5">Nessun annullamento nel filtro selezionato</td></tr>`;
-    } else {
-      const rows = events.slice(0,200).map(e=>{
-        const cats = parseCats(e);
-        const first = firstOccInFilter(e.id, occs);
-        const titolo = e.title || e.titolo || '(evento)';
-        return `<tr>
-          <td>${titolo}</td>
-          <td>${cats.join(', ')||'—'}</td>
-          <td>${first ? (fmtDate(first.data)+' '+(first.ora||'')) : '—'}</td>
-          <td>${first ? (first.city_label||'—') : '—'}</td>
-          <td>${fmt(occCountInFilter(e.id, occs))}</td>
-        </tr>`;
-      }).join('');
-      els.tblBody.innerHTML = rows || `<tr><td colspan="5">Nessun evento nel filtro selezionato</td></tr>`;
-    }
+    // KPI
+    const occCount = events.reduce((sum,e)=> sum + ((occByEvent.get(e.id)||[]).length), 0);
+    const cities = new Set();
+    events.forEach(e=> (occByEvent.get(e.id)||[]).forEach(o=> cities.add(normCity(o.citta)) ));
+    kEv.textContent = events.length;
+    kOc.textContent = occCount;
+    kCi.textContent = cities.has('') ? cities.size-1 : cities.size;
+    kEvN.textContent = rangeNote(from,to);
+    kOcN.textContent = cityNorm ? `Città: ${properCity(cityNorm)}` : 'Città: tutte';
+    kCiN.textContent = 'Città degli eventi pubblicati';
 
-    // Trend + delta
-    // Serie basata su:
-    // - mode=occ  → date = occorrenze.data
-    // - mode=pub  → date = events.created_any
-    // - mode=cancel → date = deletions.date
-    let dateSeries = [];
-    if (mode==='occ')   dateSeries = occs.map(o=>o.data).filter(Boolean);
-    if (mode==='pub')   dateSeries = events.map(e=>e.created_any).filter(Boolean);
-    if (mode==='cancel')dateSeries = (canc||[]).map(c=>c.date).filter(Boolean);
+    // Tabella
+    th.innerHTML = `<tr>
+      <th>Pubblicato</th><th>Titolo</th><th>Città (prima occ.)</th><th>#Occorrenze</th><th>Categorie</th>
+    </tr>`;
+    tb.innerHTML = events.map(e=>{
+      const created = e.created_at || e.inserted_at || e.createdAt || '';
+      const occs = occByEvent.get(e.id)||[];
+      const firstCity = properCity((occs[0]?.citta)||'');
+      const cats = (e.categories || e.categorie || []).join(', ');
+      const title = e.title || e.titolo || '(evento)';
+      return `<tr>
+        <td>${created ? fmtIT(created) : ''}</td>
+        <td>${escapeHtml(title)}</td>
+        <td>${escapeHtml(firstCity)}</td>
+        <td>${occs.length}</td>
+        <td>${escapeHtml(cats)}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="5" class="muted">Nessun dato</td></tr>`;
 
-    const buckets = buildBuckets(dateSeries, start, end);
-    drawTrend(buckets);
-
-    // Delta vs periodo precedente (stessa grandezza di periodo)
-    if (start && end){
-      const s = new Date(start+'T00:00:00');
-      const e = new Date(end+'T00:00:00');
-      const days = Math.max(1, Math.round((e - s)/86400000)+1);
-      const prevStart = new Date(s); prevStart.setDate(prevStart.getDate()-days);
-      const prevEnd   = new Date(e); prevEnd.setDate(prevEnd.getDate()-days);
-      const prev = getFiltered(mode, cKey, prevStart.toISOString().slice(0,10), prevEnd.toISOString().slice(0,10));
-      const nowCount  = (mode==='occ')? occs.length : (mode==='pub')? events.length : (canc||[]).length;
-      const prevCount = (mode==='occ')? prev.occs.length : (mode==='pub')? prev.events.length : (prev.canc||[]).length;
-      els.k_delta.textContent = computeDelta(nowCount, prevCount);
-    } else {
-      els.k_delta.textContent = '—';
-    }
-
-    // Nota “annullati”
-    if (mode==='cancel' && CANCELS.length===0){
-      showError('Per vedere gli “Eventi annullati” devi attivare il log degli annullamenti (vedi istruzioni in fondo al mio messaggio).');
-    } else {
-      els.errBox.style.display='none';
-    }
+    sub.textContent = `${events.length} eventi pubblicati — ${occCount} occorrenze collegate. ${rangeNote(from,to)} ${cityNorm?(' — Città: '+properCity(cityNorm)) : ''}`;
   }
 
-  // ====== Eventi UI ======
-  els.apply.addEventListener('click', ()=>{
-    els.errBox.style.display='none';
-    FILTERS.mode    = els.fMode.value;
-    FILTERS.cityKey = els.fCity.value || '';
-    FILTERS.start   = els.fStart.value || null;
-    FILTERS.end     = els.fEnd.value   || null;
-    render();
-  });
-  els.clear.addEventListener('click', ()=>{
-    els.fMode.value = 'occ';
-    els.fCity.value = '';
-    els.fStart.value = '';
-    els.fEnd.value = '';
-    FILTERS = { mode:'occ', cityKey:'', start:null, end:null };
-    render();
-  });
+  // ------- Modalità: Eventi annullati -------
+  async function runDel(from, to, cityNorm){
+    title.textContent = 'Eventi annullati';
+
+    let q = sb.from('event_deletions').select('event_id,title,city,created_at').order('created_at',{ascending:true}).limit(20000);
+    if (from) q = q.gte('created_at', from);
+    if (to)   q = q.lte('created_at', to);
+    const delRes = await q;
+    if (delRes.error){ $('#err').textContent = delRes.error.message; return; }
+    let rows = delRes.data || [];
+
+    if (cityNorm) rows = rows.filter(r => normCity(r.city)===cityNorm);
+
+    // KPI
+    const evIds = new Set(rows.map(r=>r.event_id));
+    const cities = new Set(rows.map(r=>normCity(r.city)).filter(Boolean));
+    kEv.textContent = evIds.size;
+    kOc.textContent = rows.length;
+    kCi.textContent = cities.size;
+    kEvN.textContent = rangeNote(from,to);
+    kOcN.textContent = cityNorm ? `Città: ${properCity(cityNorm)}` : 'Città: tutte';
+    kCiN.textContent = 'Città (annullati)';
+
+    // Tabella
+    th.innerHTML = `<tr>
+      <th>Data annullamento</th><th>Titolo</th><th>Città</th><th>Event ID</th>
+    </tr>`;
+    tb.innerHTML = rows.map(r=>`
+      <tr>
+        <td>${fmtIT(r.created_at||'')}</td>
+        <td>${escapeHtml(r.title||'(evento)')}</td>
+        <td>${escapeHtml(properCity(r.city))}</td>
+        <td>${escapeHtml(r.event_id||'')}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="4" class="muted">Nessun dato</td></tr>`;
+
+    sub.textContent = `${rows.length} record di annullamento — ${evIds.size} eventi. ${rangeNote(from,to)} ${cityNorm?(' — Città: '+properCity(cityNorm)) : ''}`;
+  }
+
+  // ====== HELPERS ======
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+  // ====== BIND ======
+  $('#runBtn').addEventListener('click', run);
+  modeEl.addEventListener('change', ()=> run());
+  fromEl.addEventListener('change', ()=> run());
+  toEl.addEventListener('change', ()=> run());
+  cityEl.addEventListener('change', ()=> run());
+
+  // ====== START ======
+  (async ()=>{ await primeCities(); await run(); })();
 })();
 </script>
 </body>
