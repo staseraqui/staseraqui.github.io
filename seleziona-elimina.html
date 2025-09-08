@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Seleziona ed elimina eventi — Stasera Qui</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=10">
+
+  <!-- Config (legge SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
+  <script src="assets/app-config.js?v=2"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <!-- Google Maps -->
+  <script>
+    (function(){
+      const cfg = window.SQ_CONFIG || {};
+      if (cfg.GOOGLE_MAPS_API_KEY){
+        var s = document.createElement('script');
+        s.src = "https://maps.googleapis.com/maps/api/js?key="+encodeURIComponent(cfg.GOOGLE_MAPS_API_KEY);
+        s.async = true; s.defer = true;
+        document.head.appendChild(s);
+      }
+    })();
+  </script>
+
+  <style>
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    #map{height:440px;border:1px solid rgba(255,255,255,.12);border-radius:12px;overflow:hidden;margin:12px 0}
+    .panel{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:960px){.panel{grid-template-columns:1fr}}
+    .card h3{margin:0 0 8px}
+    .list{max-height:360px;overflow:auto}
+    .item{display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid rgba(255,255,255,.08)}
+    .item small{color:#b8c2ce}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+    #err{color:#ffb4b4;font-weight:700;margin:8px 0}
+    .badge{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;
+      padding:4px 8px;border-radius:999px;margin-left:6px;font-size:12px}
+  </style>
+</head>
+<body>
+<header class="header">
+  <a href="index.html" class="logo">
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
+    <span class="wordmark">stasera qui</span>
+  </a>
+</header>
+
+<main class="wrap">
+  <div class="top">
+    <h1 style="margin:8px 0">Seleziona ed elimina eventi</h1>
+    <div class="actions">
+      <a class="btn" href="admin.html">← Torna ad Admin</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="small">Clicca un <b>pin</b> per selezionare l’evento (riclicca per deselezionare). La selezione vale per <i>tutte</i> le occorrenze di quell’evento. Prima della cancellazione, verrà scritto un <b>log</b> nella tabella <code>event_deletions</code> con titolo, città e timestamp.</p>
+    <div id="err"></div>
+    <div id="map"></div>
+
+    <div class="panel">
+      <div class="card">
+        <h3>Eventi selezionati</h3>
+        <div id="selCount" class="small">0 selezionati</div>
+        <div id="selList" class="list small">—</div>
+        <div class="actions">
+          <button class="btn secondary" id="clearSel" type="button">Azzera selezione</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Azioni</h3>
+        <p class="small">Questa azione <b>cancella</b> l’evento e <b>tutte</b> le sue occorrenze.</p>
+        <div class="actions">
+          <button class="btn primary" id="deleteBtn" type="button">Elimina selezionati</button>
+        </div>
+        <p class="small" id="hint"></p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function(){
+  // ====== CONFIG ======
+  const CFG = window.SQ_CONFIG || {};
+  const SUPABASE_URL  = CFG.SUPABASE_URL;
+  const SUPABASE_ANON = CFG.SUPABASE_ANON || CFG.SUPABASE_ANON_KEY;
+  if (!SUPABASE_URL || !SUPABASE_ANON){
+    document.getElementById('err').textContent = 'Manca la configurazione Supabase in assets/app-config.js';
+    return;
+  }
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  // ====== STATO ======
+  let GMAP=null, INFO=null;
+  const EVENTS = new Map();         // event_id -> {id,title,titolo}
+  const OCCS   = new Map();         // event_id -> [occurrences...]
+  const MARKERS= new Map();         // event_id -> [markers...]
+  const SELECTED = new Set();       // event_id selezionati
+
+  const $ = s=>document.querySelector(s);
+
+  // ====== UI helper ======
+  function updateSelectionUI(){
+    $('#selCount').textContent = SELECTED.size + ' selezionati';
+    const list = [];
+    SELECTED.forEach(id=>{
+      const ev = EVENTS.get(id)||{};
+      const occ = (OCCS.get(id)||[])[0]||{};
+      const titolo = ev.title || ev.titolo || '(evento)';
+      const city = occ.citta || occ.city || '';
+      list.push(`<div class="item"><div><b>${titolo}</b> <span class="badge">${city||'—'}</span><br><small>${occ.indirizzo||''} ${occ.citta||occ.city||''}</small></div></div>`);
+    });
+    $('#selList').innerHTML = list.join('') || '—';
+  }
+
+  function setMarkersStyle(eventId, selected){
+    (MARKERS.get(eventId)||[]).forEach(m=>{
+      m.setIcon({
+        path: 'M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z',
+        anchor: new google.maps.Point(32,64),
+        fillColor: selected ? '#ffd54f' : '#22b3f0',
+        fillOpacity:1, strokeColor:'#ffffff', strokeWeight:3, scale:0.85
+      });
+      m.setZIndex(selected ? 999 : 1);
+    });
+  }
+
+  // ====== MAPPA ======
+  function initMap(){
+    GMAP = new google.maps.Map(document.getElementById('map'),{
+      center:{lat:45.0703, lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false
+    });
+    INFO = new google.maps.InfoWindow();
+    loadData();
+  }
+
+  async function loadData(){
+    $('#err').textContent = '';
+    $('#hint').textContent = 'Carico eventi…';
+    // eventi
+    const evRes = await sb.from('events').select('id, title, titolo').limit(2000);
+    if (evRes.error){ $('#err').textContent = evRes.error.message; return; }
+    evRes.data.forEach(e=>EVENTS.set(e.id, e));
+
+    // occorrenze
+    const ocRes = await sb.from('occurrences')
+      .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta')
+      .limit(10000);
+    if (ocRes.error){ $('#err').textContent = ocRes.error.message; return; }
+
+    // indicizza per evento
+    ocRes.data.forEach(o=>{
+      if (!OCCS.has(o.event_id)) OCCS.set(o.event_id, []);
+      OCCS.get(o.event_id).push(o);
+    });
+
+    // crea marker per ciascuna occorrenza
+    OCCS.forEach((list, eventId)=>{
+      list.forEach(occ=>{
+        if (occ.lat==null || occ.lng==null) return;
+        const marker = new google.maps.Marker({
+          position:{lat:occ.lat, lng:occ.lng}, map:GMAP,
+          icon:{ path:'M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z',
+                 anchor:new google.maps.Point(32,64), fillColor:'#22b3f0', fillOpacity:1, strokeColor:'#fff', strokeWeight:3, scale:0.85 }
+        });
+        marker.addListener('click', ()=>{
+          if (SELECTED.has(eventId)){ SELECTED.delete(eventId); setMarkersStyle(eventId,false); }
+          else { SELECTED.add(eventId); setMarkersStyle(eventId,true); }
+          updateSelectionUI();
+          const ev = EVENTS.get(eventId)||{};
+          const titolo = ev.title || ev.titolo || '(evento)';
+          INFO.setContent('<b>'+titolo+'</b><br>'+ (occ.luogo||'') + ', ' + (occ.indirizzo||'') + ', ' + (occ.citta||''));
+          INFO.open(GMAP, marker);
+        });
+        if (!MARKERS.has(eventId)) MARKERS.set(eventId, []);
+        MARKERS.get(eventId).push(marker);
+      });
+    });
+
+    // fit bounds
+    const pts=[];
+    OCCS.forEach(list=> list.forEach(o=>{ if(o.lat!=null&&o.lng!=null) pts.push(new google.maps.LatLng(o.lat,o.lng)); }));
+    if (pts.length){
+      const b = new google.maps.LatLngBounds(); pts.forEach(p=>b.extend(p)); GMAP.fitBounds(b);
+    }
+    $('#hint').textContent = 'Suggerimento: seleziona i pin da cancellare, poi premi “Elimina selezionati”.';
+  }
+
+  // ====== CANCELLAZIONE + LOG ======
+  async function logDeletion(eventId){
+    // recupera titolo e città dalla prima occorrenza
+    const ev = EVENTS.get(eventId)||{};
+    const occ = (OCCS.get(eventId)||[])[0]||{};
+    const title = ev.title || ev.titolo || null;
+    const city  = occ.citta || null;
+    const ins = await sb.from('event_deletions').insert({
+      event_id: eventId, title: title, city: city
+    });
+    return ins;
+  }
+
+  async function deleteEvent(eventId){
+    // 1) logga
+    await logDeletion(eventId);
+    // 2) cancella occorrenze
+    await sb.from('occurrences').delete().eq('event_id', eventId);
+    // 3) cancella evento
+    await sb.from('events').delete().eq('id', eventId);
+  }
+
+  async function deleteSelected(){
+    if (SELECTED.size===0){ alert('Seleziona almeno un evento.'); return; }
+    if (!confirm('Confermi la cancellazione di '+SELECTED.size+' evento/i?')) return;
+
+    $('#err').textContent = '';
+    $('#hint').textContent = 'Elimino…';
+
+    for (const id of Array.from(SELECTED)){
+      try{
+        await deleteEvent(id);
+        (MARKERS.get(id)||[]).forEach(m=>m.setMap(null));
+        MARKERS.delete(id);
+        EVENTS.delete(id);
+        OCCS.delete(id);
+        SELECTED.delete(id);
+      }catch(e){
+        $('#err').textContent = 'Errore durante la cancellazione di un evento: ' + (e.message||e);
+        break;
+      }
+    }
+    updateSelectionUI();
+    $('#hint').textContent = 'Fatto.';
+  }
+
+  // ====== BIND UI ======
+  document.getElementById('deleteBtn').addEventListener('click', deleteSelected);
+  document.getElementById('clearSel').addEventListener('click', ()=>{
+    SELECTED.forEach(id=> setMarkersStyle(id,false));
+    SELECTED.clear();
+    updateSelectionUI();
+  });
+
+  // ====== START ======
+  if (window.google && window.google.maps) initMap();
+  else window.addEventListener('load', ()=>{
+    const iv = setInterval(()=>{
+      if (window.google && window.google.maps){ clearInterval(iv); initMap(); }
+    }, 100);
+  });
+})();
+</script>
+</body>
+</html>
