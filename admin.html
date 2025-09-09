@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Admin — Stasera Qui</title>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=12">
   <style>
     .wrap{max-width:980px;margin:0 auto;padding:16px}
@@ -12,6 +12,17 @@
     .card h2{margin:0 0 8px}
   </style>
 </head>
+<!-- === Diagnostica piattaforma (blocchetto) === -->
+<div class="card" id="diagCard" style="margin-top:16px">
+  <h2 style="margin-top:0">Diagnostica</h2>
+  <p class="small">Esegue test rapidi su chiavi, DB, storage e funzioni Edge.</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <button class="btn primary" id="runDiag" type="button">Esegui test</button>
+    <button class="btn" id="copyDiag" type="button">Copia report</button>
+  </div>
+  <pre id="diagOut" style="background:#0b1623;border:1px solid rgba(255,255,255,.12);padding:12px;border-radius:10px;max-height:420px;overflow:auto;margin:0;white-space:pre-wrap"></pre>
+</div>
+<!-- === /Diagnostica === -->
 <body>
 <header class="header" style="padding:0 16px">
   <a href="index.html" class="logo">
@@ -54,5 +65,129 @@
 </main>
 
 <footer class="page-footer"><a class="btn" href="index.html">← Torna alla mappa</a></footer>
+<script>
+(function(){
+  // --- util ---
+  const $ = s => document.querySelector(s);
+  const out = $('#diagOut');
+  function line(msg){ out.textContent += msg + '\n'; }
+  function ok(msg){ line('✅ ' + msg); }
+  function ko(msg){ line('❌ ' + msg); }
+  function sep(){ line('—'.repeat(48)); }
+
+  // --- config da assets/app-config.js ---
+  const CFG = window.SQ_CONFIG || {};
+  const SUPABASE_URL  = CFG.SUPABASE_URL;
+  const SUPABASE_ANON = CFG.SUPABASE_ANON;
+  const GOOGLE_KEY    = CFG.GOOGLE_MAPS_API_KEY;
+
+  // Edge base: https://<project>.functions.supabase.co
+  function fnBaseFromSupabaseUrl(u){
+    try{
+      const host = new URL(u).host; // es. rubdzlno....supabase.co
+      return 'https://' + host.replace('.supabase.co', '.functions.supabase.co');
+    }catch(_){ return null; }
+  }
+  const FN_BASE = fnBaseFromSupabaseUrl(SUPABASE_URL);
+  const URL_CHECKOUT = FN_BASE ? (FN_BASE + '/create-checkout-session') : null;
+  const URL_WEBHOOK  = FN_BASE ? (FN_BASE + '/stripe-webhook')         : null;
+
+  let sb = null;
+  if (window.supabase && SUPABASE_URL && SUPABASE_ANON){
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  }
+
+  async function pingFunction(url){
+    if (!url) return { ok:false, status:0, note:'URL non costruibile' };
+    try{
+      // 1° tentativo: OPTIONS (CORS preflight)
+      let res = await fetch(url, { method:'OPTIONS' });
+      if (res.ok || res.status===204) return { ok:true, status:res.status, note:'OPTIONS OK' };
+
+      // 2° tentativo: POST "ping" (ci aspettiamo 400/405 ma rete OK)
+      res = await fetch(url, {
+        method:'POST',
+        headers:{ 'content-type':'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer '+SUPABASE_ANON },
+        body: JSON.stringify({ ping:true })
+      });
+      // se arriva una risposta 2xx-4xx, la rete/endpoint sono raggiungibili
+      return { ok:true, status:res.status, note:'POST raggiungibile (expected 400/405)' };
+    }catch(e){
+      return { ok:false, status:0, note:String(e&&e.message||e) };
+    }
+  }
+
+  async function run(){
+    out.textContent = '';
+    line('DIAGNOSTICA STASERA QUI — '+ new Date().toLocaleString());
+    sep();
+
+    // Chiavi presenti?
+    if (SUPABASE_URL)  ok('SUPABASE_URL presente');
+    else               ko('SUPABASE_URL mancante (assets/app-config.js)');
+
+    if (SUPABASE_ANON) ok('SUPABASE_ANON presente');
+    else               ko('SUPABASE_ANON mancante (assets/app-config.js)');
+
+    if (GOOGLE_KEY)    ok('GOOGLE_MAPS_API_KEY presente');
+    else               ko('GOOGLE_MAPS_API_KEY mancante (assets/app-config.js)');
+
+    if (FN_BASE){ ok('Functions base: '+FN_BASE); } else { ko('Functions base non derivabile da SUPABASE_URL'); }
+    sep();
+
+    // Supabase: query rapide
+    if (!sb){
+      ko('Client Supabase non inizializzato (manca SDK o chiavi)');
+    } else {
+      try{
+        const ev = await sb.from('events').select('id', { count:'exact', head:true });
+        if (ev.error) throw ev.error;
+        ok('DB events accessibile — totale stimato: '+ (ev.count ?? 'n/d'));
+
+        const oc = await sb.from('occurrences').select('id', { count:'exact', head:true });
+        if (oc.error) throw oc.error;
+        ok('DB occurrences accessibile — totale stimato: '+ (oc.count ?? 'n/d'));
+      }catch(e){
+        ko('DB select error: ' + (e?.message||String(e)));
+      }
+
+      // Storage: lista 1 file (se policy consente listing)
+      try{
+        const st = await sb.storage.from('event-images').list('', { limit:1 });
+        if (st.error) throw st.error;
+        ok('Storage event-images accessibile (list 1) — elementi: '+ (st.data?.length ?? 0));
+      }catch(e){
+        ko('Storage list fallita: ' + (e?.message||String(e)) + ' (nota: ok se listing non permesso, ma public URL deve funzionare)');
+      }
+    }
+    sep();
+
+    // Edge functions raggiungibili?
+    if (URL_CHECKOUT){
+      const r1 = await pingFunction(URL_CHECKOUT);
+      (r1.ok ? ok : ko)(`create-checkout-session raggiungibile — status ${r1.status} (${r1.note})`);
+    } else ko('create-checkout-session: URL non disponibile');
+
+    if (URL_WEBHOOK){
+      const r2 = await pingFunction(URL_WEBHOOK);
+      // Il webhook in produzione in genere risponde 400/405: è normale.
+      (r2.ok ? ok : ko)(`stripe-webhook raggiungibile — status ${r2.status} (${r2.note})`);
+    } else ko('stripe-webhook: URL non disponibile');
+
+    sep();
+    line('FINE TEST ✅');
+  }
+
+  $('#runDiag')?.addEventListener('click', run);
+  $('#copyDiag')?.addEventListener('click', ()=>{
+    try{
+      navigator.clipboard.writeText(out.textContent||'');
+      alert('Report copiato negli appunti.');
+    }catch(_){
+      alert('Non riesco a copiare. Seleziona il testo e copia manualmente.');
+    }
+  });
+})();
+</script>
 </body>
 </html>
