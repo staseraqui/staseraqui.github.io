@@ -52,14 +52,11 @@
     const SUPABASE_URL = CFG.SUPABASE_URL;
     const SUPABASE_ANON = CFG.SUPABASE_ANON || CFG.SUPABASE_ANON_KEY;
 
-    if(!SUPABASE_URL || !SUPABASE_ANON){
-      document.getElementById('out').innerHTML = '<div class="err">Config mancante: controlla assets/app-config.js</div>';
-      return;
-    }
-
-    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
     const $ = s=>document.querySelector(s);
     const out = (html)=> $('#out').innerHTML = html;
+
+    if(!sb){ out('<div class="err">Config mancante: controlla assets/app-config.js</div>'); return; }
 
     $('#go').addEventListener('click', async ()=>{
       const id = ($('#cs').value||'').trim();
@@ -67,13 +64,17 @@
 
       out('Invio…');
 
-      // 👉 usa l’SDK: niente CORS/preflight rognosi
+      // 👉 inviamo sia "id" sia "session_id" per compatibilità con la funzione
       const { data, error } = await sb.functions.invoke('admin-insert-events', {
-        body: { session_id: id }
+        body: { id, session_id: id }
       });
 
       if(error){
-        out('<div class="err">Errore: '+(error.message||JSON.stringify(error))+'</div><pre>'+JSON.stringify(error, null, 2)+'</pre>');
+        out('<div class="err">Errore: '+(error.message||'')+'</div><pre>'+JSON.stringify(error, null, 2)+'</pre>');
+        return;
+      }
+      if(data?.error){
+        out('<div class="err">Errore: '+data.error+'</div><pre>'+JSON.stringify(data, null, 2)+'</pre>');
         return;
       }
       out('<div class="ok">Fatto! Inseriti '+(data?.inserted_events||0)+' eventi e '+(data?.inserted_occurrences||0)+' occorrenze.</div>'
