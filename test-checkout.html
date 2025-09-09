@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Test checkout — Stasera Qui</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body{background:#081421;color:#e6f0ff;font-family:Rubik,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:24px}
+    .card{max-width:720px;margin:0 auto;background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px}
+    h1{margin:0 0 12px}
+    .btn{background:#22b3f0;border:0;border-radius:10px;color:#081421;font-weight:700;padding:12px 16px;cursor:pointer}
+    .small{color:#b8c2ce}
+    #out{white-space:pre-wrap;background:#081421;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px;margin-top:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  </style>
+
+  <!-- carica chiavi se disponibile -->
+  <script src="assets/app-config.js?v=3"></script>
+</head>
+<body>
+  <div class="card">
+    <h1>Test checkout</h1>
+    <p class="small">Clicca il bottone. Se tutto è ok si apre Stripe. Se compare un errore, copialo qui e mandamelo.</p>
+    <button id="go" class="btn" type="button">Crea checkout di prova</button>
+    <div id="out"></div>
+  </div>
+
+  <script>
+    // Prende le chiavi da assets/app-config.js se esiste; altrimenti usa il fallback (sono le tue chiavi pubbliche)
+    const CFG = (window.SQ_CONFIG || {});
+    const SUPABASE_ANON = CFG.SUPABASE_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8";
+    const EDGE_URL = "https://rubdzlnolxcgpjklfggk.functions.supabase.co/create-checkout-session";
+
+    const out = document.getElementById('out');
+    function log(msg){
+      out.textContent = (out.textContent ? out.textContent + "\n" : "") + msg;
+    }
+
+    document.getElementById('go').onclick = async ()=>{
+      out.textContent = '';
+      log('Invio richiesta a: ' + EDGE_URL);
+
+      // bundle PICCOLO (1 evento) per evitare limiti metadata di Stripe
+      const payload = {
+        bundle: [
+          {
+            tipo: 'single',
+            metadata: {
+              titolo: 'Test rapido',
+              descr: 'Prova',
+              prezzo: 'Gratis',
+              locandina_url: 'https://via.placeholder.com/600x800.png',
+              cats: 'Musica',
+              occ: JSON.stringify([{ l:'Piazza', i:'Via Roma 1', c:'Torino', d:'2025-12-31', o:'21:00', la:45.07, ln:7.68 }]),
+              submitter_email: 'test@example.com',
+              submitter_name: 'Test User',
+              submitter_tel: '000',
+              partner: ''
+            }
+          }
+        ]
+      };
+
+      try{
+        const resp = await fetch(EDGE_URL, {
+          method:'POST',
+          headers:{
+            'content-type':'application/json',
+            'apikey': SUPABASE_ANON,
+            'Authorization': 'Bearer ' + SUPABASE_ANON
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const text = await resp.text();
+        log('HTTP ' + resp.status + '\n' + text);
+
+        // Se risposta JSON con {url}, apri Stripe
+        try {
+          const j = JSON.parse(text);
+          if (j && j.url) {
+            log('Apro Stripe…');
+            window.location.href = j.url;
+          }
+        } catch(e){}
+      }catch(e){
+        log('ERRORE rete: ' + (e && e.message ? e.message : String(e)));
+      }
+    };
+  </script>
+</body>
+</html>
