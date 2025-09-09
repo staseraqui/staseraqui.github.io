@@ -5,7 +5,15 @@
   <title>Pubblica evento — Stasera Qui</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=23">
-  <style>.modal{z-index:999999!important}</style>
+  <style>
+    .modal{z-index:999999!important}
+    /* Barra carrello (aggiunta) */
+    #cartBar{position:sticky;top:0;z-index:30;background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin-bottom:12px;display:none}
+    #cartList{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0}
+    .cartItem{background:#17304d;color:#d7f2ff;border:1px solid #2e6e8f;border-radius:10px;padding:6px 10px;display:flex;gap:8px;align-items:center}
+    .cartItem b{white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+    .cartItem button{padding:6px 8px}
+  </style>
 
   <!-- Config chiavi (DEVE contenere SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
   <script src="assets/app-config.js?v=3"></script>
@@ -26,6 +34,18 @@
 
 <main class="container">
   <h1>Pubblica il tuo evento</h1>
+
+  <!-- BARRA CARRELLO (NUOVA) -->
+  <div id="cartBar">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div><b>Carrello eventi:</b> <span id="cartCount">0</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn secondary" id="cartClear" type="button">Svuota carrello</button>
+        <button class="btn primary" id="goCheckout" type="button">Vai al pagamento</button>
+      </div>
+    </div>
+    <div id="cartList"></div>
+  </div>
 
   <div class="card">
     <h2 style="margin-top:0">Perché pubblicare su Stasera Qui?</h2>
@@ -121,9 +141,9 @@
     </div>
 
     <div class="footer-actions">
-      <button class="btn primary" id="anteprimaBtn" type="button">Rivedi anteprima</button>
-      <button class="btn primary" id="confermaFooterBtn" type="button">Conferma pubblicazione evento</button>
-      <button class="btn secondary" id="azzeraBtn" type="button">Azzera tutto</button>
+      <button class="btn primary"   id="addToCartBtn"     type="button">➕ Aggiungi al carrello</button>
+      <button class="btn"           id="anteprimaBtn"     type="button">Rivedi anteprima</button>
+      <button class="btn secondary" id="azzeraBtn"        type="button">Azzera tutto</button>
     </div>
     <div id="err" class="err"></div>
   </form>
@@ -142,8 +162,6 @@
   <p class="small" style="margin-top:16px">In caso di dubbi o problemi durante la pubblicazione di un evento, scrivi a: <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a></p>
 </main>
 
-  
-  
 <script>
 (function(){
   // ====== CONFIG ======
@@ -154,7 +172,7 @@
   const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
   const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/create-checkout-session';
 
-  // ====== Carica Google Maps JS (per Geocoder con referrer restrictions) ======
+  // ====== Carica Google Maps JS (Geocoder) ======
   let mapsLoadedPromise = null;
   function loadGoogleMaps(){
     if (window.google && window.google.maps) return Promise.resolve();
@@ -198,13 +216,7 @@
 
   let cats=[];
   btn.addEventListener('click', ()=>{ modal.style.display='flex'; document.body.style.overflow='hidden'; });
-
-  // chiudi clic su overlay
-  modal.addEventListener('click', e=>{
-    if(e.target===modal){ modal.style.display='none'; document.body.style.overflow='auto'; }
-  });
-
-  // toggle chip + stile
+  modal.addEventListener('click', e=>{ if(e.target===modal){ modal.style.display='none'; document.body.style.overflow='auto'; }});
   modal.addEventListener('click', e=>{
     if(e.target.classList.contains('chip')){
       e.target.classList.toggle('active');
@@ -215,12 +227,9 @@
       }
     }
   });
-
-  // conferma/azzera
   modal.querySelector('#catOk').addEventListener('click', ()=>{
     cats = Array.prototype.slice.call(modal.querySelectorAll('.chip.active')).map(ch=>ch.getAttribute('data-cat'));
-    renderCats(cats);
-    modal.style.display='none'; document.body.style.overflow='auto';
+    renderCats(cats); modal.style.display='none'; document.body.style.overflow='auto';
   });
   modal.querySelector('#catClear').addEventListener('click', ()=>{
     cats=[]; renderCats(cats);
@@ -264,36 +273,32 @@
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
 
-  // Geocoding con Google Maps JS (funziona con chiave limitata per referrer)
+  // Geocoding con Google Maps JS
   async function geocode(indirizzo, citta){
-    await loadGoogleMaps(); // assicura che google.maps sia disponibile
+    await loadGoogleMaps();
     const geocoder = new google.maps.Geocoder();
-
     const tentativi = [
       { address: `${indirizzo}, ${citta}`, componentRestrictions: { country: 'IT', locality: citta } },
       { address: `${indirizzo}, ${citta}`, componentRestrictions: { country: 'IT' } },
       { address: `${indirizzo}, ${citta}, Italia`, componentRestrictions: { country: 'IT' } },
     ];
-
     for (const t of tentativi){
-      const res = await new Promise((resolve)=> {
+      const res = await new Promise((resolve)=>{
         geocoder.geocode(t, (results, status)=>{
-          if(status === 'OK' && results && results[0] && results[0].geometry && results[0].geometry.location){
+          if(status==='OK' && results && results[0] && results[0].geometry){
             const loc = results[0].geometry.location;
-            resolve({ ok:true, lat: loc.lat(), lng: loc.lng() });
-          } else {
-            resolve({ ok:false, status });
-          }
+            resolve({ok:true, lat:loc.lat(), lng:loc.lng()});
+          } else resolve({ok:false});
         });
       });
-      if(res.ok) return { lat: res.lat, lng: res.lng };
+      if(res.ok) return { lat:+res.lat.toFixed(6), lng:+res.lng.toFixed(6) };
     }
     throw new Error('Geocoding fallito (Google Maps JS)');
   }
 
   function collectOcc(){
     const occ=[];
-    Array.prototype.forEach.call(document.querySelectorAll('#occWrap .occ'), function(b){
+    Array.prototype.forEach.call(document.querySelectorAll('#occWrap .occ'), (b)=>{
       const luogo=clean((b.querySelector('.luogo')||{}).value||'');
       const indirizzo=clean((b.querySelector('.indirizzo')||{}).value||'');
       const citta=clean((b.querySelector('.citta')||{}).value||'');
@@ -327,8 +332,33 @@
     window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
   });
 
-  // ====== CONFERMA → STRIPE ======
-  document.getElementById('confermaFooterBtn').addEventListener('click', async ()=>{
+  // ====== CARRELLO ======
+  const cartBar   = document.getElementById('cartBar');
+  const cartList  = document.getElementById('cartList');
+  const cartCount = document.getElementById('cartCount');
+  const CART = []; // [{tipo:'single'|'multi', metadata:{...}}]
+
+  function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
+
+  function refreshCartUI(){
+    cartCount.textContent = CART.length;
+    cartList.innerHTML = CART.map((it,idx)=>(
+      `<div class="cartItem"><b>${(it.metadata?.titolo)||'(senza titolo)'}</b>
+         <span class="small">${(it.tipo==='multi'?'evento multiplo':'evento singolo')}</span>
+         <button class="btn" data-del="${idx}" type="button">Rimuovi</button>
+       </div>`
+    )).join('');
+    cartBar.style.display = CART.length ? 'block' : 'none';
+  }
+  cartList.addEventListener('click', (e)=>{
+    const i = e.target?.getAttribute('data-del');
+    if(i!=null){ CART.splice(+i,1); refreshCartUI(); }
+  });
+  document.getElementById('cartClear').onclick = ()=>{ CART.length=0; refreshCartUI(); };
+
+  // ====== Aggiungi al carrello ======
+  document.getElementById('addToCartBtn').addEventListener('click', addToCart);
+  async function addToCart(){
     try{
       err.textContent='';
       if(!sb){ err.textContent='Configurazione mancante: contatta il supporto.'; return; }
@@ -336,6 +366,7 @@
       const titolo=clean(document.getElementById('titolo').value);
       const descr =clean(document.getElementById('descrizione').value);
       const prezzo=(document.getElementById('prezzo').value||'').trim();
+      const catsArr=badgesToArray();
       const file  =(document.getElementById('locandina').files||[])[0];
       const occ   =collectOcc();
       const submitter={
@@ -345,7 +376,10 @@
         email:(document.getElementById('sub_email').value||'')
       };
       const partner_code = (document.getElementById('partner_code').value||'');
-      if(!titolo||!descr||!file||!occ){ err.textContent='Compila i dati obbligatori e almeno una occorrenza completa.'; return; }
+
+      if(!titolo||!descr||!file||!occ||!catsArr.length){
+        err.textContent='Compila Titolo, Descrizione, Locandina, almeno 1 Categoria e tutte le occorrenze.'; return;
+      }
 
       // 1) Upload locandina su Storage
       const stamp = new Date().toISOString().replace(/[:.]/g,'-');
@@ -356,24 +390,19 @@
       const pub = sb.storage.from('event-images').getPublicUrl(fname);
       const locandina_url = pub?.data?.publicUrl || '';
 
-      // 2) Geocoding per ogni occorrenza (con Maps JS)
+      // 2) Geocoding per ogni occorrenza
       const occFull=[];
       for(const o of occ){
-        try{
-          const g = await geocode(o.indirizzo, o.citta);
-          if(!g){ err.textContent = `Indirizzo non trovato per: ${o.indirizzo}, ${o.citta}`; return; }
-          occFull.push({ ...o, lat: +g.lat.toFixed(6), lng: +g.lng.toFixed(6) });
-        }catch(geoErr){
-          err.textContent = `Errore geocoding per: ${o.indirizzo}, ${o.citta} — ${geoErr.message}`;
-          return;
-        }
+        const g = await geocode(o.indirizzo, o.citta);
+        if(!g){ err.textContent = `Indirizzo non trovato per: ${o.indirizzo}, ${o.citta}`; return; }
+        occFull.push({ ...o, lat: +g.lat.toFixed(6), lng: +g.lng.toFixed(6) });
       }
 
-      // 3) Metadati compatti (sotto i 500 char per chiave)
-      const catsStr = (Array.prototype.map.call(document.getElementById('catBadges').children,b=>b.textContent).join('|')).slice(0,120);
+      // 3) Metadati compatti (limite Stripe ~500 char/chiave)
+      const catsStr = (catsArr.join('|')).slice(0,120);
       const occMin  = occFull.map(o=>({l:o.luogo,i:o.indirizzo,c:o.citta,d:o.data,o:o.ora,la:o.lat,ln:o.lng}));
       const occStr  = JSON.stringify(occMin);
-      if(occStr.length>450){ err.textContent='Troppo testo nelle occorrenze: riduci numero/descrizioni (max 4 occorrenze consigliate).'; return; }
+      if(occStr.length>450){ err.textContent='Troppo testo nelle occorrenze: riduci numero (consigliate max 4).'; return; }
 
       const metadata = {
         titolo: (titolo||'').slice(0,80),
@@ -384,12 +413,30 @@
         occ: occStr,
         submitter_email: (submitter.email||'').slice(0,120),
         submitter_name: (`${submitter.nome} ${submitter.cognome}`.trim()).slice(0,80),
+        submitter_tel: (submitter.tel||'').slice(0,32),
         partner: (partner_code||'').slice(0,12)
       };
-
       const tipo = (occFull.length>1) ? 'multi' : 'single';
 
-      // 4) Crea la sessione Checkout su Supabase Edge (AGGIUNGO HEADER AUTH)
+      CART.push({ tipo, metadata });
+      refreshCartUI();
+
+      // 4) Reset modulo per inserire il prossimo
+      document.getElementById('eventForm').reset();
+      document.getElementById('catBadges').innerHTML='';
+      document.getElementById('preview').style.display='none';
+      window.scrollTo({top:0, behavior:'smooth'});
+    }catch(e){
+      err.textContent = 'Errore: '+( e?.message || String(e) );
+    }
+  }
+
+  // ====== Vai al pagamento (bundle) ======
+  document.getElementById('goCheckout').addEventListener('click', async ()=>{
+    try{
+      if(CART.length===0){ alert('Il carrello è vuoto. Aggiungi almeno un evento.'); return; }
+      if(CART.length>10){ alert('Per sicurezza, massimo 10 eventi per pagamento.'); return; }
+
       const resp = await fetch(EDGE_URL, {
         method:'POST',
         headers:{
@@ -397,34 +444,26 @@
           'apikey': SUPABASE_ANON,
           'Authorization': 'Bearer ' + SUPABASE_ANON
         },
-        body: JSON.stringify({ tipo, metadata })
+        body: JSON.stringify({ bundle: CART })
       });
 
       if(!resp.ok){
         const txt = await resp.text().catch(()=>'(no body)');
         throw new Error('create-checkout-session FAILED: ' + txt);
       }
-
-      let j;
-      try { j = await resp.json(); }
-      catch {
-        const txt = await resp.text().catch(()=>'(no body)');
-        throw new Error('Risposta non-JSON dalla funzione: ' + txt);
-      }
-
-      if(!j?.url) throw new Error('Risposta senza URL da Supabase. Dettagli: ' + JSON.stringify(j));
-
-      // 5) Vai al pagamento
+      const j = await resp.json();
+      if(!j?.url) throw new Error('Risposta senza URL da Supabase. Dettagli: '+JSON.stringify(j));
       window.location.href = j.url;
-
     }catch(e){
-      err.textContent = 'Errore: '+ (e&&e.message? e.message: String(e));
+      alert(e?.message||String(e));
     }
   });
 
+  // ====== ANNULLA / RESET ======
   document.getElementById('azzeraBtn').addEventListener('click', ()=> location.reload());
 })();
 </script>
+
 <footer class="page-footer">
   <a href="index.html" class="btn">← Torna alla mappa</a>
   <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
