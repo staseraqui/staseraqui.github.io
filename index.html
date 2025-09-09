@@ -442,7 +442,7 @@
 
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:300px">
-      <b>${ev.title||ev.titolo||'(evento)'}</b><br>
+      <b>${ev.title||ev.titolo||'(evento)')}</b><br>
       <small>${cats||''}</small><br>
       ${when}<br>${where}
       ${descr? `<br><br>${descr}`:''}
@@ -695,6 +695,79 @@
     $('#counter').textContent = count===1 ? '1 evento visibile sulla mappa' : `${count} eventi visibili sulla mappa`;
   }
 
+  /* === SEO: genera JSON-LD “Event” per gli eventi VISIBILI in mappa === */
+  function updateJsonLdEvents(){
+    try{
+      // rimuovi blocco precedente
+      const ID = 'sq-jsonld-events';
+      const old = document.getElementById(ID);
+      if (old) old.remove();
+
+      const bounds = USE_GMAPS ? GMAPS.map?.getBounds() : LEAF.map?.getBounds();
+      if (!bounds) return;
+      const contains = (lat,lng)=> USE_GMAPS
+        ? bounds.contains(new google.maps.LatLng(lat,lng))
+        : bounds.contains([lat,lng]);
+
+      const occs = OCCS
+        .filter(o => o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o))
+        .slice(0, 10);
+
+      if (!occs.length) return;
+
+      const events = occs.map(o => {
+        const ev = EVENTS_BY_ID.get(o.event_id) || {};
+        const name = ev.title || ev.titolo || "(evento)";
+        const desc = ev.description || ev.descrizione || "";
+        const img  = ev.locandina_url || undefined;
+        const start = o.ora ? `${o.data}T${o.ora}:00` : `${o.data}`;
+
+        const json = {
+          "@context": "https://schema.org",
+          "@type": "Event",
+          "name": name,
+          "description": desc,
+          "startDate": start,
+          "eventStatus": "https://schema.org/EventScheduled",
+          "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+          "location": {
+            "@type": "Place",
+            "name": o.luogo || "",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": o.indirizzo || "",
+              "addressLocality": o.citta || "",
+              "addressCountry": "IT"
+            }
+          },
+          "organizer": {
+            "@type": "Organization",
+            "name": "Stasera Qui"
+          },
+          "url": "https://www.staseraqui.it/"
+        };
+        if (img) json.image = [img];
+
+        const priceText = (ev.price_text || ev.prezzo || "").toLowerCase();
+        if (priceText.includes("gratis")) {
+          json.offers = {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "EUR",
+            "availability": "https://schema.org/InStock"
+          };
+        }
+        return json;
+      });
+
+      const s = document.createElement('script');
+      s.type = 'application/ld+json';
+      s.id = ID;
+      s.textContent = JSON.stringify(events, null, 2);
+      document.head.appendChild(s);
+    }catch(_){}
+  }
+
   function computeAllBounds(){
     const pts = OCCS.filter(o => o.lat!=null && o.lng!=null);
     if (!pts.length) return null;
@@ -728,6 +801,7 @@
     });
 
     updateCounter();
+    updateJsonLdEvents(); // ← 2B: aggiorna i dati strutturati degli eventi visibili
 
     // Auto-fit solo se abilitato
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
