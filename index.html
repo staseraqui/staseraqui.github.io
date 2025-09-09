@@ -257,6 +257,14 @@
     loadData().then(requestInitialLocation);
   };
 
+function pinSvgUrl(color = '#22b3f0'){
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72">
+    <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z"
+          fill="${color}" stroke="#ffffff" stroke-width="3"/>
+    <circle cx="32" cy="24" r="9" fill="#ffffff"/>
+  </svg>`;
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+}  
   function gAddMarker(occ, ev){
     const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
@@ -270,12 +278,10 @@
       position:{lat:occ.lat, lng:occ.lng},
       map: GMAPS.map,
       icon: {
-        path: 'M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z',
-        anchor: new google.maps.Point(32,64),
-        fillColor:'#22b3f0', fillOpacity:1,
-        strokeColor:'#ffffff', strokeWeight:3,
-        scale:0.85
-      }
+  url: pinSvgUrl('#22b3f0'),
+  scaledSize: new google.maps.Size(30, 34),
+  anchor: new google.maps.Point(15, 34) // punta del pin
+}
     });
 
     const html = `
