@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="assets/style.css?v=23">
   <style>
     .modal{z-index:999999!important}
-    /* Barra carrello (aggiunta) */
+    /* Barra carrello */
     #cartBar{position:sticky;top:0;z-index:30;background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin-bottom:12px;display:none}
     #cartList{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0}
     .cartItem{background:#17304d;color:#d7f2ff;border:1px solid #2e6e8f;border-radius:10px;padding:6px 10px;display:flex;gap:8px;align-items:center}
@@ -23,7 +23,6 @@
 
 <header class="header">
   <div class="logo">
-    <!-- Logo approvato: pin azzurro + wordmark; dimensione pin regolata da CSS (.logo .pin) -->
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
       <circle cx="32" cy="24" r="9" fill="#ffffff"/>
@@ -35,7 +34,7 @@
 <main class="container">
   <h1>Pubblica il tuo evento</h1>
 
-  <!-- BARRA CARRELLO (NUOVA) -->
+  <!-- BARRA CARRELLO -->
   <div id="cartBar">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <div><b>Carrello eventi:</b> <span id="cartCount">0</span></div>
@@ -170,7 +169,9 @@
   const SUPABASE_ANON = CFG.SUPABASE_ANON;
   const GOOGLE_KEY   = CFG.GOOGLE_MAPS_API_KEY;
   const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
-  const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/create-checkout-session';
+
+  // NUOVO endpoint: start-checkout
+  const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/start-checkout';
 
   // ====== Carica Google Maps JS (Geocoder) ======
   let mapsLoadedPromise = null;
@@ -249,20 +250,22 @@
 
   // ====== OCCORRENZE ======
   const wrapO = document.getElementById('occWrap');
-  document.getElementById('addOcc').addEventListener('click', ()=>{
-    const d=document.createElement('div'); d.className='occ card';
-    d.innerHTML = '<div class="grid">\
-      <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>\
-      <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>\
-    </div><div class="grid">\
-      <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>\
-      <div><label>Data*</label><input class="data" type="date"></div>\
-    </div><div class="grid">\
-      <div><label>Orario*</label><input class="ora" type="time"></div>\
-      <div style="display:flex;align-items:flex-end;justify-content:flex-end"><button type="button" class="btn secondary del-btn">Elimina occorrenza</button></div>\
-    </div>';
-    wrapO.appendChild(d);
-  });
+  const OCC_TEMPLATE = `
+    <div class="occ card">
+      <div class="grid">
+        <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>
+        <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>
+      </div>
+      <div class="grid">
+        <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>
+        <div><label>Data*</label><input class="data" type="date"></div>
+      </div>
+      <div class="grid">
+        <div><label>Orario*</label><input class="ora" type="time"></div>
+        <div style="display:flex;align-items:flex-end;justify-content:flex-end"><button type="button" class="btn secondary del-btn">Elimina occorrenza</button></div>
+      </div>
+    </div>`;
+  document.getElementById('addOcc').addEventListener('click', ()=>{ wrapO.insertAdjacentHTML('beforeend', OCC_TEMPLATE); });
   wrapO.addEventListener('click', e=>{
     if(e.target.classList.contains('del-btn')){
       const box=e.target.closest('.occ'); if(box) box.remove();
@@ -272,6 +275,7 @@
   // ====== UTILITY ======
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
+  function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
 
   // Geocoding con Google Maps JS
   async function geocode(indirizzo, citta){
@@ -323,7 +327,7 @@
       err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria* e completa tutte le occorrenze.'; return;
     }
     document.getElementById('pv_titolo').textContent=titolo;
-    document.getElementById('pv_cats').textContent=Array.prototype.map.call(document.getElementById('catBadges').children,b=>b.textContent).join(', ');
+    document.getElementById('pv_cats').textContent=badgesToArray().join(', ');
     document.getElementById('pv_descr').textContent=descr;
     document.getElementById('pv_occ').textContent=occ.length+' occorrenza/e';
     const ul=document.createElement('ul'); occ.forEach(o=>{ const li=document.createElement('li'); li.textContent=o.data+' ore '+o.ora+' — '+o.luogo+', '+o.indirizzo+', '+o.citta; ul.appendChild(li); });
@@ -336,15 +340,13 @@
   const cartBar   = document.getElementById('cartBar');
   const cartList  = document.getElementById('cartList');
   const cartCount = document.getElementById('cartCount');
-  const CART = []; // [{tipo:'single'|'multi', metadata:{...}}]
-
-  function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
+  const CART = []; // conterrà oggetti evento completi
 
   function refreshCartUI(){
     cartCount.textContent = CART.length;
-    cartList.innerHTML = CART.map((it,idx)=>(
-      `<div class="cartItem"><b>${(it.metadata?.titolo)||'(senza titolo)'}</b>
-         <span class="small">${(it.tipo==='multi'?'evento multiplo':'evento singolo')}</span>
+    cartList.innerHTML = CART.map((ev,idx)=>(
+      `<div class="cartItem"><b>${ev.titolo||'(senza titolo)'}</b>
+         <span class="small">${ev.occ?.length>1?'evento multiplo':'evento singolo'}</span>
          <button class="btn" data-del="${idx}" type="button">Rimuovi</button>
        </div>`
     )).join('');
@@ -358,6 +360,7 @@
 
   // ====== Aggiungi al carrello ======
   document.getElementById('addToCartBtn').addEventListener('click', addToCart);
+
   async function addToCart(){
     try{
       err.textContent='';
@@ -369,19 +372,11 @@
       const catsArr=badgesToArray();
       const file  =(document.getElementById('locandina').files||[])[0];
       const occ   =collectOcc();
-      const submitter={
-        nome:(document.getElementById('sub_nome').value||''),
-        cognome:(document.getElementById('sub_cognome').value||''),
-        tel:(document.getElementById('sub_tel').value||''),
-        email:(document.getElementById('sub_email').value||'')
-      };
-      const partner_code = (document.getElementById('partner_code').value||'');
-
       if(!titolo||!descr||!file||!occ||!catsArr.length){
         err.textContent='Compila Titolo, Descrizione, Locandina, almeno 1 Categoria e tutte le occorrenze.'; return;
       }
 
-      // 1) Upload locandina su Storage
+      // Upload locandina su Storage
       const stamp = new Date().toISOString().replace(/[:.]/g,'-');
       const rand = Math.random().toString(36).slice(2,10);
       const fname = `events/${stamp}_${rand}.${file.type==='image/png'?'png':'jpg'}`;
@@ -390,7 +385,7 @@
       const pub = sb.storage.from('event-images').getPublicUrl(fname);
       const locandina_url = pub?.data?.publicUrl || '';
 
-      // 2) Geocoding per ogni occorrenza
+      // Geocoding per ogni occorrenza
       const occFull=[];
       for(const o of occ){
         const g = await geocode(o.indirizzo, o.citta);
@@ -398,32 +393,30 @@
         occFull.push({ ...o, lat: +g.lat.toFixed(6), lng: +g.lng.toFixed(6) });
       }
 
-      // 3) Metadati compatti (limite Stripe ~500 char/chiave)
-      const catsStr = (catsArr.join('|')).slice(0,120);
-      const occMin  = occFull.map(o=>({l:o.luogo,i:o.indirizzo,c:o.citta,d:o.data,o:o.ora,la:o.lat,ln:o.lng}));
-      const occStr  = JSON.stringify(occMin);
-      if(occStr.length>450){ err.textContent='Troppo testo nelle occorrenze: riduci numero (consigliate max 4).'; return; }
-
-      const metadata = {
-        titolo: (titolo||'').slice(0,80),
-        descr: (descr||'').slice(0,180),
-        prezzo: (prezzo||'').slice(0,40),
+      // Evento completo (niente limiti Stripe: non usiamo metadati lunghi)
+      const eventObj = {
+        titolo, descr, prezzo,
+        cats: catsArr,
         locandina_url,
-        cats: catsStr,
-        occ: occStr,
-        submitter_email: (submitter.email||'').slice(0,120),
-        submitter_name: (`${submitter.nome} ${submitter.cognome}`.trim()).slice(0,80),
-        submitter_tel: (submitter.tel||'').slice(0,32),
-        partner: (partner_code||'').slice(0,12)
+        occ: occFull
       };
-      const tipo = (occFull.length>1) ? 'multi' : 'single';
 
-      CART.push({ tipo, metadata });
+      CART.push(eventObj);
       refreshCartUI();
 
-      // 4) Reset modulo per inserire il prossimo
-      document.getElementById('eventForm').reset();
+      // Reset SOLO campi evento (NON i dati inserzionista)
+      document.getElementById('titolo').value='';
+      document.getElementById('prezzo').value='';
+      document.getElementById('descrizione').value='';
+      document.getElementById('locandina').value='';
       document.getElementById('catBadges').innerHTML='';
+      // reset chips del modal
+      Array.prototype.forEach.call(document.querySelectorAll('.modal .chip'), ch=>{
+        ch.classList.remove('active'); ch.style.background='#17304d'; ch.style.color='#d7f2ff'; ch.style.borderColor='#2e6e8f';
+      });
+      // reset occorrenze al template iniziale (una sola)
+      document.getElementById('occWrap').innerHTML = OCC_TEMPLATE;
+
       document.getElementById('preview').style.display='none';
       window.scrollTo({top:0, behavior:'smooth'});
     }catch(e){
@@ -435,7 +428,19 @@
   document.getElementById('goCheckout').addEventListener('click', async ()=>{
     try{
       if(CART.length===0){ alert('Il carrello è vuoto. Aggiungi almeno un evento.'); return; }
-      if(CART.length>10){ alert('Per sicurezza, massimo 10 eventi per pagamento.'); return; }
+
+      // Dati inserzionista (obbligatori)
+      const nome = (document.getElementById('sub_nome').value||'').trim();
+      const cognome = (document.getElementById('sub_cognome').value||'').trim();
+      const tel = (document.getElementById('sub_tel').value||'').trim();
+      const email = (document.getElementById('sub_email').value||'').trim();
+      const partner_code = (document.getElementById('partner_code').value||'').trim();
+      if(!nome || !cognome || !tel || !email){ alert('Compila Nome, Cognome, Telefono ed Email di chi inserisce l’annuncio.'); return; }
+
+      const bundle = {
+        events: CART, // [{titolo,descr,prezzo,cats[],locandina_url, occ:[{luogo,indirizzo,citta,data,ora,lat,lng}]}]
+        submitter: { name: `${nome} ${cognome}`, tel, email, partner: partner_code }
+      };
 
       const resp = await fetch(EDGE_URL, {
         method:'POST',
@@ -444,12 +449,12 @@
           'apikey': SUPABASE_ANON,
           'Authorization': 'Bearer ' + SUPABASE_ANON
         },
-        body: JSON.stringify({ bundle: CART })
+        body: JSON.stringify({ bundle })
       });
 
       if(!resp.ok){
         const txt = await resp.text().catch(()=>'(no body)');
-        throw new Error('create-checkout-session FAILED: ' + txt);
+        throw new Error('start-checkout FAILED: ' + txt);
       }
       const j = await resp.json();
       if(!j?.url) throw new Error('Risposta senza URL da Supabase. Dettagli: '+JSON.stringify(j));
@@ -459,7 +464,7 @@
     }
   });
 
-  // ====== ANNULLA / RESET ======
+  // ====== ANNULLA / RESET TOTALE ======
   document.getElementById('azzeraBtn').addEventListener('click', ()=> location.reload());
 })();
 </script>
