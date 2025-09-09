@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="assets/style.css?v=23">
   <style>
     .modal{z-index:999999!important}
-    /* Barra carrello */
+    /* Barra carrello (aggiunta) */
     #cartBar{position:sticky;top:0;z-index:30;background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin-bottom:12px;display:none}
     #cartList{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0}
     .cartItem{background:#17304d;color:#d7f2ff;border:1px solid #2e6e8f;border-radius:10px;padding:6px 10px;display:flex;gap:8px;align-items:center}
@@ -15,7 +15,7 @@
     .cartItem button{padding:6px 8px}
   </style>
 
-  <!-- Config chiavi (DEVE contenere SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
+  <!-- Config chiavi -->
   <script src="assets/app-config.js?v=3"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
@@ -170,8 +170,8 @@
   const GOOGLE_KEY   = CFG.GOOGLE_MAPS_API_KEY;
   const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
 
-  // NUOVO endpoint: start-checkout
-  const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/start-checkout';
+  // ← torniamo all’endpoint che hai già
+  const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/create-checkout-session';
 
   // ====== Carica Google Maps JS (Geocoder) ======
   let mapsLoadedPromise = null;
@@ -250,22 +250,20 @@
 
   // ====== OCCORRENZE ======
   const wrapO = document.getElementById('occWrap');
-  const OCC_TEMPLATE = `
-    <div class="occ card">
-      <div class="grid">
-        <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>
-        <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>
-      </div>
-      <div class="grid">
-        <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>
-        <div><label>Data*</label><input class="data" type="date"></div>
-      </div>
-      <div class="grid">
-        <div><label>Orario*</label><input class="ora" type="time"></div>
-        <div style="display:flex;align-items:flex-end;justify-content:flex-end"><button type="button" class="btn secondary del-btn">Elimina occorrenza</button></div>
-      </div>
-    </div>`;
-  document.getElementById('addOcc').addEventListener('click', ()=>{ wrapO.insertAdjacentHTML('beforeend', OCC_TEMPLATE); });
+  document.getElementById('addOcc').addEventListener('click', ()=>{
+    const d=document.createElement('div'); d.className='occ card';
+    d.innerHTML = '<div class="grid">\
+      <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>\
+      <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>\
+    </div><div class="grid">\
+      <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>\
+      <div><label>Data*</label><input class="data" type="date"></div>\
+    </div><div class="grid">\
+      <div><label>Orario*</label><input class="ora" type="time"></div>\
+      <div style="display:flex;align-items:flex-end;justify-content:flex-end"><button type="button" class="btn secondary del-btn">Elimina occorrenza</button></div>\
+    </div>';
+    wrapO.appendChild(d);
+  });
   wrapO.addEventListener('click', e=>{
     if(e.target.classList.contains('del-btn')){
       const box=e.target.closest('.occ'); if(box) box.remove();
@@ -340,7 +338,7 @@
   const cartBar   = document.getElementById('cartBar');
   const cartList  = document.getElementById('cartList');
   const cartCount = document.getElementById('cartCount');
-  const CART = []; // conterrà oggetti evento completi
+  const CART = []; // [{titolo,descr,prezzo,cats[],locandina_url,occ:[...] }]
 
   function refreshCartUI(){
     cartCount.textContent = CART.length;
@@ -360,7 +358,6 @@
 
   // ====== Aggiungi al carrello ======
   document.getElementById('addToCartBtn').addEventListener('click', addToCart);
-
   async function addToCart(){
     try{
       err.textContent='';
@@ -376,7 +373,7 @@
         err.textContent='Compila Titolo, Descrizione, Locandina, almeno 1 Categoria e tutte le occorrenze.'; return;
       }
 
-      // Upload locandina su Storage
+      // Upload locandina
       const stamp = new Date().toISOString().replace(/[:.]/g,'-');
       const rand = Math.random().toString(36).slice(2,10);
       const fname = `events/${stamp}_${rand}.${file.type==='image/png'?'png':'jpg'}`;
@@ -393,7 +390,6 @@
         occFull.push({ ...o, lat: +g.lat.toFixed(6), lng: +g.lng.toFixed(6) });
       }
 
-      // Evento completo (niente limiti Stripe: non usiamo metadati lunghi)
       const eventObj = {
         titolo, descr, prezzo,
         cats: catsArr,
@@ -404,18 +400,30 @@
       CART.push(eventObj);
       refreshCartUI();
 
-      // Reset SOLO campi evento (NON i dati inserzionista)
+      // Reset solo i campi evento
       document.getElementById('titolo').value='';
       document.getElementById('prezzo').value='';
       document.getElementById('descrizione').value='';
       document.getElementById('locandina').value='';
       document.getElementById('catBadges').innerHTML='';
-      // reset chips del modal
       Array.prototype.forEach.call(document.querySelectorAll('.modal .chip'), ch=>{
         ch.classList.remove('active'); ch.style.background='#17304d'; ch.style.color='#d7f2ff'; ch.style.borderColor='#2e6e8f';
       });
-      // reset occorrenze al template iniziale (una sola)
-      document.getElementById('occWrap').innerHTML = OCC_TEMPLATE;
+      document.getElementById('occWrap').innerHTML = `
+        <div class="occ card">
+          <div class="grid">
+            <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>
+            <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>
+          </div>
+          <div class="grid">
+            <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>
+            <div><label>Data*</label><input class="data" type="date"></div>
+          </div>
+          <div class="grid">
+            <div><label>Orario*</label><input class="ora" type="time"></div>
+            <div></div>
+          </div>
+        </div>`;
 
       document.getElementById('preview').style.display='none';
       window.scrollTo({top:0, behavior:'smooth'});
@@ -429,7 +437,6 @@
     try{
       if(CART.length===0){ alert('Il carrello è vuoto. Aggiungi almeno un evento.'); return; }
 
-      // Dati inserzionista (obbligatori)
       const nome = (document.getElementById('sub_nome').value||'').trim();
       const cognome = (document.getElementById('sub_cognome').value||'').trim();
       const tel = (document.getElementById('sub_tel').value||'').trim();
@@ -438,7 +445,7 @@
       if(!nome || !cognome || !tel || !email){ alert('Compila Nome, Cognome, Telefono ed Email di chi inserisce l’annuncio.'); return; }
 
       const bundle = {
-        events: CART, // [{titolo,descr,prezzo,cats[],locandina_url, occ:[{luogo,indirizzo,citta,data,ora,lat,lng}]}]
+        events: CART,
         submitter: { name: `${nome} ${cognome}`, tel, email, partner: partner_code }
       };
 
@@ -454,7 +461,7 @@
 
       if(!resp.ok){
         const txt = await resp.text().catch(()=>'(no body)');
-        throw new Error('start-checkout FAILED: ' + txt);
+        throw new Error('create-checkout-session FAILED: ' + txt);
       }
       const j = await resp.json();
       if(!j?.url) throw new Error('Risposta senza URL da Supabase. Dettagli: '+JSON.stringify(j));
@@ -464,7 +471,7 @@
     }
   });
 
-  // ====== ANNULLA / RESET TOTALE ======
+  // ====== RESET ======
   document.getElementById('azzeraBtn').addEventListener('click', ()=> location.reload());
 })();
 </script>
