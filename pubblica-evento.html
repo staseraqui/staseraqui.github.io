@@ -169,7 +169,7 @@
   const SUPABASE_ANON = CFG.SUPABASE_ANON;
   const GOOGLE_KEY   = CFG.GOOGLE_MAPS_API_KEY;
   const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
-  const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/create-checkout-session';
+  const EDGE_URL = 'https://rubdzlnolxcgpjklfggk.functions.supabase.co/create-checkout-session';
 
   // ====== Carica Google Maps JS (Geocoder) ======
   let mapsLoadedPromise = null;
