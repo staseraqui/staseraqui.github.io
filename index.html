@@ -3,10 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>stasera qui</title>
+
+<!-- SEO base -->
+<title>Stasera Qui — Eventi oggi vicino a te</title>
+<meta name="description" content="Scopri cosa fare stasera vicino a te: concerti, sagre, nightlife, sport, cultura e altro. Filtra per data e categoria, visualizza sulla mappa e calcola il percorso.">
+<link rel="canonical" href="https://www.staseraqui.it/">
+<meta name="robots" content="index,follow">
+
+<!-- Open Graph (Facebook/WhatsApp) -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Stasera Qui — Eventi oggi vicino a te">
+<meta property="og:description" content="Concerti, sagre, nightlife, sport, cultura e altro. Filtra per data e categoria e vedi tutto sulla mappa.">
+<meta property="og:url" content="https://www.staseraqui.it/">
+<meta property="og:site_name" content="Stasera Qui">
+<meta property="og:image" content="https://www.staseraqui.it/favicon.ico">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Stasera Qui — Eventi oggi vicino a te">
+<meta name="twitter:description" content="Concerti, sagre, nightlife, sport, cultura e altro. Filtra per data e categoria e vedi tutto sulla mappa.">
+<meta name="twitter:image" content="https://www.staseraqui.it/favicon.ico">
+
 <link rel="icon" href="/favicon.ico">
 
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="assets/style.css?v=10">
@@ -52,11 +73,38 @@
   #geoAddr{width:100%;background:#fff;color:#081421;border:1px solid rgba(0,0,0,.2);border-radius:10px;padding:12px}
   #geoBtns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
 </style>
+
+<!-- Dati strutturati: Organization -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Stasera Qui",
+  "url": "https://www.staseraqui.it/",
+  "logo": "https://www.staseraqui.it/favicon.ico",
+  "sameAs": []
+}
+</script>
+
+<!-- Dati strutturati: WebSite con SearchAction -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Stasera Qui",
+  "url": "https://www.staseraqui.it/",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://www.staseraqui.it/?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>
 </head>
 <body>
 <header class="header">
   <!-- Logo approvato -->
-  <a href="index.html" class="logo">
+  <a href="index.html" class="logo" aria-label="Stasera Qui - home">
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
       <circle cx="32" cy="24" r="9" fill="#ffffff"/>
@@ -79,7 +127,7 @@
 
   <!-- Ricerca -->
   <div class="search">
-    <input placeholder="Cerca città, zona o evento… (digita e poi premi Cerca)" id="searchInput" autocomplete="off">
+    <input placeholder="Cerca città, zona o evento… (digita e poi premi Cerca)" id="searchInput" autocomplete="off" name="q" aria-label="Cerca città, zona o evento">
     <button class="btn"        id="searchBtn" type="button">Cerca</button>
     <button class="btn small"  id="locBtn"    type="button" title="Usa la mia posizione">📍 usa posizione</button>
     <button class="btn small"  id="resetOriginBtn" type="button" title="Reset posizione">🗘 reset posizione</button>
@@ -760,5 +808,10 @@
 <footer class="page-footer">
     <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
 </footer>
+
+<!-- Noscript per SEO/UX -->
+<noscript>
+  <p style="padding:12px;text-align:center">Per usare Stasera Qui attiva JavaScript nel tuo browser.</p>
+</noscript>
 </body>
 </html>
