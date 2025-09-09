@@ -4,24 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>stasera qui</title>
-<!-- Canonical + Description -->
-<link rel="canonical" href="https://www.staseraqui.it/">
-<meta name="description" content="Scopri cosa fare oggi vicino a te: eventi, sagre, concerti, mercatini e nightlife. Filtra per data, categoria e posizione su una mappa semplice.">
-
-<!-- Open Graph -->
-<meta property="og:type" content="website">
-<meta property="og:title" content="Stasera Qui — Cosa fare oggi vicino a te">
-<meta property="og:description" content="Eventi locali su mappa: sagre, concerti, mercatini e nightlife.">
-<meta property="og:url" content="https://www.staseraqui.it/">
-<meta property="og:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-
-<!-- Twitter -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Stasera Qui — Cosa fare oggi vicino a te">
-<meta name="twitter:description" content="Eventi locali su mappa: sagre, concerti, mercatini e nightlife.">
-<meta name="twitter:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
 <link rel="icon" href="/favicon.ico">
 
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -69,7 +51,11 @@
   #geoBox h3{margin:0 0 8px}
   #geoAddr{width:100%;background:#fff;color:#081421;border:1px solid rgba(0,0,0,.2);border-radius:10px;padding:12px}
   #geoBtns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+
+  /* Fail-safe: altezza mappa anche se il CSS esterno non carica */
+  #map.map{height:70vh; min-height:420px; width:100%}
 </style>
+
 <!-- SEO: dati strutturati del Sito/Organizzazione -->
 <script type="application/ld+json">
 {
@@ -460,7 +446,7 @@
 
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:300px">
-      <b>${ev.title||ev.titolo||'(evento)')}</b><br>
+      <b>${ev.title||ev.titolo||'(evento)'}</b><br>
       <small>${cats||''}</small><br>
       ${when}<br>${where}
       ${descr? `<br><br>${descr}`:''}
@@ -713,79 +699,6 @@
     $('#counter').textContent = count===1 ? '1 evento visibile sulla mappa' : `${count} eventi visibili sulla mappa`;
   }
 
-  /* === SEO: genera JSON-LD “Event” per gli eventi VISIBILI in mappa === */
-  function updateJsonLdEvents(){
-    try{
-      // rimuovi blocco precedente
-      const ID = 'sq-jsonld-events';
-      const old = document.getElementById(ID);
-      if (old) old.remove();
-
-      const bounds = USE_GMAPS ? GMAPS.map?.getBounds() : LEAF.map?.getBounds();
-      if (!bounds) return;
-      const contains = (lat,lng)=> USE_GMAPS
-        ? bounds.contains(new google.maps.LatLng(lat,lng))
-        : bounds.contains([lat,lng]);
-
-      const occs = OCCS
-        .filter(o => o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o))
-        .slice(0, 10);
-
-      if (!occs.length) return;
-
-      const events = occs.map(o => {
-        const ev = EVENTS_BY_ID.get(o.event_id) || {};
-        const name = ev.title || ev.titolo || "(evento)";
-        const desc = ev.description || ev.descrizione || "";
-        const img  = ev.locandina_url || undefined;
-        const start = o.ora ? `${o.data}T${o.ora}:00` : `${o.data}`;
-
-        const json = {
-          "@context": "https://schema.org",
-          "@type": "Event",
-          "name": name,
-          "description": desc,
-          "startDate": start,
-          "eventStatus": "https://schema.org/EventScheduled",
-          "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
-          "location": {
-            "@type": "Place",
-            "name": o.luogo || "",
-            "address": {
-              "@type": "PostalAddress",
-              "streetAddress": o.indirizzo || "",
-              "addressLocality": o.citta || "",
-              "addressCountry": "IT"
-            }
-          },
-          "organizer": {
-            "@type": "Organization",
-            "name": "Stasera Qui"
-          },
-          "url": "https://www.staseraqui.it/"
-        };
-        if (img) json.image = [img];
-
-        const priceText = (ev.price_text || ev.prezzo || "").toLowerCase();
-        if (priceText.includes("gratis")) {
-          json.offers = {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "EUR",
-            "availability": "https://schema.org/InStock"
-          };
-        }
-        return json;
-      });
-
-      const s = document.createElement('script');
-      s.type = 'application/ld+json';
-      s.id = ID;
-      s.textContent = JSON.stringify(events, null, 2);
-      document.head.appendChild(s);
-    }catch(_){}
-  }
-
   function computeAllBounds(){
     const pts = OCCS.filter(o => o.lat!=null && o.lng!=null);
     if (!pts.length) return null;
@@ -819,7 +732,6 @@
     });
 
     updateCounter();
-    updateJsonLdEvents(); // ← 2B: aggiorna i dati strutturati degli eventi visibili
 
     // Auto-fit solo se abilitato
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
@@ -874,6 +786,19 @@
     renderMarkers();
   }
 </script>
+
+<!-- Watchdog finale: se nessuna mappa parte, forza Leaflet -->
+<script>
+window.addEventListener('load', ()=>{
+  setTimeout(()=>{
+    if (!window.GMAPS?.map && !window.LEAF?.map) {
+      console.warn('Watchdog: nessuna mappa inizializzata → avvio Leaflet');
+      try { initLeafletMap(); } catch(e){}
+    }
+  }, 1200);
+});
+</script>
+
 <footer class="page-footer">
     <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
 </footer>
