@@ -1,54 +1,99 @@
 <!doctype html>
 <html lang="it">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Recupera evento da Stripe — Stasera Qui</title>
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/app-config.js?v=3"></script>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Replay Checkout → Inserisci eventi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    body{padding:16px}
+    .card{max-width:720px;margin:0 auto}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    input{flex:1}
+    pre{white-space:pre-wrap;background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px}
+    .ok{color:#7CFC7C;font-weight:700}
+    .err{color:#ff9a9a;font-weight:700}
+  </style>
+  <script src="assets/app-config.js?v=3"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<header class="header" style="padding:0 16px">
-  <a href="admin.html" class="btn">← Torna ad Admin</a>
-</header>
-<main class="container">
-  <div class="card">
-    <h1 style="margin-top:0">Recupera evento da Stripe</h1>
-    <p class="small">Incolla l’<b>ID della sessione</b> (es: <code>cs_live_...</code>) del pagamento andato a buon fine.</p>
-    <div class="grid">
-      <div><label for="sid">ID sessione</label><input id="sid" placeholder="cs_live_..."></div>
-      <div style="display:flex;align-items:flex-end"><button id="run" class="btn primary" type="button">Inserisci in DB</button></div>
+  <header class="header">
+    <a href="index.html" class="logo">
+      <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
+        <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
+        <circle cx="32" cy="24" r="9" fill="#ffffff"/>
+      </svg>
+      <span class="wordmark">stasera qui</span>
+    </a>
+  </header>
+
+  <main class="container">
+    <div class="card">
+      <h1 style="margin-top:0">Replay pagamento → inserisci eventi in DB</h1>
+      <p class="small">Incolla un ID di <b>Checkout Session</b> (es. <code>cs_live_…</code>) e premi “Inserisci in DB”.</p>
+
+      <div class="row">
+        <input id="cs" placeholder="cs_live_…" autocomplete="off">
+        <button class="btn primary" id="go" type="button">Inserisci in DB</button>
+      </div>
+
+      <div id="out" style="margin-top:12px"></div>
+      <div style="margin-top:16px">
+        <a class="btn" href="admin.html">← Torna a Admin</a>
+        <a class="btn" href="index.html">Torna alla mappa</a>
+      </div>
     </div>
-    <div id="out" class="small" style="margin-top:10px"></div>
-  </div>
-</main>
-<footer class="page-footer">
-  <a href="index.html" class="btn">Vai alla mappa</a>
-</footer>
+  </main>
 
-<script>
-(function(){
-  const CFG = window.SQ_CONFIG || {};
-  const FN_URL = (CFG.SUPABASE_URL || '') + '/functions/v1/stripe-replay';
-  const ANON   = CFG.SUPABASE_ANON;
+  <script>
+  (function(){
+    const CFG = window.SQ_CONFIG || window.SQ || window.SQ_CONFIG || {};
+    const SUPABASE_URL = CFG.SUPABASE_URL;
+    const SUPABASE_ANON = CFG.SUPABASE_ANON || CFG.SUPABASE_ANON_KEY;
+    const EDGE_URL = (SUPABASE_URL||'') + '/functions/v1/admin-insert-events';
+    const $ = s=>document.querySelector(s);
 
-  const $ = s => document.querySelector(s);
-  $('#run').addEventListener('click', async ()=>{
-    const sid = ($('#sid').value||'').trim();
-    if(!sid){ alert('Inserisci un ID sessione Stripe (cs_live_...)'); return; }
-    $('#out').textContent = 'Invio…';
-    try{
-      const r = await fetch(FN_URL, {
-        method:'POST',
-        headers:{ 'content-type':'application/json', 'Authorization':'Bearer '+ANON },
-        body: JSON.stringify({ session_id: sid })
-      });
-      const txt = await r.text();
-      $('#out').textContent = txt;
-    }catch(e){
-      $('#out').textContent = 'Errore: '+(e&&e.message?e.message:String(e));
-    }
-  });
-})();
-</script>
+    function out(html){ $('#out').innerHTML = html; }
+
+    $('#go').addEventListener('click', async ()=>{
+      const id = ($('#cs').value||'').trim();
+      if(!id || !/^cs_/.test(id)){ out('<div class="err">ID non valido. Incolla un ID che inizia con <code>cs_</code>.</div>'); return; }
+
+      out('Invio…');
+
+      try{
+        const resp = await fetch(EDGE_URL, {
+          method:'POST',
+          headers:{
+            'content-type':'application/json',
+            'apikey': SUPABASE_ANON,
+            'Authorization': 'Bearer ' + SUPABASE_ANON
+          },
+          body: JSON.stringify({ session_id: id })
+        });
+        const text = await resp.text();
+        let j;
+        try{ j = JSON.parse(text); }catch{ j = { raw:text }; }
+
+        if (!resp.ok){
+          out('<div class="err">Errore: '+(j?.error||resp.status+' '+resp.statusText)+'</div><pre>'+text+'</pre>');
+          return;
+        }
+
+        // Attesi dal backend: { ok:true, inserted_events:n, inserted_occurrences:m, message? }
+        if (j.ok){
+          out('<div class="ok">Fatto! Inseriti '+(j.inserted_events||0)+' eventi e '+(j.inserted_occurrences||0)+' occorrenze.</div>'
+              + (j.message? '<div class="small">'+j.message+'</div>':'')
+              + '<div class="small">Aggiorna la Home e applica filtri data/città corretti per vedere i pin.</div>');
+        } else {
+          out('<div class="err">Risposta senza ok=true</div><pre>'+text+'</pre>');
+        }
+      }catch(e){
+        out('<div class="err">Errore di rete: '+e.message+'</div>');
+      }
+    });
+  })();
+  </script>
 </body>
 </html>
