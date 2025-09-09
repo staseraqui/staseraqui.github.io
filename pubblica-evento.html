@@ -3,6 +3,20 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Pubblica evento — Stasera Qui</title>
+  <link rel="canonical" href="https://www.staseraqui.it/pubblica-evento.html">
+  <meta name="description" content="Inserisci titolo, foto e date: geolocalizziamo il tuo evento sulla mappa. Pagamento sicuro con Stripe e pubblicazione immediata.">
+  <meta name="robots" content="index,follow">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Pubblica evento — Stasera Qui">
+  <meta property="og:description" content="Pubblica in 2 minuti. Pagamento con Stripe e visibilità immediata sulla mappa.">
+  <meta property="og:url" content="https://www.staseraqui.it/pubblica-evento.html">
+  <meta property="og:site_name" content="Stasera Qui">
+  <meta property="og:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Pubblica evento — Stasera Qui">
+  <meta name="twitter:description" content="Pubblica in 2 minuti. Pagamento con Stripe e visibilità immediata sulla mappa.">
+  <meta name="twitter:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
+
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=23">
   <style>
@@ -15,45 +29,28 @@
     .cartItem button{padding:6px 8px}
   </style>
 
-  <!-- Config chiavi (DEVE contenere SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
+  <!-- Config chiavi -->
   <script src="assets/app-config.js?v=3"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<!-- SEO: dati strutturati del Sito/Organizzazione -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "Stasera Qui",
-  "url": "https://www.staseraqui.it/",
-  "logo": "https://www.staseraqui.it/favicon.ico",
-  "sameAs": []
-}
-</script>
 
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  "name": "Stasera Qui",
-  "url": "https://www.staseraqui.it/",
-  "potentialAction": {
-    "@type": "SearchAction",
-    "target": "https://www.staseraqui.it/?q={search_term_string}",
-    "query-input": "required name=search_term_string"
-  }
-}
-</script>
+  <!-- Dati strutturati -->
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"Organization","name":"Stasera Qui","url":"https://www.staseraqui.it/","logo":"https://www.staseraqui.it/favicon.ico","sameAs":[]}
+  </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebSite","name":"Stasera Qui","url":"https://www.staseraqui.it/","potentialAction":{"@type":"SearchAction","target":"https://www.staseraqui.it/?q={search_term_string}","query-input":"required name=search_term_string"}}
+  </script>
 </head>
 <body>
 
 <header class="header">
-  <div class="logo">
+  <a href="index.html" class="logo" aria-label="Stasera Qui - home">
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
       <circle cx="32" cy="24" r="9" fill="#ffffff"/>
     </svg>
     <span class="wordmark">stasera qui</span>
-  </div>
+  </a>
 </header>
 
 <main class="container">
@@ -71,6 +68,9 @@
     <div id="cartList"></div>
   </div>
 
+  <!-- (resto del tuo markup invariato) -->
+  <!-- ... TUTTO IDENTICO al file che mi hai passato ... -->
+  <!-- Ho lasciato intatti form, script e logica del carrello/checkout -->
   <div class="card">
     <h2 style="margin-top:0">Perché pubblicare su Stasera Qui?</h2>
     <ul style="margin-top:6px">
