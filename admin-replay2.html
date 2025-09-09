@@ -6,7 +6,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=99">
   <script src="assets/app-config.js?v=3"></script>
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
     body{background:#0b1828;color:#fff;font-family:Rubik,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
     .wrap{max-width:980px;margin:24px auto;padding:0 16px}
@@ -17,21 +16,30 @@
     .btn{display:inline-block;padding:10px 14px;border-radius:10px;border:2px solid rgba(255,255,255,.15);background:#111f31;color:#fff;font-weight:800;cursor:pointer}
     .btn.primary{background:#ffd54f;border-color:#f0c43c;color:#081421}
     pre{background:#081421;border:1px solid rgba(255,255,255,.12);padding:10px;border-radius:10px;overflow:auto}
-    .ok{color:#78ffa7} .err{color:#ff9a9a}
+    .ok{color:#78ffa7} .err{color:#ff9a9a} .muted{color:#b8c2ce}
     .links{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+    .pill{display:inline-block;margin-right:8px;padding:4px 8px;border-radius:8px;background:#132338;border:1px solid rgba(255,255,255,.12)}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
       <h1>Replay pagamento → inserisci eventi in DB</h1>
-      <p>Incolla un ID <b>Checkout Session</b> (<code>cs_…</code>) <i>oppure</i> un ID <b>Payment Intent</b> (<code>pi_…</code>) e premi <b>“Inserisci in DB”</b>.</p>
+      <div class="muted" id="fnStatus">Ricerca dell’endpoint disponibile…</div>
+      <div style="margin-top:8px">
+        <span class="pill">Provo: <code id="probe1">admin-replay-insert</code></span>
+        <span class="pill">fallback: <code id="probe2">admin-insert-events</code></span>
+      </div>
+
+      <p style="margin-top:12px">Incolla un ID <b>Checkout Session</b> (<code>cs_…</code>) <i>oppure</i> un ID <b>Payment Intent</b> (<code>pi_…</code>) e premi <b>“Inserisci in DB”</b>.</p>
       <div class="row">
         <input id="idInput" placeholder="es. cs_live_… oppure pi_…">
         <button class="btn primary" id="goBtn" type="button">Inserisci in DB</button>
       </div>
+
       <div id="status" style="margin-top:12px"></div>
       <pre id="out" style="margin-top:8px"></pre>
+
       <div class="links">
         <a class="btn" href="admin.html">← Torna a Admin</a>
         <a class="btn" href="index.html">Torna alla mappa</a>
@@ -42,34 +50,68 @@
 <script>
 (function(){
   const CFG = window.SQ_CONFIG || {};
-  const FN_URL = (CFG.SUPABASE_URL||'') + '/functions/v1/admin-replay-insert';
-  const ANON   = CFG.SUPABASE_ANON;
+  const BASE = (CFG.SUPABASE_URL||'') + '/functions/v1/';
+  const ANON = CFG.SUPABASE_ANON;
+
+  const CANDIDATES = ['admin-replay-insert','admin-insert-events']; // ordine di preferenza
+  let chosen = null;
 
   const $ = s => document.querySelector(s);
   const idInput = $('#idInput');
   const status  = $('#status');
   const out     = $('#out');
+  const fnStatus= $('#fnStatus');
 
-  // Ping
-  fetch(FN_URL + '?id=ping', { headers:{ 'Authorization':'Bearer '+ANON, 'apikey':ANON } })
-    .then(r=>r.json()).then(j=>{ out.textContent = 'OK (GET ?id=) — ' + JSON.stringify(j,null,2); })
-    .catch(()=>{ out.textContent = 'Impossibile contattare la funzione.'; });
+  // Prova in sequenza gli endpoint finché uno risponde 200
+  (async function probe(){
+    for (const name of CANDIDATES){
+      try{
+        const url = BASE + name + '?ping=1';
+        const r = await fetch(url, {
+          method:'GET',
+          headers: { 'Authorization':'Bearer '+ANON, 'apikey':ANON }
+        });
+        if (r.ok){ chosen = name; break; }
+      }catch(_){ /* ignore and try next */ }
+    }
+    if (chosen){
+      fnStatus.innerHTML = 'Endpoint selezionato: <b>'+chosen+'</b> — pronto.';
+      fnStatus.className='ok';
+    } else {
+      fnStatus.innerHTML = 'Nessun endpoint disponibile. Vedi “Checklist rapida” qui sotto.';
+      fnStatus.className='err';
+      out.textContent =
+`Se vedi “TypeError: Load failed”:
+1) In Supabase → Edge Functions verifica che esista una funzione chiamata:
+   - admin-replay-insert  oppure  admin-insert-events
+   (Verify JWT = NO)
+2) Se non esiste, esegui da terminale:
+   - supabase functions deploy admin-replay-insert
+3) Ricarica questa pagina.`;
+    }
+  })();
 
   $('#goBtn').addEventListener('click', async ()=>{
     const val = (idInput.value||'').trim();
-    status.textContent=''; status.className='';
-    out.textContent='';
+    status.textContent=''; status.className=''; out.textContent='';
 
-    if(!val){ status.className='err'; status.textContent='Inserisci un ID cs_… oppure pi_…'; return; }
-
-    // Decido cosa mandare
+    if (!chosen){
+      status.className='err';
+      status.textContent='Nessuna funzione raggiungibile.';
+      return;
+    }
+    if(!val){
+      status.className='err'; status.textContent='Inserisci un ID che inizi con cs_ o pi_'; return;
+    }
     let payload;
     if(/^cs_/.test(val)) payload = { cs_id: val };
     else if(/^pi_/.test(val)) payload = { pi_id: val };
     else { status.className='err'; status.textContent='ID non valido (deve iniziare con cs_ o pi_)'; return; }
 
+    const url = BASE + chosen;
+
     try{
-      const r = await fetch(FN_URL, {
+      const r = await fetch(url, {
         method:'POST',
         headers:{
           'content-type':'application/json',
@@ -79,8 +121,9 @@
         body: JSON.stringify(payload)
       });
 
-      const txt = await r.text();
-      let j=null; try{ j=JSON.parse(txt); }catch{ /* leave as text */ }
+      // Se la piattaforma risponde senza CORS (endpoint assente) il browser lancia un TypeError
+      const txt = await r.text().catch(()=>'(no body)');
+      let j=null; try{ j=JSON.parse(txt); }catch{}
 
       if(!r.ok){
         status.className='err';
@@ -94,8 +137,8 @@
 
     }catch(e){
       status.className='err';
-      status.textContent='Errore di rete';
-      out.textContent= String(e);
+      status.textContent='Errore di rete (endpoint non trovato o Verify JWT attivo).';
+      out.textContent = String(e);
     }
   });
 })();
