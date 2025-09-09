@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="assets/style.css?v=23">
   <style>
     .modal{z-index:999999!important}
-    /* Barra carrello (aggiunta) */
+    /* Barra carrello */
     #cartBar{position:sticky;top:0;z-index:30;background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin-bottom:12px;display:none}
     #cartList{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0}
     .cartItem{background:#17304d;color:#d7f2ff;border:1px solid #2e6e8f;border-radius:10px;padding:6px 10px;display:flex;gap:8px;align-items:center}
@@ -15,7 +15,7 @@
     .cartItem button{padding:6px 8px}
   </style>
 
-  <!-- Config chiavi -->
+  <!-- Config chiavi (DEVE contenere SUPABASE_URL, SUPABASE_ANON, GOOGLE_MAPS_API_KEY) -->
   <script src="assets/app-config.js?v=3"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
@@ -169,8 +169,6 @@
   const SUPABASE_ANON = CFG.SUPABASE_ANON;
   const GOOGLE_KEY   = CFG.GOOGLE_MAPS_API_KEY;
   const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
-
-  // ← torniamo all’endpoint che hai già
   const EDGE_URL = (SUPABASE_URL || '') + '/functions/v1/create-checkout-session';
 
   // ====== Carica Google Maps JS (Geocoder) ======
@@ -338,7 +336,7 @@
   const cartBar   = document.getElementById('cartBar');
   const cartList  = document.getElementById('cartList');
   const cartCount = document.getElementById('cartCount');
-  const CART = []; // [{titolo,descr,prezzo,cats[],locandina_url,occ:[...] }]
+  const CART = []; // [{titolo, descr, prezzo, cats[], locandina_url, occ:[...] }]
 
   function refreshCartUI(){
     cartCount.textContent = CART.length;
@@ -390,17 +388,11 @@
         occFull.push({ ...o, lat: +g.lat.toFixed(6), lng: +g.lng.toFixed(6) });
       }
 
-      const eventObj = {
-        titolo, descr, prezzo,
-        cats: catsArr,
-        locandina_url,
-        occ: occFull
-      };
-
+      const eventObj = { titolo, descr, prezzo, cats: catsArr, locandina_url, occ: occFull };
       CART.push(eventObj);
       refreshCartUI();
 
-      // Reset solo i campi evento
+      // Reset campi evento
       document.getElementById('titolo').value='';
       document.getElementById('prezzo').value='';
       document.getElementById('descrizione').value='';
@@ -424,7 +416,6 @@
             <div></div>
           </div>
         </div>`;
-
       document.getElementById('preview').style.display='none';
       window.scrollTo({top:0, behavior:'smooth'});
     }catch(e){
@@ -432,7 +423,7 @@
     }
   }
 
-  // ====== Vai al pagamento (bundle) ======
+  // ====== Vai al pagamento (bundle nel formato ATTESO) ======
   document.getElementById('goCheckout').addEventListener('click', async ()=>{
     try{
       if(CART.length===0){ alert('Il carrello è vuoto. Aggiungi almeno un evento.'); return; }
@@ -441,13 +432,38 @@
       const cognome = (document.getElementById('sub_cognome').value||'').trim();
       const tel = (document.getElementById('sub_tel').value||'').trim();
       const email = (document.getElementById('sub_email').value||'').trim();
-      const partner_code = (document.getElementById('partner_code').value||'').trim();
-      if(!nome || !cognome || !tel || !email){ alert('Compila Nome, Cognome, Telefono ed Email di chi inserisce l’annuncio.'); return; }
+      const partner = (document.getElementById('partner_code').value||'').trim();
+      if(!nome || !cognome || !tel || !email){
+        alert('Compila Nome, Cognome, Telefono ed Email di chi inserisce l’annuncio.');
+        return;
+      }
 
-      const bundle = {
-        events: CART,
-        submitter: { name: `${nome} ${cognome}`, tel, email, partner: partner_code }
-      };
+      // Trasforma gli eventi del carrello nel formato { tipo, metadata }
+      const bundleItems = CART.map(ev=>{
+        const catsStr = (ev.cats||[]).join('|').slice(0,120);
+        const occMin  = (ev.occ||[]).map(o=>({
+          l:o.luogo, i:o.indirizzo, c:o.citta, d:o.data, o:o.ora,
+          la:+(+o.lat).toFixed(6), ln:+(+o.lng).toFixed(6)
+        }));
+        const occStr = JSON.stringify(occMin);
+        if(occStr.length>450){
+          throw new Error(`Troppo testo nelle occorrenze per “${ev.titolo}”. Riduci il numero di date (consigliato max 4).`);
+        }
+        const metadata = {
+          titolo: (ev.titolo||'').slice(0,80),
+          descr: (ev.descr||'').slice(0,180),
+          prezzo: (ev.prezzo||'').slice(0,40),
+          locandina_url: ev.locandina_url,
+          cats: catsStr,
+          occ: occStr,
+          submitter_email: email.slice(0,120),
+          submitter_name: (`${nome} ${cognome}`).slice(0,80),
+          submitter_tel: (tel||'').slice(0,32),
+          partner: (partner||'').slice(0,12)
+        };
+        const tipo = (ev.occ && ev.occ.length>1) ? 'multi' : 'single';
+        return { tipo, metadata };
+      });
 
       const resp = await fetch(EDGE_URL, {
         method:'POST',
@@ -456,7 +472,7 @@
           'apikey': SUPABASE_ANON,
           'Authorization': 'Bearer ' + SUPABASE_ANON
         },
-        body: JSON.stringify({ bundle })
+        body: JSON.stringify({ bundle: bundleItems }) // <<< formato atteso dalla function
       });
 
       if(!resp.ok){
