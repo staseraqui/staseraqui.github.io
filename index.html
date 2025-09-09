@@ -51,36 +51,7 @@
   #geoBox h3{margin:0 0 8px}
   #geoAddr{width:100%;background:#fff;color:#081421;border:1px solid rgba(0,0,0,.2);border-radius:10px;padding:12px}
   #geoBtns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
-
-  /* Fail-safe: altezza mappa anche se il CSS esterno non carica */
-  #map.map{height:70vh; min-height:420px; width:100%}
 </style>
-
-<!-- SEO: dati strutturati del Sito/Organizzazione -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "Stasera Qui",
-  "url": "https://www.staseraqui.it/",
-  "logo": "https://www.staseraqui.it/favicon.ico",
-  "sameAs": []
-}
-</script>
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  "name": "Stasera Qui",
-  "url": "https://www.staseraqui.it/",
-  "potentialAction": {
-    "@type": "SearchAction",
-    "target": "https://www.staseraqui.it/?q={search_term_string}",
-    "query-input": "required name=search_term_string"
-  }
-}
-</script>
 </head>
 <body>
 <header class="header">
@@ -786,19 +757,6 @@
     renderMarkers();
   }
 </script>
-
-<!-- Watchdog finale: se nessuna mappa parte, forza Leaflet -->
-<script>
-window.addEventListener('load', ()=>{
-  setTimeout(()=>{
-    if (!window.GMAPS?.map && !window.LEAF?.map) {
-      console.warn('Watchdog: nessuna mappa inizializzata → avvio Leaflet');
-      try { initLeafletMap(); } catch(e){}
-    }
-  }, 1200);
-});
-</script>
-
 <footer class="page-footer">
     <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
 </footer>
