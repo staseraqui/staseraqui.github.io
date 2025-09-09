@@ -48,13 +48,18 @@
 
   <script>
   (function(){
-    const CFG = window.SQ_CONFIG || window.SQ || window.SQ_CONFIG || {};
+    const CFG = window.SQ_CONFIG || window.SQ || {};
     const SUPABASE_URL = CFG.SUPABASE_URL;
     const SUPABASE_ANON = CFG.SUPABASE_ANON || CFG.SUPABASE_ANON_KEY;
-    const EDGE_URL = (SUPABASE_URL||'') + '/functions/v1/admin-insert-events';
-    const $ = s=>document.querySelector(s);
 
-    function out(html){ $('#out').innerHTML = html; }
+    if(!SUPABASE_URL || !SUPABASE_ANON){
+      document.getElementById('out').innerHTML = '<div class="err">Config mancante: controlla assets/app-config.js</div>';
+      return;
+    }
+
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    const $ = s=>document.querySelector(s);
+    const out = (html)=> $('#out').innerHTML = html;
 
     $('#go').addEventListener('click', async ()=>{
       const id = ($('#cs').value||'').trim();
@@ -62,36 +67,18 @@
 
       out('Invio…');
 
-      try{
-        const resp = await fetch(EDGE_URL, {
-          method:'POST',
-          headers:{
-            'content-type':'application/json',
-            'apikey': SUPABASE_ANON,
-            'Authorization': 'Bearer ' + SUPABASE_ANON
-          },
-          body: JSON.stringify({ session_id: id })
-        });
-        const text = await resp.text();
-        let j;
-        try{ j = JSON.parse(text); }catch{ j = { raw:text }; }
+      // 👉 usa l’SDK: niente CORS/preflight rognosi
+      const { data, error } = await sb.functions.invoke('admin-insert-events', {
+        body: { session_id: id }
+      });
 
-        if (!resp.ok){
-          out('<div class="err">Errore: '+(j?.error||resp.status+' '+resp.statusText)+'</div><pre>'+text+'</pre>');
-          return;
-        }
-
-        // Attesi dal backend: { ok:true, inserted_events:n, inserted_occurrences:m, message? }
-        if (j.ok){
-          out('<div class="ok">Fatto! Inseriti '+(j.inserted_events||0)+' eventi e '+(j.inserted_occurrences||0)+' occorrenze.</div>'
-              + (j.message? '<div class="small">'+j.message+'</div>':'')
-              + '<div class="small">Aggiorna la Home e applica filtri data/città corretti per vedere i pin.</div>');
-        } else {
-          out('<div class="err">Risposta senza ok=true</div><pre>'+text+'</pre>');
-        }
-      }catch(e){
-        out('<div class="err">Errore di rete: '+e.message+'</div>');
+      if(error){
+        out('<div class="err">Errore: '+(error.message||JSON.stringify(error))+'</div><pre>'+JSON.stringify(error, null, 2)+'</pre>');
+        return;
       }
+      out('<div class="ok">Fatto! Inseriti '+(data?.inserted_events||0)+' eventi e '+(data?.inserted_occurrences||0)+' occorrenze.</div>'
+          + (data?.message? '<div class="small">'+data.message+'</div>':'')
+      );
     });
   })();
   </script>
