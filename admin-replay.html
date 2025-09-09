@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recupera evento da Stripe — Stasera Qui</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/app-config.js?v=3"></script>
+</head>
+<body>
+<header class="header" style="padding:0 16px">
+  <a href="admin.html" class="btn">← Torna ad Admin</a>
+</header>
+<main class="container">
+  <div class="card">
+    <h1 style="margin-top:0">Recupera evento da Stripe</h1>
+    <p class="small">Incolla l’<b>ID della sessione</b> (es: <code>cs_live_...</code>) del pagamento andato a buon fine.</p>
+    <div class="grid">
+      <div><label for="sid">ID sessione</label><input id="sid" placeholder="cs_live_..."></div>
+      <div style="display:flex;align-items:flex-end"><button id="run" class="btn primary" type="button">Inserisci in DB</button></div>
+    </div>
+    <div id="out" class="small" style="margin-top:10px"></div>
+  </div>
+</main>
+<footer class="page-footer">
+  <a href="index.html" class="btn">Vai alla mappa</a>
+</footer>
+
+<script>
+(function(){
+  const CFG = window.SQ_CONFIG || {};
+  const FN_URL = (CFG.SUPABASE_URL || '') + '/functions/v1/stripe-replay';
+  const ANON   = CFG.SUPABASE_ANON;
+
+  const $ = s => document.querySelector(s);
+  $('#run').addEventListener('click', async ()=>{
+    const sid = ($('#sid').value||'').trim();
+    if(!sid){ alert('Inserisci un ID sessione Stripe (cs_live_...)'); return; }
+    $('#out').textContent = 'Invio…';
+    try{
+      const r = await fetch(FN_URL, {
+        method:'POST',
+        headers:{ 'content-type':'application/json', 'Authorization':'Bearer '+ANON },
+        body: JSON.stringify({ session_id: sid })
+      });
+      const txt = await r.text();
+      $('#out').textContent = txt;
+    }catch(e){
+      $('#out').textContent = 'Errore: '+(e&&e.message?e.message:String(e));
+    }
+  });
+})();
+</script>
+</body>
+</html>
