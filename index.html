@@ -785,31 +785,40 @@ function pinSvgUrl(color = '#22b3f0'){
   });
 
   // ====== DATI ======
+  <script>
   async function loadData(){
+    // Solo eventi pubblicati (se usi il flag 'published')
     const { data: evs } = await sb.from('events')
-      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url');
-    EVENTS = evs||[];
-    EVENTS_BY_ID = new Map(EVENTS.map(e=>[e.id,e]));
+      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published')
+      .eq('published', true);  // <- togli questa riga se non usi 'published'
+    EVENTS = evs || [];
+    EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
     const { data: occsRaw } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city');
 
-    const norm = (occsRaw||[]).map(o => ({
-      id: o.id,
-      event_id: o.event_id,
-      lat: o.lat,
-      lng: o.lng,
-      data: o.data || o.date || null,
-      ora: o.ora || o.time || '',
-      luogo: o.luogo || o.venue || '',
-      indirizzo: o.indirizzo || o.address || '',
-      citta: o.citta || o.city || ''
-    }));
+    const validEventIds = new Set(EVENTS.map(e => e.id));
 
-    OCCS = norm.filter(o => o.lat!=null && o.lng!=null);
+    const norm = (occsRaw || [])
+      // Ignora occorrenze orfane (se per qualsiasi motivo esistessero)
+      .filter(o => validEventIds.has(o.event_id))
+      .map(o => ({
+        id: o.id,
+        event_id: o.event_id,
+        lat: o.lat,
+        lng: o.lng,
+        data: o.data || o.date || null,
+        ora: o.ora || o.time || '',
+        luogo: o.luogo || o.venue || '',
+        indirizzo: o.indirizzo || o.address || '',
+        citta: o.citta || o.city || ''
+      }));
+
+    OCCS = norm.filter(o => o.lat != null && o.lng != null);
     _refitTried = false;
     renderMarkers();
   }
+</script>
 </script>
 <footer class="page-footer">
     <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
