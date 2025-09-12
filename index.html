@@ -785,40 +785,44 @@ function pinSvgUrl(color = '#22b3f0'){
   });
 
   // ====== DATI ======
-  <script>
-  async function loadData(){
-    // Solo eventi pubblicati (se usi il flag 'published')
-    const { data: evs } = await sb.from('events')
-      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published')
-      .eq('published', true);  // <- togli questa riga se non usi 'published'
-    EVENTS = evs || [];
-    EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
+async function loadData(){
+  // 1) Carica eventi (con o senza colonna 'published')
+  const { data: evs } = await sb.from('events')
+    .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published');
 
-    const { data: occsRaw } = await sb.from('occurrences')
-      .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city');
+  const EVENTS_ALL = Array.isArray(evs) ? evs : [];
+  const hasPublished = EVENTS_ALL.length > 0 && Object.prototype.hasOwnProperty.call(EVENTS_ALL[0], 'published');
 
-    const validEventIds = new Set(EVENTS.map(e => e.id));
+  // Se esiste la colonna 'published', mostra solo quelli pubblicati; altrimenti mostra tutti
+  EVENTS = hasPublished ? EVENTS_ALL.filter(e => e.published === true) : EVENTS_ALL;
+  EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
-    const norm = (occsRaw || [])
-      // Ignora occorrenze orfane (se per qualsiasi motivo esistessero)
-      .filter(o => validEventIds.has(o.event_id))
-      .map(o => ({
-        id: o.id,
-        event_id: o.event_id,
-        lat: o.lat,
-        lng: o.lng,
-        data: o.data || o.date || null,
-        ora: o.ora || o.time || '',
-        luogo: o.luogo || o.venue || '',
-        indirizzo: o.indirizzo || o.address || '',
-        citta: o.citta || o.city || ''
-      }));
+  // 2) Carica occorrenze e scarta quelle senza evento corrispondente (antifantasma)
+  const { data: occsRaw } = await sb.from('occurrences')
+    .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city');
 
-    OCCS = norm.filter(o => o.lat != null && o.lng != null);
-    _refitTried = false;
-    renderMarkers();
-  }
-</script>
+  const validEventIds = new Set(EVENTS.map(e => e.id));
+
+  const norm = (occsRaw || [])
+    .filter(o => validEventIds.has(o.event_id))
+    .map(o => ({
+      id: o.id,
+      event_id: o.event_id,
+      lat: o.lat,
+      lng: o.lng,
+      data: o.data || o.date || null,
+      ora: o.ora || o.time || '',
+      luogo: o.luogo || o.venue || '',
+      indirizzo: o.indirizzo || o.address || '',
+      citta: o.citta || o.city || ''
+    }));
+
+  // 3) Solo occorrenze con coordinate valide
+  OCCS = norm.filter(o => o.lat != null && o.lng != null);
+
+  _refitTried = false;
+  renderMarkers();
+}
 </script>
 <footer class="page-footer">
     <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
