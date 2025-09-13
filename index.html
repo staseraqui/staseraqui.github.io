@@ -723,7 +723,8 @@
 
   // ===== FILTRI LOGICA =====
   function occPassesFilters(occ){
-    if (state.day==='oggi'   && occ.data!==todayISO()) return false;
+    // nascondi automaticamente occorrenze scadute
+    if (occ.data && occ.data < todayISO()) return false;    if (state.day==='oggi'   && occ.data!==todayISO()) return false;
     if (state.day==='domani' && occ.data!==addDays(todayISO(),1)) return false;
     if (state.day==='weekend'){ const w=weekday(occ.data); if (![5,6,0].includes(w)) return false; }
     if (state.customDate && occ.data!==state.customDate) return false;
