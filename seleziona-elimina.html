@@ -31,7 +31,7 @@
 
     /* Modali */
     .modal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.5);z-index:99999}
-    .modal .box{margin-top:60px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;min-width:320px;max-width:980px;width:92%}
+    .modal .box{margin-top:60px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;min-width:320px;max-width:1100px;width:92%}
     .filters{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px}
     @media (max-width:780px){ .filters{grid-template-columns:1fr 1fr;grid-auto-rows:auto} }
     .results{margin-top:10px;max-height:48vh;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px;background:#0b1623}
@@ -39,8 +39,9 @@
     .row:last-child{border-bottom:none}
     .pillCat{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;padding:4px 8px;border-radius:999px;font-size:12px;margin-right:6px}
 
-    /* Giallo su "Elimina definitivamente → Cestino" */
+    /* Giallo su "Elimina definitivamente" */
     .btn.warning{background:var(--primary); border-color:var(--primary-border); color:#081421; font-weight:800}
+    .btn.ghost{background:#111f31;border:1px solid rgba(255,255,255,.25);color:#fff}
   </style>
 </head>
 <body>
@@ -56,7 +57,7 @@
 
 <main class="wrap">
   <h1 style="margin:8px 0 10px">Seleziona & elimina eventi</h1>
-  <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft: <i>published=false</i>) oppure <b>Eliminare definitivamente</b> (sposta nel <i>cestino</i> con <i>deleted_at</i>, ripristinabile).</p>
+  <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft: <i>published=false</i>) oppure <b>Eliminare definitivamente</b> (sposta nel <i>cestino</i> con <i>deleted_at</i>, ripristinabile — gli <b>scaduti</b> non si ripristinano).</p>
 
   <div id="map"></div>
 
@@ -119,7 +120,7 @@
       </div>
       <div style="display:flex;gap:6px;align-items:flex-end">
         <button class="btn primary" id="hFilter" type="button">Filtra</button>
-        <button class="btn" id="hReset" type="button">Azzera</button>
+        <button class="btn ghost" id="hReset" type="button">Azzera</button>
       </div>
     </div>
 
@@ -131,7 +132,7 @@
 <div id="modalDeleted" class="modal" aria-hidden="true">
   <div class="box">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-      <h3 style="margin:0">Cestino — Eventi eliminati (ripristinabili)</h3>
+      <h3 style="margin:0">Cestino — Eventi eliminati</h3>
       <button class="btn" data-close="modalDeleted" type="button">Chiudi</button>
     </div>
 
@@ -164,12 +165,12 @@
       </div>
       <div style="display:flex;gap:6px;align-items:flex-end">
         <button class="btn primary" id="dFilter" type="button">Filtra</button>
-        <button class="btn" id="dReset" type="button">Azzera</button>
+        <button class="btn ghost" id="dReset" type="button">Azzera</button>
       </div>
     </div>
 
     <div class="results" id="dResults" aria-live="polite"></div>
-    <p class="small" style="margin-top:8px">Nota: gli eventi davvero cancellati in passato (hard delete SQL) non sono più recuperabili.</p>
+    <p class="small" style="margin-top:8px;opacity:.8">Gli eventi “scaduti” (tutte le date < oggi) non sono ripristinabili; puoi solo eliminarli definitivamente.</p>
   </div>
 </div>
 
@@ -188,6 +189,7 @@
   // ====== UTILS ======
   const $  = s => document.querySelector(s);
   const $$ = s => Array.from(document.querySelectorAll(s));
+  const todayISO = () => new Date().toISOString().slice(0,10);
   const getTitle = e => e.title || e.titolo || '(evento)';
   const getCats  = e => Array.isArray(e.categories) ? e.categories : (Array.isArray(e.categorie) ? e.categorie : []);
 
@@ -216,13 +218,11 @@
       s.onload = initGoogle;
       s.onerror = ()=>{ console.warn('Google Maps KO → fallback OSM'); USE_GMAPS=false; initLeaf(); };
       document.head.appendChild(s);
-      // se Google non arriva in 4s, fallback
       setTimeout(()=>{ if(!GMAPS.map && USE_GMAPS){ console.warn('Timeout Google → OSM'); USE_GMAPS=false; initLeaf(); }}, 4000);
     } else {
       initLeaf();
     }
   }
-
   function initGoogle(){
     GMAPS.map = new google.maps.Map(document.getElementById('map'), {
       center:{lat:45.0703, lng:7.6869}, zoom:6, mapTypeControl:false, streetViewControl:false
@@ -284,17 +284,16 @@
     if (all.length) LEAF.map.fitBounds(L.latLngBounds(all), {padding:[40,40]});
   }
   function lSetSelected(eventId, on){
-    // su Leaflet evidenziamo cambiando bordo via CSS class sul DOM element
     (LEAF.markers.get(eventId)||[]).forEach(m=>{
       const el = m.getElement(); if (!el) return;
-      if (on) el.style.outline = '3px solid #ffd24d';
-      else    el.style.outline = '';
+      el.style.outline = on ? '3px solid #ffd24d' : '';
     });
   }
 
   // ====== STATO & DATI ======
   const EVENTS = new Map();         // id -> { id, title, published, deleted_at, cats }
   const OCCS_BY_EVENT = new Map();  // id -> [ occ non cestinate ]
+  const ALL_OCCS_BY_EVENT = new Map(); // id -> tutte le occ (anche cestinate) per logiche Cestino
   const SELECTED = new Set();
   function setSelectedIcon(id, on){ USE_GMAPS ? gSetSelected(id,on) : lSetSelected(id,on); }
 
@@ -305,10 +304,10 @@
       .select('id, title, titolo, published, deleted_at, categories, categorie');
     if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
 
-    // Occorrenze (solo non cestinate per mappa)
+    // Occorrenze (tutte)
     const { data: occs, error: ocErr } = await sb
       .from('occurrences')
-      .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, deleted_at');
+      .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, city, deleted_at');
     if (ocErr){ console.error(ocErr); alert('Errore lettura occurrences'); return; }
 
     EVENTS.clear();
@@ -323,9 +322,14 @@
     });
 
     OCCS_BY_EVENT.clear();
+    ALL_OCCS_BY_EVENT.clear();
     (occs||[]).forEach(o=>{
+      if (!ALL_OCCS_BY_EVENT.has(o.event_id)) ALL_OCCS_BY_EVENT.set(o.event_id, []);
+      ALL_OCCS_BY_EVENT.get(o.event_id).push(o);
+      // sulla mappa: solo occorrenze non cestinate E non scadute
+      if (o.deleted_at) return;
+      if (o.data && o.data < todayISO()) return; // << auto-hide scadute
       if (o.lat==null || o.lng==null) return;
-      if (o.deleted_at) return; // sulla mappa non mostriamo occorrenze nel cestino
       if (!OCCS_BY_EVENT.has(o.event_id)) OCCS_BY_EVENT.set(o.event_id, []);
       OCCS_BY_EVENT.get(o.event_id).push(o);
     });
@@ -340,7 +344,7 @@
 
     OCCS_BY_EVENT.forEach((list, eventId)=>{
       const ev = EVENTS.get(eventId); if (!ev) return;
-      if (ev.deleted_at || ev.published !== true) return; // sulla mappa SOLO attivi
+      if (ev.deleted_at || ev.published !== true) return; // mappa SOLO attivi
       list.forEach(occ=>{
         if (USE_GMAPS) gAddMarker(eventId, occ.lat, occ.lng, ev.title);
         else           lAddMarker(eventId, occ.lat, occ.lng, ev.title);
@@ -371,7 +375,7 @@
     const rows = [...SELECTED].map(id=>{
       const ev = EVENTS.get(id);
       const occs = OCCS_BY_EVENT.get(id)||[];
-      const city = occs[0]?.citta || '';
+      const city = occs[0]?.citta || occs[0]?.city || '';
       return `<div class="item">
         <div><b>${ev?.title||'(evento)'}</b> <span class="muted">— ${city}</span> <span class="muted" title="ID evento">${id}</span></div>
         <button class="btn small" data-unselect="${id}" type="button">Rimuovi</button>
@@ -394,6 +398,7 @@
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nascosti.';
   }
+
   async function hardDelete(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Spostare nel CESTINO ${SELECTED.size} evento/i?`)) return;
@@ -407,6 +412,7 @@
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nel cestino.';
   }
+
   $('#btnSoft').addEventListener('click', softHide);
   $('#btnHard').addEventListener('click', hardDelete);
 
@@ -486,77 +492,70 @@
     const to   = $('#dTo').value   || null;
     const city = ($('#dCity').value||'').trim().toLowerCase();
     const cat  = $('#dCat').value || '';
+    const today = todayISO();
 
-    // 1) PRIMO TENTATIVO: prendo direttamente gli eventi con deleted_at NON nullo
-    let evs = [];
-    let errTxt = '';
-    try{
-      const r = await sb.from('events')
-        .select('id, title, titolo, published, deleted_at, categories, categorie')
-        .not('deleted_at', 'is', null);
-      if (r.error) errTxt = r.error.message; else evs = r.data || [];
-    }catch(e){ errTxt = String(e&&e.message||e); }
-
-    // 2) FALLBACK: se non trovo nulla, pesco dagli id delle occorrenze cestinate
-    if (!evs.length){
-      try{
-        const rOcc = await sb.from('occurrences').select('event_id, deleted_at, data, citta, city').not('deleted_at','is',null);
-        const ids = [...new Set((rOcc.data||[]).map(o=>o.event_id))];
-        if (ids.length){
-          const rEv = await sb.from('events').select('id, title, titolo, published, deleted_at, categories, categorie').in('id', ids);
-          if (!rEv.error) evs = rEv.data||[];
-        }
-      }catch(_){}
-    }
-
-    if (errTxt){
-      $('#dResults').innerHTML = `<div class="small">Errore: ${errTxt}</div>`;
-      return;
-    }
-    if (!evs.length){
-      $('#dResults').innerHTML = '<div class="small">Nessun evento nel cestino.</div>';
-      return;
-    }
-
-    // filtra per categoria
-    const evFiltered = evs.filter(e=> !cat || getCats(e).includes(cat));
-    const ids = evFiltered.map(e=>e.id);
-    if (!ids.length){ $('#dResults').innerHTML = '<div class="small">Nessun evento nel cestino per questa categoria.</div>'; return; }
-
-    // prendo TUTTE le occorrenze (cestinate o no) per filtrare per data/città
-    const { data: occs } = await sb.from('occurrences')
+    // 1) prendo ID dal CESTINO occorrenze (è la fonte più affidabile perché l’azione tocca sempre le occ)
+    const rOcc = await sb.from('occurrences')
       .select('event_id, data, citta, city, deleted_at')
-      .in('event_id', ids);
+      .not('deleted_at','is',null);
+    if (rOcc.error){ $('#dResults').innerHTML = `<div class="small">Errore: ${rOcc.error.message}</div>`; return; }
+    const ids = [...new Set((rOcc.data||[]).map(o=>o.event_id))];
 
+    // 2) recupero eventi relativi (anche se events.deleted_at fosse NULL)
+    let evs = [];
+    if (ids.length){
+      const rEv = await sb.from('events').select('id, title, titolo, published, deleted_at, categories, categorie').in('id', ids);
+      if (!rEv.error) evs = rEv.data||[];
+    }
+
+    // 3) applico filtro categoria sugli eventi
+    const evFiltered = evs.filter(e=> !cat || getCats(e).includes(cat));
+    if (!evFiltered.length){ $('#dResults').innerHTML = '<div class="small">Cestino vuoto per i filtri impostati.</div>'; return; }
+
+    // 4) filtro per data/città guardando le occorrenze associate (anche cestinate)
     const byEvent = new Map();
-    (occs||[]).forEach(o=>{
-      const d=o.data, c=(o.citta||o.city||'').toLowerCase();
-      if (from && (!d || d<from)) return;
-      if (to   && (!d || d>to))   return;
+    (rOcc.data||[]).forEach(o=>{
+      const c=(o.citta||o.city||'').toLowerCase();
+      if (from && (!o.data || o.data<from)) return;
+      if (to   && (!o.data || o.data>to))   return;
       if (city && !c.includes(city)) return;
       if (!byEvent.has(o.event_id)) byEvent.set(o.event_id, []);
       byEvent.get(o.event_id).push(o);
     });
 
+    // 5) render
     let html='';
     evFiltered.forEach(e=>{
+      const occsAll = (ALL_OCCS_BY_EVENT.get(e.id)||[]); // tutte (anche non cestinate) per capire se scaduto
+      const hasFuture = occsAll.some(o => o.data && o.data >= today);
       const occsOk = byEvent.get(e.id)||[];
       if ((from||to||city) && !occsOk.length) return;
+
       const cats = getCats(e);
       const cityTxt = occsOk[0]?.citta || occsOk[0]?.city || '';
+
       html += `<div class="row">
         <div>
-          <div><b>${getTitle(e)}</b> <span class="muted">— ${cityTxt}</span> <span class="muted" title="ID evento">${e.id}</span></div>
+          <div><b>${getTitle(e)}</b> <span class="muted">— ${cityTxt||'—'}</span> <span class="muted" title="ID evento">${e.id}</span></div>
           <div>${cats.map(c=>`<span class="pillCat">${c}</span>`).join('')}</div>
         </div>
-        <div><button class="btn small" data-restore-deleted="${e.id}" type="button">Ripristina</button></div>
+        <div>
+          ${hasFuture
+            ? `<button class="btn small" data-restore-deleted="${e.id}" type="button">Ripristina</button>
+               <button class="btn warning small" data-hardpurge="${e.id}" type="button">Elimina definitivamente</button>`
+            : `<button class="btn warning small" data-hardpurge="${e.id}" type="button">Elimina definitivamente</button>`
+          }
+        </div>
       </div>`;
     });
-    $('#dResults').innerHTML = html || '<div class="small">Nessun evento nel cestino per i filtri impostati.</div>';
 
+    $('#dResults').innerHTML = html || '<div class="small">Cestino vuoto per i filtri impostati.</div>';
+
+    // Bind azioni
     $$('#dResults [data-restore-deleted]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-deleted');
+        // ripristino: tolgo dal cestino le occorrenze + ri-pubblico l’evento
         const r1 = await sb.from('occurrences').update({ deleted_at:null }).eq('event_id', id);
         if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
         const r2 = await sb.from('events').update({ deleted_at:null, published:true }).eq('id', id);
@@ -565,11 +564,41 @@
         await loadData(); renderDeleted();
       });
     });
+
+    $$('#dResults [data-hardpurge]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const id = b.getAttribute('data-hardpurge');
+        if (!confirm('Eliminare DEFINITIVAMENTE questo evento? Verrà rimosso dal DB (rimane solo nello storico se configurato).')) return;
+
+        // Prova a salvare nello storico (se esistono le tabelle events_log/occurrences_log)
+        try{
+          const ev = EVENTS.get(id);
+          const occs = ALL_OCCS_BY_EVENT.get(id)||[];
+          if (ev){
+            await sb.from('events_log').insert([{
+              event_id: id, action:'hard_delete', snapshot: ev, action_at: new Date().toISOString()
+            }]);
+          }
+          if (occs.length){
+            const rows = occs.map(o=>({ event_id:id, occ_id:o.id, action:'hard_delete', snapshot:o, action_at: new Date().toISOString() }));
+            await sb.from('occurrences_log').insert(rows);
+          }
+        }catch(_){ /* se non esistono le tabelle di log, ignora */ }
+
+        // Hard delete reale
+        const r1 = await sb.from('occurrences').delete().eq('event_id', id);
+        if (r1.error){ alert('Errore delete occorrenze: '+(r1.error.message||String(r1.error))); return; }
+        const r2 = await sb.from('events').delete().eq('id', id);
+        if (r2.error){ alert('Errore delete evento: '+(r2.error.message||String(r2.error))); return; }
+
+        $('#lastAction').textContent = 'Evento eliminato definitivamente.';
+        await loadData(); renderDeleted();
+      });
+    });
   }
 
   // ====== AVVIO ======
   setupMap();
-  // attendo un attimo per permettere a Google di inizializzarsi, poi carico i dati
   setTimeout(()=> loadData(), 300);
 })();
 </script>
