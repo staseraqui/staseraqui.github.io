@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=12">
 
-  <!-- Leaflet (solo fallback) -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
@@ -24,15 +24,21 @@
     .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.25);padding:6px 10px;border-radius:999px;background:#0f1c2d}
     .list{margin-top:8px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;max-height:22vh;overflow:auto;font-size:14px}
-    .item{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.12)}
+    .item{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.12)}
     .item:last-child{border-bottom:none}
     .muted{color:#b8c2ce}
-    .help{font-size:13px;color:#b8c2ce;margin:4px 0 10px}
-    .chip-badge{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:6px}
-    .id{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12px}
-    .btn.small{padding:6px 8px;font-size:12px;line-height:1}
-    label.inline{display:inline-flex;gap:8px;align-items:center}
-    input[type="checkbox"]{width:16px;height:16px}
+    .pin-selected{outline:3px solid #ffd24d;box-shadow:0 0 0 3px rgba(255,210,77,.25)}
+    .help{font-size:13px;color:#b8c2ce;margin:4px 0 0}
+
+    /* Modali */
+    .modal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.5);z-index:99999}
+    .modal .box{margin-top:60px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;min-width:320px;max-width:980px;width:92%}
+    .filters{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px}
+    @media (max-width:780px){ .filters{grid-template-columns:1fr 1fr;grid-auto-rows:auto} }
+    .results{margin-top:10px;max-height:48vh;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px;background:#0b1623}
+    .row{display:flex;gap:8px;justify-content:space-between;align-items:center;border-bottom:1px dashed rgba(255,255,255,.1);padding:8px 0}
+    .row:last-child{border-bottom:none}
+    .pillCat{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;padding:4px 8px;border-radius:999px;font-size:12px;margin-right:6px}
   </style>
 </head>
 <body>
@@ -47,22 +53,13 @@
 </header>
 
 <main class="wrap">
-  <h1 style="margin:8px 0 4px">Seleziona & elimina eventi</h1>
-  <p class="help">
-    Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft-delete: <i>published=false</i>),
-    <b>Ripristinare</b> (<i>published=true</i>) oppure <b>Eliminare definitivamente</b> (hard-delete: rimuove evento e occorrenze).
-  </p>
+  <h1 style="margin:8px 0 10px">Seleziona & elimina eventi</h1>
+  <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft: <i>published=false</i>) oppure <b>Eliminare definitivamente</b> (ora va nel <i>cestino</i> con <i>deleted_at</i>, ripristinabile).</p>
 
   <div id="map"></div>
 
-  <div class="toolbar">
+  <div class="toolbar" style="margin-bottom:8px">
     <span class="badge">Selezionati: <b id="selCount">0</b></span>
-
-    <label class="badge inline" title="Includi in mappa anche gli eventi nascosti (published=false)">
-      <input type="checkbox" id="showHidden" checked>
-      <span>Mostra anche gli eventi nascosti</span>
-    </label>
-
     <button class="btn" id="clearSel" type="button">Pulisci selezione</button>
     <span class="muted" id="lastAction"></span>
   </div>
@@ -70,220 +67,229 @@
   <div class="list" id="selList" aria-live="polite"></div>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-    <button class="btn accent"   id="btnSoft"    type="button" title="Imposta published=false">Nascondi (published=false)</button>
-    <button class="btn primary"  id="btnRestore" type="button" title="Imposta published=true">Ripristina (published=true)</button>
-    <button class="btn danger"   id="btnHard"    type="button">Elimina definitivamente</button>
+    <button class="btn accent"  id="btnSoft" type="button">Nascondi (published=false)</button>
+    <button class="btn danger"  id="btnHard" type="button">Elimina definitivamente → Cestino</button>
     <a class="btn" href="admin.html">← Torna all’area admin</a>
+  </div>
+
+  <hr class="divider">
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+    <button class="btn" id="btnViewHidden" type="button">🔎 Vedi eventi nascosti</button>
+    <button class="btn" id="btnViewDeleted" type="button">🗑️ Cestino eventi (eliminati)</button>
   </div>
 </main>
 
+<!-- MODALE: Nascosti -->
+<div id="modalHidden" class="modal" aria-hidden="true">
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <h3 style="margin:0">Eventi nascosti (published=false)</h3>
+      <button class="btn" data-close="modalHidden" type="button">Chiudi</button>
+    </div>
+
+    <div class="filters" style="margin:10px 0">
+      <div>
+        <label class="small">Dal (data evento)</label>
+        <input type="date" id="hFrom">
+      </div>
+      <div>
+        <label class="small">Al (data evento)</label>
+        <input type="date" id="hTo">
+      </div>
+      <div>
+        <label class="small">Città</label>
+        <input id="hCity" placeholder="Es. Torino">
+      </div>
+      <div>
+        <label class="small">Categoria</label>
+        <select id="hCat">
+          <option value="">Tutte</option>
+          <option>Musica</option>
+          <option>Food & Drink</option>
+          <option>Nightlife</option>
+          <option>Cultura/Spettacolo</option>
+          <option>Famiglie & Bambini</option>
+          <option>Sport</option>
+          <option>Sagre & Fiere</option>
+          <option>Mercatini</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px;align-items:flex-end">
+        <button class="btn primary" id="hFilter" type="button">Filtra</button>
+        <button class="btn" id="hReset" type="button">Azzera</button>
+      </div>
+    </div>
+
+    <div class="results" id="hResults" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- MODALE: Eliminati (Cestino) -->
+<div id="modalDeleted" class="modal" aria-hidden="true">
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <h3 style="margin:0">Cestino — Eventi eliminati (ripristinabili)</h3>
+      <button class="btn" data-close="modalDeleted" type="button">Chiudi</button>
+    </div>
+
+    <div class="filters" style="margin:10px 0">
+      <div>
+        <label class="small">Dal (data evento)</label>
+        <input type="date" id="dFrom">
+      </div>
+      <div>
+        <label class="small">Al (data evento)</label>
+        <input type="date" id="dTo">
+      </div>
+      <div>
+        <label class="small">Città</label>
+        <input id="dCity" placeholder="Es. Genova">
+      </div>
+      <div>
+        <label class="small">Categoria</label>
+        <select id="dCat">
+          <option value="">Tutte</option>
+          <option>Musica</option>
+          <option>Food & Drink</option>
+          <option>Nightlife</option>
+          <option>Cultura/Spettacolo</option>
+          <option>Famiglie & Bambini</option>
+          <option>Sport</option>
+          <option>Sagre & Fiere</option>
+          <option>Mercatini</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px;align-items:flex-end">
+        <button class="btn primary" id="dFilter" type="button">Filtra</button>
+        <button class="btn" id="dReset" type="button">Azzera</button>
+      </div>
+    </div>
+
+    <div class="results" id="dResults" aria-live="polite"></div>
+    <p class="small" style="margin-top:8px">Nota: gli eventi “eliminati definitivamente” prima di questa versione non sono ripristinabili perché realmente cancellati dal database.</p>
+  </div>
+</div>
+
 <script>
 (function(){
-  // ====== CONFIG / SUPABASE ======
+  // --- Config/Supabase ---
   const CFG = window.SQ_CONFIG || {};
   const SB_URL  = CFG.SUPABASE_URL;
   const SB_ANON = CFG.SUPABASE_ANON;
-  const GMAPS_KEY = CFG.GOOGLE_MAPS_API_KEY;
   if (!SB_URL || !SB_ANON) { alert('Configurazione Supabase mancante (assets/app-config.js).'); }
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
   const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
 
-  // ====== STATO DATI ======
-  const EVENTS = new Map();        // idEvento -> { id, title, published }
-  const OCCS_BY_EVENT = new Map(); // idEvento -> [ occ ]
-  const SELECTED = new Set();      // idEvento selezionati
+  // --- Stato ---
+  let MAP=null, PINICON=null;
+  const EVENTS = new Map();         // idEvento -> { id, title/titolo, published, deleted_at, categories/categorie }
+  const OCCS_BY_EVENT = new Map();  // idEvento -> [ occorrenze attive (non cestinate) ]
+  const MARKERS = new Map();        // idEvento -> [markers Leaflet]
+  const SELECTED = new Set();       // idEvento selezionati
 
-  // ====== GOOGLE vs LEAFLET ======
-  let USE_GMAPS = false;
-  let GMAPS = { map:null, markers:new Map(), bounds:null };
-  let LEAF  = { map:null, markers:new Map(), pinIconPub:null, pinIconHid:null };
+  // --- Map UI (solo eventi attivi: published=true e non cestinati) ---
+  function initMap(){
+    MAP = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
+    L.control.attribution({prefix:false}).addTo(MAP);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(MAP);
 
-  function loadGoogle(){
-    if (!GMAPS_KEY){ console.warn('No Google key -> OSM fallback'); initLeaflet(); return; }
-    window.initGoogleMap = ()=>{
-      USE_GMAPS = true;
-      GMAPS.map = new google.maps.Map(document.getElementById('map'), {
-        center:{lat:45.0703, lng:7.6869}, zoom:6, mapTypeControl:false, streetViewControl:false
-      });
-      GMAPS.bounds = new google.maps.LatLngBounds();
-      fetchDataAndRender();
-    };
-    const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&callback=initGoogleMap`;
-    s.async = true; s.defer = true;
-    s.onerror = ()=>{ console.warn('Google Maps error -> OSM fallback'); initLeaflet(); };
-    document.head.appendChild(s);
-  }
-
-  function initLeaflet(){
-    USE_GMAPS = false;
-    LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
-    L.control.attribution({prefix:false}).addTo(LEAF.map);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(LEAF.map);
-
-    LEAF.pinIconPub = (color='#22b3f0') => L.divIcon({
+    PINICON = L.divIcon({
       className:'sq-pin',
-      html:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="30" height="34" style="display:block;filter:drop-shadow(0 0 2px #fff)"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="${color}" stroke="#ffffff" stroke-width="2"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>`,
+      html:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="30" height="34" style="display:block;filter:drop-shadow(0 0 2px #fff)">
+              <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0" stroke="#ffffff" stroke-width="2"/>
+              <circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>`,
       iconSize:[30,34], iconAnchor:[15,34], popupAnchor:[0,-30]
     });
-    LEAF.pinIconHid = () => LEAF.pinIconPub('#9fb7c9');
-
-    fetchDataAndRender();
   }
 
-  // ====== DATI ======
-  function isTruthyPub(v){ return (v===true || v===1 || v==='1' || v==='t' || v==='true' || v==='T' || v==='TRUE'); }
+  // === DATA ===
+  const getTitle = e => e.title || e.titolo || '(evento)';
+  const getCats = e => Array.isArray(e.categories) ? e.categories : (Array.isArray(e.categorie) ? e.categorie : []);
 
-  async function fetchDataAndRender(){
-    // events: prendo TUTTI, non filtro qui
-    const { data: evs, error: evErr } = await sb.from('events')
-      .select('id, title, titolo, published');
+  async function loadData(){
+    // Eventi (prendiamo published & deleted_at)
+    const { data: evs, error: evErr } = await sb
+      .from('events')
+      .select('id, title, titolo, published, deleted_at, categories, categorie');
     if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
 
-    // occurrences
-    const { data: occs, error: occErr } = await sb.from('occurrences')
-      .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta');
+    // Occorrenze (anche deleted_at per filtrare quelle cestinate)
+    const { data: occs, error: occErr } = await sb
+      .from('occurrences')
+      .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, deleted_at');
     if (occErr){ console.error(occErr); alert('Errore lettura occurrences'); return; }
 
-    // normalize
-    EVENTS.clear(); OCCS_BY_EVENT.clear();
-    (evs||[]).forEach(e=>{
+    EVENTS.clear();
+    evs.forEach(e => {
       EVENTS.set(e.id, {
         id: e.id,
-        title: e.title || e.titolo || '(evento)',
-        published: isTruthyPub(e.published)
+        title: getTitle(e),
+        published: e.published,
+        deleted_at: e.deleted_at || null,
+        cats: getCats(e)
       });
     });
+
+    OCCS_BY_EVENT.clear();
     (occs||[]).forEach(o=>{
       if (o.lat==null || o.lng==null) return;
+      if (o.deleted_at) return; // niente occorrenze cestinate
       if (!OCCS_BY_EVENT.has(o.event_id)) OCCS_BY_EVENT.set(o.event_id, []);
       OCCS_BY_EVENT.get(o.event_id).push(o);
     });
 
-    drawAllMarkers();
+    drawMarkers();
   }
 
-  // ====== ICON GOOGLE (SVG data URL) ======
-  function pinSvgUrl({color='#22b3f0', selected=false}={}){
-    const stroke = selected ? '#ffd24d' : '#ffffff';
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72">
-      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="${color}" stroke="${stroke}" stroke-width="3"/>
-      <circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>`;
-    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
-  }
+  function drawMarkers(){
+    // pulisci markers esistenti
+    MARKERS.forEach(list => list.forEach(m => MAP.removeLayer(m)));
+    MARKERS.clear();
 
-  // ====== DISEGNO MARKERS ======
-  function clearAllMarkers(){
-    if (USE_GMAPS){
-      GMAPS.markers.forEach(list => list.forEach(m => m.setMap(null)));
-      GMAPS.markers.clear();
-      GMAPS.bounds = new google.maps.LatLngBounds();
-    } else {
-      LEAF.markers.forEach(list => list.forEach(m => LEAF.map.removeLayer(m)));
-      LEAF.markers.clear();
-    }
-  }
-
-  function drawAllMarkers(){
-    clearAllMarkers();
-    const includeHidden = $('#showHidden').checked;
-
-    // per bounds
-    const allLatLngs = [];
-
-    OCCS_BY_EVENT.forEach((occs, eventId)=>{
+    const all = [];
+    OCCS_BY_EVENT.forEach((list, eventId)=>{
       const ev = EVENTS.get(eventId); if (!ev) return;
-      if (!includeHidden && !ev.published) return;
+      // Mostra solo EVENTI ATTIVI (pubblicati e non cestinati)
+      if (ev.deleted_at || ev.published !== true) return;
 
-      // colore in base allo stato
-      const color = ev.published ? '#22b3f0' : '#9fb7c9';
       const markers = [];
-
-      if (USE_GMAPS){
-        occs.forEach(o=>{
-          const pos = {lat:o.lat, lng:o.lng};
-          const m = new google.maps.Marker({
-            position: pos,
-            map: GMAPS.map,
-            icon: {
-              url: pinSvgUrl({color}),
-              scaledSize: new google.maps.Size(34, 38),
-              anchor: new google.maps.Point(19, 38)
-            },
-            title: ev.title
-          });
-          const badge = ev.published ? '' : ' — [nascosto]';
-          const iw = new google.maps.InfoWindow({ content: `<div style="color:#081421"><b>${ev.title}</b>${badge}<br><small>${o.citta||''}</small></div>`});
-          m.addListener('click', ()=>{
-            iw.open(GMAPS.map, m);
-            toggleSelect(eventId); // seleziona l’evento al click
-          });
-          markers.push(m);
-          GMAPS.bounds.extend(pos);
-          allLatLngs.push(pos);
-        });
-        GMAPS.markers.set(eventId, markers);
-      } else {
-        const icon = ev.published ? LEAF.pinIconPub('#22b3f0') : LEAF.pinIconHid();
-        occs.forEach(o=>{
-          const m = L.marker([o.lat,o.lng], {icon}).addTo(LEAF.map);
-          const badge = ev.published ? '' : ' <span class="chip-badge">nascosto</span>';
-          m.bindPopup(`<div style="color:#081421"><b>${ev.title}</b>${badge}<br><small>${o.citta||''}</small></div>`);
-          m.on('click', ()=> toggleSelect(eventId));
-          markers.push(m);
-          allLatLngs.push([o.lat,o.lng]);
-        });
-        LEAF.markers.set(eventId, markers);
-      }
+      list.forEach(occ=>{
+        const m = L.marker([occ.lat,occ.lng], {icon:PINICON});
+        const html = `<div style="color:#081421"><b>${ev.title}</b><br><small>${occ.citta||''}</small></div>`;
+        m.bindPopup(html);
+        m.on('click', ()=> toggleSelect(eventId, true));
+        m.addTo(MAP);
+        markers.push(m);
+        all.push([occ.lat,occ.lng]);
+      });
+      if (markers.length) MARKERS.set(eventId, markers);
     });
 
-    // fit bounds
-    if (allLatLngs.length){
-      try{
-        if (USE_GMAPS && GMAPS.bounds){
-          GMAPS.map.fitBounds(GMAPS.bounds);
-        } else if (!USE_GMAPS){
-          const b = L.latLngBounds(allLatLngs);
-          LEAF.map.fitBounds(b, {padding:[40,40]});
-        }
-      }catch(_){}
+    if (all.length){
+      const b = L.latLngBounds(all);
+      MAP.fitBounds(b, {padding:[40,40]});
     }
 
     updateSelectionUI();
   }
 
-  // evidenzia/deseleziona su GMAPS cambiando l’icona (bordo giallo)
-  function refreshSelectionGlow(eventId){
-    const ev = EVENTS.get(eventId); if (!ev) return;
-    const color = ev.published ? '#22b3f0' : '#9fb7c9';
-    const selected = SELECTED.has(eventId);
-
-    if (USE_GMAPS){
-      const list = GMAPS.markers.get(eventId) || [];
-      list.forEach(m=>{
-        m.setIcon({
-          url: pinSvgUrl({color, selected}),
-          scaledSize: new google.maps.Size(34, 38),
-          anchor: new google.maps.Point(19, 38)
-        });
-      });
-    } else {
-      // in Leaflet ridisegno (più semplice tenerlo così come fallback)
-      const list = LEAF.markers.get(eventId) || [];
-      list.forEach(m=>{
-        if (selected) m.getElement()?.classList.add('pin-selected');
-        else m.getElement()?.classList.remove('pin-selected');
-      });
-    }
-  }
-
-  // ====== SELEZIONE ======
+  // --- Selezione ---
   function toggleSelect(eventId){
     if (!EVENTS.has(eventId)) return;
     if (SELECTED.has(eventId)) SELECTED.delete(eventId);
     else SELECTED.add(eventId);
-    refreshSelectionGlow(eventId);
+    // evidenzia markers dell’evento
+    const list = MARKERS.get(eventId) || [];
+    list.forEach(m=>{
+      const el = m.getElement();
+      if (el){
+        if (SELECTED.has(eventId)) el.classList.add('pin-selected');
+        else el.classList.remove('pin-selected');
+      }
+    });
     updateSelectionUI();
   }
 
@@ -291,121 +297,271 @@
     $('#selCount').textContent = SELECTED.size;
     const box = $('#selList');
     if (!SELECTED.size){ box.innerHTML = '<div class="muted">Nessun evento selezionato.</div>'; return; }
-
     const rows = [...SELECTED].map(id=>{
       const ev = EVENTS.get(id);
       const occs = OCCS_BY_EVENT.get(id)||[];
       const city = occs[0]?.citta || '';
-      const state = ev?.published ? '' : ' <span class="chip-badge">nascosto</span>';
       return `<div class="item">
-        <div>
-          <b>${ev?.title||'(evento)'}</b>${state}
-          <span class="muted">— ${city}</span><br>
-          <span class="muted id">${id}</span>
-        </div>
-        <button class="btn small" data-copy="${id}" type="button" title="Copia ID">Copia ID</button>
+        <div><b>${ev?.title||'(evento)'}</b> <span class="muted">— ${city}</span> <span class="muted" title="ID evento">${id}</span></div>
         <button class="btn small" data-unselect="${id}" type="button">Rimuovi</button>
       </div>`;
     }).join('');
     box.innerHTML = rows;
-
     box.querySelectorAll('[data-unselect]').forEach(b=>{
       b.addEventListener('click', ()=> toggleSelect(b.getAttribute('data-unselect')));
-    });
-    box.querySelectorAll('[data-copy]').forEach(b=>{
-      b.addEventListener('click', async ()=>{
-        try{
-          await navigator.clipboard.writeText(b.getAttribute('data-copy'));
-          $('#lastAction').textContent = 'ID copiato negli appunti.';
-        }catch(_){ alert('Non riesco a copiare.'); }
-      });
     });
   }
 
   $('#clearSel').addEventListener('click', ()=>{
     const ids = [...SELECTED];
-    ids.forEach(id => { SELECTED.delete(id); refreshSelectionGlow(id); });
-    updateSelectionUI();
+    ids.forEach(id => toggleSelect(id));
   });
 
-  // ====== AZIONI ======
+  // --- Azioni principali ---
   async function softHide(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Nascondere ${SELECTED.size} evento/i? Verranno esclusi dalla home (published=false).`)) return;
 
     const ids = [...SELECTED];
     try{
-      const { error } = await sb.from('events').update({ published:false }).in('id', ids);
+      const { error } = await sb.from('events').update({ published: false }).in('id', ids);
       if (error){
-        if (String(error.code) === '42703'){ // colonna non esiste
-          if (confirm('La colonna "published" non esiste. Procedo con ELIMINAZIONE DEFINITIVA?')){
-            return hardDelete();
-          } else return;
-        }
+        if (String(error.code) === '42703'){ alert('La colonna "published" non esiste.'); return; }
         throw error;
       }
     }catch(e){
-      alert('Aggiornamento non riuscito: '+(e?.message||String(e)));
-      return;
+      alert('Aggiornamento non riuscito:\n' + (e?.message||String(e))); return;
     }
 
-    ids.forEach(id=>{ const ev = EVENTS.get(id); if (ev) ev.published = false; refreshSelectionGlow(id); });
-    drawAllMarkers(); // rispetta il toggle "Mostra nascosti"
-    $('#lastAction').textContent = 'Fatto: eventi nascosti.';
+    // UI: rimuovi immediatamente i marker perché non più attivi
+    ids.forEach(id=>{
+      (MARKERS.get(id)||[]).forEach(m => MAP.removeLayer(m));
+      MARKERS.delete(id);
+      SELECTED.delete(id);
+      const ev = EVENTS.get(id); if (ev) ev.published = false;
+    });
+    updateSelectionUI();
+    $('#lastAction').textContent = 'Fatto: eventi nascosti (published=false).';
   }
 
-  async function restoreEvents(){
-    if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
-    if (!confirm(`Ripristinare ${SELECTED.size} evento/i? Verranno rimessi online (published=true).`)) return;
-
-    const ids = [...SELECTED];
-    try{
-      const { error } = await sb.from('events').update({ published:true }).in('id', ids);
-      if (error) throw error;
-    }catch(e){
-      alert('Ripristino non riuscito: '+(e?.message||String(e)));
-      return;
-    }
-
-    ids.forEach(id=>{ const ev = EVENTS.get(id); if (ev) ev.published = true; refreshSelectionGlow(id); });
-    drawAllMarkers();
-    $('#lastAction').textContent = 'Fatto: eventi ripristinati.';
-  }
-
+  // Elimina -> CESTINO (soft delete con deleted_at + published=false)
   async function hardDelete(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
-    if (!confirm(`Eliminare DEFINITIVAMENTE ${SELECTED.size} evento/i? Saranno cancellate anche le relative occorrenze.`)) return;
+    if (!confirm(`Spostare nel CESTINO ${SELECTED.size} evento/i?\nSaranno ripristinabili dal pannello "Cestino eventi".`)) return;
 
     const ids = [...SELECTED];
-    try{
-      const r1 = await sb.from('occurrences').delete().in('event_id', ids);
-      if (r1.error) throw r1.error;
+    const nowIso = new Date().toISOString();
 
-      const r2 = await sb.from('events').delete().in('id', ids);
-      if (r2.error) throw r2.error;
-    }catch(e){
-      alert('Cancellazione bloccata (probabile policy RLS).\n\nDettagli: '+(e?.message||String(e)));
+    // 1) marca occurrences come cestinate
+    const r1 = await sb.from('occurrences').update({ deleted_at: nowIso }).in('event_id', ids);
+    if (r1.error && String(r1.error.code) !== '42703'){ // 42703 = colonna non esiste
+      alert('Errore nel marcare occorrenze come eliminate:\n' + (r1.error.message||String(r1.error)));
       return;
     }
 
+    // 2) marca eventi come cestinati e non pubblicati
+    const r2 = await sb.from('events').update({ deleted_at: nowIso, published: false }).in('id', ids);
+    if (r2.error && String(r2.error.code) !== '42703'){
+      alert('Errore nel marcare eventi come eliminati:\n' + (r2.error.message||String(r2.error)));
+      return;
+    }
+
+    // UI: rimuovi immediatamente i marker perché non più attivi
     ids.forEach(id=>{
+      (MARKERS.get(id)||[]).forEach(m => MAP.removeLayer(m));
+      MARKERS.delete(id);
       SELECTED.delete(id);
-      EVENTS.delete(id);
-      OCCS_BY_EVENT.delete(id);
+      const ev = EVENTS.get(id); if (ev){ ev.deleted_at = nowIso; ev.published = false; }
     });
-    drawAllMarkers();
-    $('#lastAction').textContent = 'Fatto: eventi eliminati definitivamente.';
+    updateSelectionUI();
+    $('#lastAction').textContent = 'Fatto: eventi spostati nel cestino.';
   }
 
-  // Bind bottoni / toggle
   $('#btnSoft').addEventListener('click', softHide);
-  $('#btnRestore').addEventListener('click', restoreEvents);
-  '#btnHard' in window || true; // evita bundler strani
-  document.getElementById('btnHard').addEventListener('click', hardDelete);
-  $('#showHidden').addEventListener('change', drawAllMarkers);
+  $('#btnHard').addEventListener('click', hardDelete);
 
-  // BOOTSTRAP
-  loadGoogle();
+  // === Pannello "Nascosti" ===
+  function openModal(id){ const m = $('#'+id); if(!m) return; m.style.display='flex'; }
+  function closeModal(id){ const m = $('#'+id); if(!m) return; m.style.display='none'; }
+  $$('[data-close]').forEach(b=> b.addEventListener('click', ()=> closeModal(b.getAttribute('data-close')) ));
+  $('#btnViewHidden').addEventListener('click', ()=> { openModal('modalHidden'); renderHidden(); });
+
+  $('#hReset').addEventListener('click', ()=>{
+    $('#hFrom').value=''; $('#hTo').value=''; $('#hCity').value=''; $('#hCat').value='';
+    renderHidden();
+  });
+  $('#hFilter').addEventListener('click', renderHidden);
+
+  async function renderHidden(){
+    const from = $('#hFrom').value || null;
+    const to   = $('#hTo').value   || null;
+    const city = ($('#hCity').value||'').trim().toLowerCase();
+    const cat  = $('#hCat').value || '';
+
+    // 1) prendi eventi nascosti (non cestinati)
+    const { data: evs, error } = await sb.from('events')
+      .select('id, title, titolo, published, deleted_at, categories, categorie')
+      .eq('published', false)
+      .is('deleted_at', null);
+    if (error){ $('#hResults').innerHTML = `<div class="small">Errore: ${error.message}</div>`; return; }
+
+    // filtra per categoria (se richiesta)
+    const evFiltered = (evs||[]).filter(e=>{
+      if (!cat) return true;
+      const cats = getCats(e);
+      return cats.includes(cat);
+    });
+
+    const ids = evFiltered.map(e=>e.id);
+    if (!ids.length){ $('#hResults').innerHTML = '<div class="small">Nessun evento nascosto.</div>'; return; }
+
+    // 2) occorrenze degli eventi selezionati (solo non cestinate)
+    const { data: occs } = await sb.from('occurrences')
+      .select('event_id, data, citta, city, deleted_at')
+      .in('event_id', ids)
+      .is('deleted_at', null);
+
+    // 3) filtri client su occorrenze (date e città)
+    const byEvent = new Map();
+    (occs||[]).forEach(o=>{
+      const d = o.data;
+      if (from && (!d || d < from)) return;
+      if (to && (!d || d > to)) return;
+      const c = (o.citta || o.city || '').toLowerCase();
+      if (city && !c.includes(city)) return;
+      if (!byEvent.has(o.event_id)) byEvent.set(o.event_id, []);
+      byEvent.get(o.event_id).push(o);
+    });
+
+    // 4) render
+    let html = '';
+    evFiltered.forEach(e=>{
+      const occsOk = byEvent.get(e.id) || [];
+      if (from || to || city){ if (!occsOk.length) return; } // se ho filtri tempo/città e questo evento non matcha occorrenze → salta
+      const cats = getCats(e);
+      const cityTxt = occsOk[0]?.citta || occsOk[0]?.city || '';
+      const occCount = occsOk.length || '—';
+      html += `<div class="row">
+        <div>
+          <div><b>${getTitle(e)}</b> <span class="muted">— ${cityTxt}</span> <span class="muted" title="ID evento">${e.id}</span></div>
+          <div>${cats.map(c=>`<span class="pillCat">${c}</span>`).join('')}</div>
+          <div class="small muted">Occorrenze che soddisfano i filtri: ${occCount}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn small" data-restore-hidden="${e.id}" type="button">Ripristina</button>
+        </div>
+      </div>`;
+    });
+    $('#hResults').innerHTML = html || '<div class="small">Nessun evento nascosto per i filtri impostati.</div>';
+
+    // bind ripristina
+    $$('#hResults [data-restore-hidden]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const id = b.getAttribute('data-restore-hidden');
+        const r = await sb.from('events').update({ published:true }).eq('id', id);
+        if (r.error){ alert('Errore ripristino: '+(r.error.message||String(r.error))); return; }
+        // aggiorna cache locale e mappa
+        const ev = EVENTS.get(id); if (ev){ ev.published = true; }
+        $('#lastAction').textContent = 'Evento ripristinato.';
+        await loadData(); // ricarica per aggiornare mappa e liste
+        renderHidden();
+      });
+    });
+  }
+
+  // === Pannello "Eliminati" (Cestino) ===
+  $('#btnViewDeleted').addEventListener('click', ()=> { openModal('modalDeleted'); renderDeleted(); });
+  $('#dReset').addEventListener('click', ()=>{
+    $('#dFrom').value=''; $('#dTo').value=''; $('#dCity').value=''; $('#dCat').value='';
+    renderDeleted();
+  });
+  $('#dFilter').addEventListener('click', renderDeleted);
+
+  async function renderDeleted(){
+    const from = $('#dFrom').value || null;
+    const to   = $('#dTo').value   || null;
+    const city = ($('#dCity').value||'').trim().toLowerCase();
+    const cat  = $('#dCat').value || '';
+
+    // 1) Eventi nel cestino (deleted_at non nullo)
+    const { data: evs, error } = await sb.from('events')
+      .select('id, title, titolo, published, deleted_at, categories, categorie')
+      .not('deleted_at', 'is', null);
+    if (error){
+      const msg = (String(error.code)==='42703')
+        ? 'Il cestino richiede la colonna "deleted_at". Esegui lo script SQL indicato a fine istruzioni.'
+        : error.message;
+      $('#dResults').innerHTML = `<div class="small">Errore: ${msg}</div>`;
+      return;
+    }
+
+    const evFiltered = (evs||[]).filter(e=>{
+      if (!cat) return true;
+      const cats = getCats(e);
+      return cats.includes(cat);
+    });
+    const ids = evFiltered.map(e=>e.id);
+    if (!ids.length){ $('#dResults').innerHTML = '<div class="small">Nessun evento nel cestino.</div>'; return; }
+
+    // 2) occorrenze relative (anche se cestinate)
+    const { data: occs } = await sb.from('occurrences')
+      .select('event_id, data, citta, city, deleted_at')
+      .in('event_id', ids);
+
+    // 3) filtri client per data/città sulle occorrenze (consideriamo tutte le occorrenze dell’evento)
+    const byEvent = new Map();
+    (occs||[]).forEach(o=>{
+      const d = o.data;
+      if (from && (!d || d < from)) return;
+      if (to && (!d || d > to)) return;
+      const c = (o.citta || o.city || '').toLowerCase();
+      if (city && !c.includes(city)) return;
+      if (!byEvent.has(o.event_id)) byEvent.set(o.event_id, []);
+      byEvent.get(o.event_id).push(o);
+    });
+
+    let html = '';
+    evFiltered.forEach(e=>{
+      const occsOk = byEvent.get(e.id) || [];
+      if (from || to || city){ if (!occsOk.length) return; }
+      const cats = getCats(e);
+      const cityTxt = occsOk[0]?.citta || occsOk[0]?.city || '';
+      const occCount = occsOk.length || '—';
+      html += `<div class="row">
+        <div>
+          <div><b>${getTitle(e)}</b> <span class="muted">— ${cityTxt}</span> <span class="muted" title="ID evento">${e.id}</span></div>
+          <div>${cats.map(c=>`<span class="pillCat">${c}</span>`).join('')}</div>
+          <div class="small muted">Occorrenze che soddisfano i filtri: ${occCount}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn small" data-restore-deleted="${e.id}" type="button">Ripristina</button>
+        </div>
+      </div>`;
+    });
+    $('#dResults').innerHTML = html || '<div class="small">Nessun evento nel cestino per i filtri impostati.</div>';
+
+    // bind ripristina
+    $$('#dResults [data-restore-deleted]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const id = b.getAttribute('data-restore-deleted');
+        // 1) ripristina occorrenze
+        const r1 = await sb.from('occurrences').update({ deleted_at: null }).eq('event_id', id);
+        if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
+        // 2) ripristina evento e pubblica
+        const r2 = await sb.from('events').update({ deleted_at: null, published: true }).eq('id', id);
+        if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
+
+        const ev = EVENTS.get(id); if (ev){ ev.deleted_at = null; ev.published = true; }
+        $('#lastAction').textContent = 'Evento ripristinato dal cestino.';
+        await loadData();
+        renderDeleted();
+      });
+    });
+  }
+
+  // Avvio
+  initMap();
+  loadData();
 })();
 </script>
 </body>
