@@ -225,7 +225,26 @@
   const addDays  = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); };
   const weekday  = s => (new Date(s+'T00:00:00')).getDay();
 
-  // ====== MAPPA: bootstrap ======
+  // ===== Helpers robusti =====
+  const isTruthyPub = v => (v===true || v===1 || v==='1' || v==='t' || v==='true' || v=== 'T' || v==='TRUE');
+  function normCats(raw){
+    const c = (raw?.categories ?? raw?.categorie ?? []);
+    if (Array.isArray(c)) return c.filter(Boolean).map(String);
+    if (c == null) return [];
+    if (typeof c === 'string'){
+      // prova JSON
+      try{
+        const j = JSON.parse(c);
+        if (Array.isArray(j)) return j.filter(Boolean).map(String);
+      }catch(_){}
+      // prova CSV
+      if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
+      return c.trim() ? [c.trim()] : [];
+    }
+    return [];
+  }
+
+  // ===== MAPPA: bootstrap =====
   (function setupMap(){
     if (hasGoogleKey){
       USE_GMAPS = true;
@@ -240,7 +259,7 @@
     }
   })();
 
-  // ====== GOOGLE MAPS ======
+  // ===== GOOGLE MAPS =====
   window.initGoogleMap = function(){
     GMAPS.map = new google.maps.Map(document.getElementById('map'), {
       center:{lat:45.0703, lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false
@@ -257,7 +276,6 @@
     loadData().then(requestInitialLocation);
   };
 
-  // Pin coerente con il logo (azzurro + buco bianco)
   function pinSvgUrl(color = '#22b3f0'){
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z"
@@ -270,7 +288,7 @@
   function gAddMarker(occ, ev){
     const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
-    const cats  = (ev.categories||ev.categorie||[]).join(', ');
+    const cats  = (ev._cats||[]).join(', ');
     const descr = ev.description||ev.descrizione||'';
     const posterHTML = ev.locandina_url
       ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
@@ -442,7 +460,7 @@
     }
   }
 
-  // ====== LEAFLET (fallback OSM) ======
+  // ===== LEAFLET (fallback OSM) =====
   function initLeafletMap(){
     LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869],12);
     L.control.attribution({prefix:false}).addTo(LEAF.map);
@@ -465,7 +483,7 @@
   function lAddMarker(occ, ev){
     const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
-    const cats  = (ev.categories||ev.categorie||[]).join(', ');
+    const cats  = (ev._cats||[]).join(', ');
     const descr = ev.description||ev.descrizione||'';
     const posterHTML = ev.locandina_url
       ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
@@ -531,7 +549,7 @@
     showRouteInfo(from, to, `${km} km`, `${min} min`);
   }
 
-  // ====== DATEPICKER OVERLAY ======
+  // ===== DATEPICKER OVERLAY =====
   const dpOverlay = $('#dpOverlay'), dpInput = $('#dpInput');
   $('#selDataBtn').addEventListener('click', ()=>{
     dpInput.value = state.customDate || todayISO();
@@ -581,7 +599,7 @@
     renderMarkers();
   }));
 
-  // ====== CERCA: sposta la mappa, NON filtra eventi (con fallback OSM) ======
+  // ===== CERCA: sposta la mappa (non filtra eventi) =====
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
     _refitTried = false;
@@ -615,7 +633,7 @@
   });
   $('#searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') $('#searchBtn').click(); });
 
-  // ====== GEO iniziale ======
+  // ===== GEO iniziale =====
   function requestInitialLocation(){
     if (!navigator.geolocation){ showGeoOverlay(); return; }
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -656,7 +674,7 @@
     }
   };
 
-  // Bottone 📍: se ho già l’origine, propone di cambiarla
+  // Bottone 📍
   $('#locBtn').addEventListener('click', async ()=>{
     if (ORIGIN){
       const resp = confirm('Vuoi aggiornare la posizione?\nOK = usa GPS adesso\nAnnulla = inserisci un indirizzo');
@@ -703,7 +721,7 @@
     alert('Posizione azzerata. Alla prossima richiesta verrà chiesta nuovamente.');
   });
 
-  // ====== FILTRI LOGICA ======
+  // ===== FILTRI LOGICA =====
   function occPassesFilters(occ){
     if (state.day==='oggi'   && occ.data!==todayISO()) return false;
     if (state.day==='domani' && occ.data!==addDays(todayISO(),1)) return false;
@@ -712,7 +730,7 @@
 
     if (state.cats.size>0){
       const ev = EVENTS_BY_ID.get(occ.event_id);
-      const evCats = (ev?.categories || ev?.categorie || []);
+      const evCats = (ev?._cats || []);
       if (!evCats.some(c=>state.cats.has(c))) return false;
     }
     return true;
@@ -784,30 +802,27 @@
     alert('Eventi visibili:\n\n'+rows);
   });
 
-  // ====== DATI ======
+  // ===== DATI =====
   async function loadData(){
-    // 1) Carica eventi, compatibile con schemi diversi
-    const { data: evs } = await sb.from('events')
-      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted');
+    // 1) Eventi
+    const { data: evs, error: evErr } = await sb.from('events')
+      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published');
+    if (evErr) { console.error('ERR events:', evErr); return; }
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
-    const hasPublished = EVENTS_ALL.length && Object.prototype.hasOwnProperty.call(EVENTS_ALL[0],'published');
-    const hasDeleted  = EVENTS_ALL.length && Object.prototype.hasOwnProperty.call(EVENTS_ALL[0],'deleted');
-
-    // mostra solo pubblicati e non eliminati (se le colonne esistono)
-    EVENTS = EVENTS_ALL.filter(e => (hasPublished ? e.published === true : true))
-                       .filter(e => (hasDeleted  ? e.deleted   !== true : true));
+    // Filtra: se c’è la colonna published, accetta ogni valore “truthy”
+    EVENTS = EVENTS_ALL.filter(e => !('published' in e) || isTruthyPub(e.published))
+                       .map(e => ({ ...e, _cats: normCats(e) }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
-    // 2) Carica occorrenze; ignora orfane e (se presente) cancellate
-    const { data: occsRaw } = await sb.from('occurrences')
-      .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city, cancelled');
+    // 2) Occorrenze legate ad eventi validi
+    const { data: occsRaw, error: occErr } = await sb.from('occurrences')
+      .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city');
+    if (occErr) { console.error('ERR occs:', occErr); return; }
 
     const validEventIds = new Set(EVENTS.map(e => e.id));
-
     const norm = (occsRaw || [])
       .filter(o => validEventIds.has(o.event_id))
-      .filter(o => (Object.prototype.hasOwnProperty.call(o,'cancelled') ? o.cancelled !== true : true))
       .map(o => ({
         id: o.id,
         event_id: o.event_id,
@@ -823,16 +838,15 @@
     // 3) Solo occorrenze con coordinate valide
     OCCS = norm.filter(o => o.lat != null && o.lng != null);
 
+    console.info('Loaded EVENTS:', EVENTS.length, 'OCCS:', OCCS.length);
     _refitTried = false;
     renderMarkers();
   }
-
 </script>
 <footer class="page-footer">
     <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
 </footer>
 
-<!-- Noscript per SEO/UX -->
 <noscript>
   <p style="padding:12px;text-align:center">Per usare Stasera Qui attiva JavaScript nel tuo browser.</p>
 </noscript>
