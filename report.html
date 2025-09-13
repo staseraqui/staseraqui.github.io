@@ -1,431 +1,234 @@
 <!doctype html>
 <html lang="it">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Report — Stasera Qui</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=24">
-  <!-- Config chiavi -->
-  <script src="assets/app-config.js?v=3"></script>
+  <link rel="stylesheet" href="assets/style.css?v=12">
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="assets/app-config.js?v=6"></script>
   <style>
-    .filters{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
-    .filters .group{display:flex;flex-direction:column;gap:4px}
-    .kpis{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0}
-    .kpi{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px 12px}
-    .results{margin-top:10px}
-    table{width:100%;border-collapse:collapse}
-    th,td{border-bottom:1px solid rgba(255,255,255,.1);padding:8px 10px;text-align:left;vertical-align:top}
-    th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#b8c2ce}
-    .muted{color:#9fb0c2}
-    .small{font-size:12px}
-    .note{color:#9fb0c2;margin:8px 0}
-    .btn.inline{padding:6px 10px}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    table{width:100%;border-collapse:collapse;margin:10px 0}
+    th,td{border:1px solid rgba(255,255,255,.15);padding:8px;text-align:left}
+    th{background:#0f1c2d}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+    @media print{ .toolbar, .page-footer { display:none } body{background:#fff;color:#000} th,td{border-color:#000} }
   </style>
 </head>
 <body>
 <header class="header" style="padding:0 16px">
-  <a href="index.html" class="logo">
-    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
-      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
-      <circle cx="32" cy="24" r="9" fill="#ffffff"/>
-    </svg>
+  <a href="admin.html" class="logo" aria-label="Torna all'area admin">
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
     <span class="wordmark">stasera qui</span>
   </a>
 </header>
 
-<main class="container">
-  <h1>Report</h1>
-
-  <div class="card">
-    <div class="filters">
-      <div class="group">
-        <label for="mode">Modalità</label>
-        <select id="mode">
-          <option value="occorrenze">Eventi per data <b>occorrenza</b></option>
-          <option value="pubblicazione">Eventi per data <b>pubblicazione</b></option>
-          <option value="annullati">Eventi <b>annullati</b></option>
-        </select>
-        <span class="small muted" id="modeHint"></span>
-      </div>
-
-      <div class="group">
-        <label for="city">Città</label>
-        <select id="city">
-          <option value="*">(Tutte)</option>
-        </select>
-        <span class="small muted">Usa <b>solo</b> per “occorrenze”.</span>
-      </div>
-
-      <div class="group">
-        <label for="d1">Da data</label>
-        <input id="d1" type="date">
-      </div>
-      <div class="group">
-        <label for="d2">A data</label>
-        <input id="d2" type="date">
-      </div>
-
-      <div class="group" style="align-self:flex-end;gap:8px;flex-direction:row">
-        <button class="btn primary" id="apply" type="button">Applica filtri</button>
-        <button class="btn" id="reset" type="button">Reset</button>
-        <button class="btn inline" id="csv" type="button">Esporta CSV</button>
-      </div>
-    </div>
-
-    <div class="kpis">
-      <div class="kpi"><div class="small muted">Eventi</div><div id="k_events" style="font-size:20px;font-weight:700">—</div></div>
-      <div class="kpi"><div class="small muted">Occorrenze</div><div id="k_occs" style="font-size:20px;font-weight:700">—</div></div>
-      <div class="kpi"><div class="small muted">Intervallo</div><div id="k_range" style="font-size:20px;font-weight:700">—</div></div>
-    </div>
-
-    <div class="note small" id="note"></div>
-
-    <div class="results">
-      <table id="tbl">
-        <thead id="thead"></thead>
-        <tbody id="tbody"><tr><td class="muted small">Applica i filtri per vedere i risultati…</td></tr></tbody>
-      </table>
-    </div>
+<main class="wrap">
+  <h1 style="margin:8px 0 12px">Report automatico</h1>
+  <div class="toolbar">
+    <button class="btn" id="btnReload" type="button">Aggiorna ora</button>
+    <button class="btn" id="btnPrint"  type="button">Stampa</button>
+    <button class="btn primary" id="btnCSV" type="button">Scarica Excel (CSV)</button>
   </div>
+
+  <div id="note" class="small" style="margin-bottom:8px;opacity:.8"></div>
+
+  <h2 style="margin:10px 0 6px">Ieri</h2>
+  <div id="boxY"></div>
+
+  <h2 style="margin:16px 0 6px">Settimana in corso</h2>
+  <div id="boxW"></div>
+
+  <h2 style="margin:16px 0 6px">Mese in corso</h2>
+  <div id="boxM"></div>
 </main>
 
-<footer class="page-footer">
-  <a href="index.html" class="btn">← Torna alla mappa</a>
-  <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
-</footer>
+<footer class="page-footer"><a class="btn" href="admin.html">← Torna all’area admin</a></footer>
 
 <script>
-(function(){
-  // ====== CONFIG / SUPABASE ======
+(async function(){
   const CFG = window.SQ_CONFIG || {};
-  const SUPABASE_URL = CFG.SUPABASE_URL, SUPABASE_ANON = CFG.SUPABASE_ANON;
-  if (!SUPABASE_URL || !SUPABASE_ANON) {
-    alert('Chiavi mancanti in assets/app-config.js (SUPABASE_URL / SUPABASE_ANON).');
-    return;
-  }
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON);
 
-  // ====== UI refs ======
-  const modeSel = document.getElementById('mode');
-  const citySel = document.getElementById('city');
-  const d1 = document.getElementById('d1');
-  const d2 = document.getElementById('d2');
-  const applyBtn = document.getElementById('apply');
-  const resetBtn = document.getElementById('reset');
-  const csvBtn = document.getElementById('csv');
-  const kEvents = document.getElementById('k_events');
-  const kOccs   = document.getElementById('k_occs');
-  const kRange  = document.getElementById('k_range');
-  const note    = document.getElementById('note');
-  const thead   = document.getElementById('thead');
-  const tbody   = document.getElementById('tbody');
-  const modeHint= document.getElementById('modeHint');
+  const $ = s=>document.querySelector(s);
+  const todayISO = () => new Date().toISOString().slice(0,10);
 
-  let LAST_ROWS = [];      // per CSV export
-  let LAST_MODE = 'occorrenze';
+  function weekStart(d=new Date()){ const x=new Date(d); const day=x.getDay()||7; x.setDate(x.getDate()-day+1); x.setHours(0,0,0,0); return x; } // lunedì
+  function monthStart(d=new Date()){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function isoDate(d){ return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
 
-  // ====== Utility ======
-  const fmtIT = (iso)=> {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (iso.length === 10) { // solo data YYYY-MM-DD
-      const [y,m,dd]=iso.split('-'); return `${dd}/${m}/${y}`;
-    }
-    return d.toLocaleString('it-IT');
-  };
-  const titleCase = (s)=> (s||'').toLowerCase().replace(/\b\p{L}/gu, c=>c.toUpperCase());
-  const toCSV = (rows)=> {
-    if (!rows || !rows.length) return '';
-    const esc = (v)=> {
-      const s = (v==null?'':String(v)).replace(/"/g,'""');
-      return `"${s}"`;
-    };
-    const keys = Object.keys(rows[0]);
-    return [keys.join(','), ...rows.map(r=>keys.map(k=>esc(r[k])).join(','))].join('\n');
-  };
-  function download(filename, text) {
-    const blob = new Blob([text], {type:'text/csv;charset=utf-8;'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  }
-  function setModeHint(){
-    const m = modeSel.value;
-    if (m==='occorrenze') modeHint.textContent = 'Filtra per città (corrisponde a dove si svolge l’evento) e per intervallo di date dell’occorrenza.';
-    else if (m==='pubblicazione') modeHint.textContent = 'Mostra gli eventi inseriti in piattaforma (data creazione). Il filtro città è disabilitato.';
-    else modeHint.textContent = 'Eventi annullati (se tracciati). Il filtro città è disabilitato.';
-  }
-
-  // ====== Carica elenco città (da occurrences) ======
-  async function loadCities(){
-    const { data, error } = await sb
-      .from('occurrences')
-      .select('citta, citta_norm')
-      .not('citta', 'is', null)
-      .limit(2000);
-    if (error){ console.warn(error); return; }
+  function groupAgg(rows, keyFn, catFn){
+    // ritorna { key -> { inseriti, scaduti, eliminati, nascosti } } aggregati
     const map = new Map();
-    for (const r of data){
-      const norm = (r.citta_norm || (r.citta||'').toLowerCase().replace(/\s+/g,' ')).trim();
-      if (!norm) continue;
-      if (!map.has(norm)) map.set(norm, titleCase(r.citta || norm));
-    }
-    // riempie select
-    citySel.innerHTML = '<option value="*">(Tutte)</option>' +
-      [...map.entries()].sort((a,b)=> a[1].localeCompare(b[1],'it')).map(([norm,label])=>(
-        `<option value="${norm}">${label}</option>`
-      )).join('');
+    rows.forEach(r=>{
+      const k = keyFn(r) || '—';
+      if (!map.has(k)) map.set(k, { inseriti:0, scaduti:0, eliminati:0, nascosti:0 });
+      const agg = map.get(k);
+      agg.inseriti += r.inseriti||0;
+      agg.scaduti  += r.scaduti||0;
+      agg.eliminati+= r.eliminati||0;
+      agg.nascosti += r.nascosti||0;
+      map.set(k, agg);
+    });
+    // ritorna array ordinato
+    return [...map.entries()].map(([k,v])=>({ key:k, ...v })).sort((a,b)=> b.inseriti - a.inseriti);
   }
 
-  // ====== KPI helper ======
-  function setKPIs({events=0, occs=0, range=''}) {
-    kEvents.textContent = events;
-    kOccs.textContent   = occs;
-    kRange.textContent  = range || '—';
+  function renderTable(rows, label){
+    if (!rows.length) return '<div class="small">Nessun dato.</div>';
+    let html = `<table aria-label="${label}"><thead><tr>
+      <th>${label}</th><th>Inseriti</th><th>Scaduti</th><th>Eliminati</th><th>Nascosti</th></tr></thead><tbody>`;
+    rows.forEach(r=>{
+      html += `<tr><td>${r.key}</td><td>${r.inseriti}</td><td>${r.scaduti}</td><td>${r.eliminati}</td><td>${r.nascosti}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    return html;
   }
 
-  // ====== RENDER TABELLE ======
-  function renderTableOccorrenze(rows){
-    thead.innerHTML = `<tr>
-      <th>Data</th><th>Ora</th><th>Titolo</th><th>Luogo</th><th>Indirizzo</th><th>Città</th>
-    </tr>`;
-    if (!rows.length){
-      tbody.innerHTML = `<tr><td class="muted small" colspan="6">Nessun risultato.</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = rows.map(r=>`
-      <tr>
-        <td>${fmtIT(r.data)}</td>
-        <td>${r.ora||''}</td>
-        <td>${r.title||'(evento)'}</td>
-        <td>${r.luogo||''}</td>
-        <td>${r.indirizzo||''}</td>
-        <td>${titleCase(r.citta||'')}</td>
-      </tr>
-    `).join('');
-  }
+  async function loadAll(){
+    $('#note').textContent = 'Se “Regione” risulta N/D, aggiungi la colonna `regione` in `occurrences` per abilitarla nei raggruppamenti.';
+    const today = todayISO();
+    const y = new Date(); y.setDate(y.getDate()-1);
+    const ieri = isoDate(y);
+    const wStart = isoDate(weekStart());
+    const mStart = isoDate(monthStart());
 
-  function renderTablePubblicazione(rows){
-    thead.innerHTML = `<tr>
-      <th>Creato il</th><th>Titolo</th><th>Categorie</th><th>Pubblicato</th>
-    </tr>`;
-    if (!rows.length){
-      tbody.innerHTML = `<tr><td class="muted small" colspan="4">Nessun risultato.</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = rows.map(r=>{
-      const cats = (r.categories||[]).join(', ');
-      return `<tr>
-        <td>${fmtIT(r.created_at)}</td>
-        <td>${r.title||'(evento)'}</td>
-        <td>${cats}</td>
-        <td>${r.published?'Sì':'No'}</td>
-      </tr>`;
-    }).join('');
-  }
+    // Carico eventi e occorrenze
+    const { data: events } = await sb.from('events').select('id, created_at, published, deleted_at, categories, categorie');
+    const { data: occs }   = await sb.from('occurrences').select('id, event_id, data, citta, city, regione, deleted_at');
 
-  function renderTableAnnullati(rows){
-    thead.innerHTML = `<tr>
-      <th>Data annullamento</th><th>Evento</th><th>Motivo</th>
-    </tr>`;
-    if (!rows.length){
-      tbody.innerHTML = `<tr><td class="muted small" colspan="3">Nessun annullamento registrato.</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = rows.map(r=>`
-      <tr>
-        <td>${fmtIT(r.ts)}</td>
-        <td>${r.title||'(evento)'}</td>
-        <td>${r.reason||''}</td>
-      </tr>
-    `).join('');
-  }
+    // Helper categorie
+    const catsOf = e => (Array.isArray(e?.categories) ? e.categories : (Array.isArray(e?.categorie) ? e.categorie : []));
 
-  // ====== QUERY ======
-  async function runOccorrenze(cityNorm, fromISO, toISO){
-    // Join occurrences -> events (INNER sui pubblicati) + filtri data/città
-    // NB: filtro su relazione: events!inner(...) e poi .eq('events.published', true)
-    let q = sb.from('occurrences')
-      .select('id,data,ora,luogo,indirizzo,citta,citta_norm,event:events!inner(id,title,published,created_at)')
-      .order('data',{ascending:true});
+    function buildPeriodRows(startISO, endISOExclusive){
+      // Inseriti: events.created_at nel periodo
+      const inseritiEvIds = new Set((events||[]).filter(e=>{
+        const t = (e.created_at||'').slice(0,10);
+        return t && t >= startISO && t < endISOExclusive;
+      }).map(e=> e.id));
 
-    if (cityNorm && cityNorm!=='*') q = q.eq('citta_norm', cityNorm);
-    if (fromISO) q = q.gte('data', fromISO);
-    if (toISO)   q = q.lte('data', toISO);
-    q = q.eq('events.published', true);
+      // Eliminati: events.deleted_at nel periodo
+      const eliminatiEvIds = new Set((events||[]).filter(e=>{
+        const d=(e.deleted_at||'').slice(0,10);
+        return d && d >= startISO && d < endISOExclusive;
+      }).map(e=> e.id));
 
-    const { data, error } = await q;
-    if (error) throw error;
+      // Nascosti: published=false con updated_at nel periodo (se esiste); altrimenti approximazione: published=false ad oggi
+      // NB: senza updated_at non possiamo sapere "quando" è stato nascosto → contiamo lo stato attuale nel periodo = 0 e segnaliamo a piè pagina
+      const nascostiNowIds = new Set((events||[]).filter(e=> e.published===false && !e.deleted_at).map(e=> e.id));
 
-    const rows = (data||[]).map(r=>({
-      data: r.data, ora: r.ora, luogo: r.luogo, indirizzo: r.indirizzo, citta: r.citta,
-      title: r.event?.title || '(evento)', event_id: r.event?.id || null
-    }));
+      // Scaduti: occorrenze con data < today e data nel periodo
+      const scaduteOcc = (occs||[]).filter(o=>{
+        return o.data && o.data >= startISO && o.data < endISOExclusive && o.data < today;
+      });
 
-    // KPI: eventi distinti & occorrenze
-    const evSet = new Set(rows.map(r=>r.event_id).filter(Boolean));
-    const occs  = rows.length;
-    const events= evSet.size;
+      // Aggrego per Città / Regione / Categoria
+      const rowsCity=[], rowsReg=[], rowsCat=[];
 
-    return { rows, events, occs };
-  }
+      // Mappa di appoggio per recuperare occorrenze per evento (per città/regione)
+      const occByEvent = new Map();
+      (occs||[]).forEach(o=>{
+        if (!occByEvent.has(o.event_id)) occByEvent.set(o.event_id, []);
+        occByEvent.get(o.event_id).push(o);
+      });
 
-  async function runPubblicazione(fromISO, toISO){
-    let q = sb.from('events')
-      .select('id,title,created_at,published,categories')
-      .order('created_at', {ascending:false});
-    if (fromISO) q = q.gte('created_at', fromISO);
-    if (toISO)   q = q.lte('created_at', toISO);
-    const { data, error } = await q;
-    if (error) throw error;
+      // Per ogni evento, costruiamo righe aggregate
+      (events||[]).forEach(e=>{
+        const evId = e.id;
+        const evCats = catsOf(e);
+        const evOccs = occByEvent.get(evId)||[];
 
-    const rows = (data||[]).map(r=>({
-      id: r.id, title: r.title, created_at: r.created_at, published: !!r.published, categories: r.categories||[]
-    }));
-    return { rows, events: rows.length, occs: '—' };
-  }
+        // City/Regione prendiamo la PRIMA occorrenza nel periodo per etichettare (semplificazione)
+        const firstOccInPeriod = evOccs.find(o => o.data && o.data >= startISO && o.data < endISOExclusive);
 
-  async function runAnnullati(fromISO, toISO){
-    // Primo tentativo: tabella event_deletions (se esiste / accessibile)
-    let rows = [];
-    let err1 = null;
-    try{
-      let q1 = sb.from('event_deletions').select('event_id, reason, created_at, deleted_at, metadata');
-      if (fromISO) q1 = q1.gte('created_at', fromISO);
-      if (toISO)   q1 = q1.lte('created_at', toISO);
-      const r1 = await q1;
-      if (r1.error) throw r1.error;
-      const deletions = r1.data || [];
-      if (deletions.length){
-        // Recupero i titoli evento minimamente
-        const ids = [...new Set(deletions.map(x=>x.event_id).filter(Boolean))];
-        let titles = new Map();
-        if (ids.length){
-          const { data: evs } = await sb.from('events').select('id,title').in('id', ids);
-          (evs||[]).forEach(e=>titles.set(e.id, e.title));
+        const city = (firstOccInPeriod?.citta || firstOccInPeriod?.city || '—');
+        const reg  = (firstOccInPeriod?.regione || 'N/D');
+
+        const rBase = {
+          inseriti: inseritiEvIds.has(evId) ? 1 : 0,
+          eliminati: eliminatiEvIds.has(evId) ? 1 : 0,
+          nascosti: nascostiNowIds.has(evId) ? 1 : 0,
+          scaduti: 0 // calcolato sotto tramite occorrenze
+        };
+
+        // scaduti: contiamo quante occorrenze scadute nel periodo appartengono all’evento (1 per evento, non occorrenze)
+        if (scaduteOcc.some(o => o.event_id===evId)) rBase.scaduti = 1;
+
+        // città
+        rowsCity.push({ key: city, ...rBase });
+
+        // regione
+        rowsReg.push({ key: reg, ...rBase });
+
+        // categoria (1 riga per ciascuna categoria dell’evento)
+        if (evCats.length){
+          evCats.forEach(c => rowsCat.push({ key:c, ...rBase }));
+        } else {
+          rowsCat.push({ key:'—', ...rBase });
         }
-        rows = deletions.map(d=>({
-          event_id: d.event_id,
-          title: titles.get(d.event_id) || '(evento)',
-          reason: d.reason || '',
-          ts: d.created_at || d.deleted_at || null
-        }));
-      }
-    }catch(e){ err1 = e; }
+      });
 
-    // Fallback: eventi non pubblicati (se deletions non disponibile)
-    if (!rows.length){
-      let q2 = sb.from('events').select('id,title,updated_at,created_at,published').eq('published', false);
-      if (fromISO) q2 = q2.gte('updated_at', fromISO);
-      if (toISO)   q2 = q2.lte('updated_at', toISO);
-      const { data, error } = await q2;
-      if (!error && data && data.length){
-        rows = data.map(r=>({
-          event_id: r.id,
-          title: r.title || '(evento)',
-          reason: '',
-          ts: r.updated_at || r.created_at || null
-        }));
-      } else if (err1) {
-        // se proprio non c'è nulla, mantieni vuoto
-        console.warn('event_deletions non disponibile:', err1);
-      }
+      return {
+        city: groupAgg(rowsCity, r=>r.key),
+        reg:  groupAgg(rowsReg,  r=>r.key),
+        cat:  groupAgg(rowsCat,  r=>r.key)
+      };
     }
 
-    return { rows, events: rows.length, occs: '—' };
-  }
-
-  // ====== APPLY ======
-  async function apply(){
-    try{
-      note.textContent = '';
-      tbody.innerHTML = `<tr><td class="muted small">Caricamento…</td></tr>`;
-      thead.innerHTML = '';
-
-      const m = modeSel.value;
-      LAST_MODE = m;
-
-      // range readable
-      const rangeTxt = (d1.value ? fmtIT(d1.value) : '—') + ' → ' + (d2.value ? fmtIT(d2.value) : '—');
-
-      if (m === 'occorrenze'){
-        const city = citySel.value;
-        const { rows, events, occs } = await runOccorrenze(city, d1.value||null, d2.value||null);
-        setKPIs({events, occs, range: rangeTxt});
-        renderTableOccorrenze(rows);
-        LAST_ROWS = rows.map(r=>({
-          data: r.data, ora: r.ora, titolo: r.title, luogo: r.luogo, indirizzo: r.indirizzo, citta: titleCase(r.citta)
-        }));
-        note.textContent = city==='*' ? 'Città: tutte' : ('Città: '+ citySel.options[citySel.selectedIndex].textContent);
-
-      } else if (m === 'pubblicazione'){
-        const { rows, events } = await runPubblicazione(d1.value||null, d2.value||null);
-        setKPIs({events, occs: '—', range: rangeTxt});
-        renderTablePubblicazione(rows);
-        LAST_ROWS = rows.map(r=>({
-          creato_il: fmtIT(r.created_at), titolo: r.title, categorie: (r.categories||[]).join(', '), pubblicato: r.published?'Sì':'No'
-        }));
-        note.textContent = 'Elenco eventi inseriti in piattaforma (filtrati per data creazione).';
-
-      } else {
-        const { rows, events } = await runAnnullati(d1.value||null, d2.value||null);
-        setKPIs({events, occs: '—', range: rangeTxt});
-        renderTableAnnullati(rows);
-        LAST_ROWS = rows.map(r=>({
-          data_annullamento: fmtIT(r.ts), titolo: r.title, motivo: r.reason || ''
-        }));
-        note.textContent = 'Se non vedi righe: o non ci sono annullamenti, o la tabella di log non è disponibile.';
-      }
-
-    }catch(e){
-      console.error(e);
-      thead.innerHTML = '';
-      tbody.innerHTML = `<tr><td class="small" style="color:#ff6b6b">Errore report: ${e.message||e}</td></tr>`;
-      setKPIs({events:'—', occs:'—', range:'—'});
-      LAST_ROWS = [];
+    function renderPeriod(boxId, startISO, endISO){
+      const res = buildPeriodRows(startISO, endISO);
+      $(boxId).innerHTML =
+        `<h3 style="margin:6px 0">Per città</h3>${renderTable(res.city,'Città')}` +
+        `<h3 style="margin:10px 0 6px">Per regione</h3>${renderTable(res.reg,'Regione')}` +
+        `<h3 style="margin:10px 0 6px">Per categoria</h3>${renderTable(res.cat,'Categoria')}`;
+      return res;
     }
-  }
 
-  // ====== Reset ======
-  function resetAll(){
-    modeSel.value = 'occorrenze';
-    citySel.value = '*';
-    d1.value = ''; d2.value = '';
-    setModeHint();
-    thead.innerHTML = '';
-    tbody.innerHTML = `<tr><td class="muted small">Applica i filtri per vedere i risultati…</td></tr>`;
-    setKPIs({events:'—', occs:'—', range:'—'});
-    LAST_ROWS = [];
-    note.textContent = '';
-  }
+    // Ieri
+    const y = new Date(); y.setDate(y.getDate()-1);
+    const yStart = isoDate(y), yEnd = today;
+    const resY = renderPeriod('#boxY', yStart, yEnd);
 
-  // ====== CSV ======
-  csvBtn.addEventListener('click', ()=>{
-    if (!LAST_ROWS.length){ alert('Niente da esportare. Applica prima i filtri.'); return; }
-    const csv = toCSV(LAST_ROWS);
-    download(`report_${LAST_MODE}_${Date.now()}.csv`, csv);
-  });
+    // Settimana
+    const wStartISO = isoDate(weekStart()), wEndISO = isoDate(new Date(new Date().setDate(new Date().getDate()+1)));
+    const resW = renderPeriod('#boxW', wStartISO, wEndISO);
 
-  // ====== Event wiring ======
-  applyBtn.addEventListener('click', apply);
-  resetBtn.addEventListener('click', resetAll);
-  modeSel.addEventListener('change', ()=>{
-    setModeHint();
-    // abilita città solo per occorrenze
-    const disableCity = modeSel.value!=='occorrenze';
-    citySel.disabled = disableCity;
-  });
+    // Mese
+    const mStartISO = isoDate(monthStart()), mEndISO = wEndISO;
+    const resM = renderPeriod('#boxM', mStartISO, mEndISO);
 
-  // ====== Init ======
-  (async function init(){
-    setModeHint();
-    await loadCities();
-    citySel.disabled = false;
-    // default: ultimi 30 giorni per pubblicazione, prossimi 60 per occorrenze… lasciamo vuoti per scelta tua
+    // CSV export (tutte e tre le sezioni in un unico file)
+    $('#btnCSV').onclick = ()=>{
+      function blockToCSV(rows, title){
+        const head = `${title},Inseriti,Scaduti,Eliminati,Nascosti`;
+        const lines = rows.map(r=> `${r.key},${r.inseriti},${r.scaduti},${r.eliminati},${r.nascosti}`);
+        return [head, ...lines].join('\n');
+      }
+      const parts = [];
+      parts.push('IERI - CITTÀ'); parts.push(blockToCSV(resY.city,'Città'));
+      parts.push('\nIERI - REGIONE'); parts.push(blockToCSV(resY.reg,'Regione'));
+      parts.push('\nIERI - CATEGORIA'); parts.push(blockToCSV(resY.cat,'Categoria'));
+
+      parts.push('\nSETTIMANA - CITTÀ'); parts.push(blockToCSV(resW.city,'Città'));
+      parts.push('\nSETTIMANA - REGIONE'); parts.push(blockToCSV(resW.reg,'Regione'));
+      parts.push('\nSETTIMANA - CATEGORIA'); parts.push(blockToCSV(resW.cat,'Categoria'));
+
+      parts.push('\nMESE - CITTÀ'); parts.push(blockToCSV(resM.city,'Città'));
+      parts.push('\nMESE - REGIONE'); parts.push(blockToCSV(resM.reg,'Regione'));
+      parts.push('\nMESE - CATEGORIA'); parts.push(blockToCSV(resM.cat,'Categoria'));
+
+      const blob = new Blob([parts.join('\n')], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `staseraqui_report_${today}.csv`;
+      a.click();
+    };
+
+    $('#btnPrint').onclick = ()=> window.print();
+    $('#btnReload').onclick = ()=> location.reload();
   })();
-
-})();
 </script>
 </body>
 </html>
