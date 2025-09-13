@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=12">
 
-  <!-- Leaflet -->
+  <!-- Leaflet (fallback) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
@@ -27,7 +27,6 @@
     .item{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.12)}
     .item:last-child{border-bottom:none}
     .muted{color:#b8c2ce}
-    .pin-selected{outline:3px solid #ffd24d;box-shadow:0 0 0 3px rgba(255,210,77,.25)}
     .help{font-size:13px;color:#b8c2ce;margin:4px 0 0}
 
     /* Modali */
@@ -39,6 +38,9 @@
     .row{display:flex;gap:8px;justify-content:space-between;align-items:center;border-bottom:1px dashed rgba(255,255,255,.1);padding:8px 0}
     .row:last-child{border-bottom:none}
     .pillCat{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;padding:4px 8px;border-radius:999px;font-size:12px;margin-right:6px}
+
+    /* Giallo su "Elimina definitivamente → Cestino" */
+    .btn.warning{background:var(--primary); border-color:var(--primary-border); color:#081421; font-weight:800}
   </style>
 </head>
 <body>
@@ -54,7 +56,7 @@
 
 <main class="wrap">
   <h1 style="margin:8px 0 10px">Seleziona & elimina eventi</h1>
-  <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft: <i>published=false</i>) oppure <b>Eliminare definitivamente</b> (ora va nel <i>cestino</i> con <i>deleted_at</i>, ripristinabile).</p>
+  <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft: <i>published=false</i>) oppure <b>Eliminare definitivamente</b> (sposta nel <i>cestino</i> con <i>deleted_at</i>, ripristinabile).</p>
 
   <div id="map"></div>
 
@@ -68,7 +70,7 @@
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
     <button class="btn accent"  id="btnSoft" type="button">Nascondi (published=false)</button>
-    <button class="btn danger"  id="btnHard" type="button">Elimina definitivamente → Cestino</button>
+    <button class="btn warning" id="btnHard" type="button">Elimina definitivamente → Cestino</button>
     <a class="btn" href="admin.html">← Torna all’area admin</a>
   </div>
 
@@ -167,36 +169,98 @@
     </div>
 
     <div class="results" id="dResults" aria-live="polite"></div>
-    <p class="small" style="margin-top:8px">Nota: gli eventi “eliminati definitivamente” prima di questa versione non sono ripristinabili perché realmente cancellati dal database.</p>
+    <p class="small" style="margin-top:8px">Nota: gli eventi davvero cancellati in passato (hard delete SQL) non sono più recuperabili.</p>
   </div>
 </div>
 
 <script>
 (function(){
-  // --- Config/Supabase ---
+  // ====== CONFIG / SUPABASE ======
   const CFG = window.SQ_CONFIG || {};
   const SB_URL  = CFG.SUPABASE_URL;
   const SB_ANON = CFG.SUPABASE_ANON;
-  if (!SB_URL || !SB_ANON) { alert('Configurazione Supabase mancante (assets/app-config.js).'); }
+  const GMAPS_KEY = CFG.GOOGLE_MAPS_API_KEY;
+  const hasGoogleKey = GMAPS_KEY && !/^INSERISCI_/.test(GMAPS_KEY);
+
+  if (!SB_URL || !SB_ANON) alert('Configurazione Supabase mancante (assets/app-config.js).');
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
-  const $ = s => document.querySelector(s);
+  // ====== UTILS ======
+  const $  = s => document.querySelector(s);
   const $$ = s => Array.from(document.querySelectorAll(s));
+  const getTitle = e => e.title || e.titolo || '(evento)';
+  const getCats  = e => Array.isArray(e.categories) ? e.categories : (Array.isArray(e.categorie) ? e.categorie : []);
 
-  // --- Stato ---
-  let MAP=null, PINICON=null;
-  const EVENTS = new Map();         // idEvento -> { id, title/titolo, published, deleted_at, categories/categorie }
-  const OCCS_BY_EVENT = new Map();  // idEvento -> [ occorrenze attive (non cestinate) ]
-  const MARKERS = new Map();        // idEvento -> [markers Leaflet]
-  const SELECTED = new Set();       // idEvento selezionati
+  // ====== MAPPE: Google (preferito) con fallback OSM ======
+  let USE_GMAPS = false;
+  let GMAPS = { map:null, markers:new Map(), bounds:null };
+  let LEAF  = { map:null, pinIcon:null, markers:new Map() };
 
-  // --- Map UI (solo eventi attivi: published=true e non cestinati) ---
-  function initMap(){
-    MAP = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
-    L.control.attribution({prefix:false}).addTo(MAP);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(MAP);
+  function pinSvgUrl(color = '#22b3f0', outline = '#ffffff'){
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72">
+      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z"
+            fill="${color}" stroke="${outline}" stroke-width="3"/>
+      <circle cx="32" cy="24" r="9" fill="#ffffff"/>
+    </svg>`;
+    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  }
+  const ICON_NORMAL   = pinSvgUrl('#22b3f0', '#ffffff');
+  const ICON_SELECTED = pinSvgUrl('#22b3f0', '#ffd24d');
 
-    PINICON = L.divIcon({
+  function setupMap(){
+    if (hasGoogleKey){
+      USE_GMAPS = true;
+      const s = document.createElement('script');
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&v=quarterly`;
+      s.async = true; s.defer = true;
+      s.onload = initGoogle;
+      s.onerror = ()=>{ console.warn('Google Maps KO → fallback OSM'); USE_GMAPS=false; initLeaf(); };
+      document.head.appendChild(s);
+      // se Google non arriva in 4s, fallback
+      setTimeout(()=>{ if(!GMAPS.map && USE_GMAPS){ console.warn('Timeout Google → OSM'); USE_GMAPS=false; initLeaf(); }}, 4000);
+    } else {
+      initLeaf();
+    }
+  }
+
+  function initGoogle(){
+    GMAPS.map = new google.maps.Map(document.getElementById('map'), {
+      center:{lat:45.0703, lng:7.6869}, zoom:6, mapTypeControl:false, streetViewControl:false
+    });
+    GMAPS.bounds = new google.maps.LatLngBounds();
+  }
+  function gAddMarker(eventId, lat, lng, title){
+    const m = new google.maps.Marker({
+      position:{lat,lng}, map: GMAPS.map,
+      icon:{ url: ICON_NORMAL, scaledSize:new google.maps.Size(34,38), anchor:new google.maps.Point(19,38) },
+      title
+    });
+    m.addListener('click', ()=> toggleSelect(eventId));
+    if (!GMAPS.markers.has(eventId)) GMAPS.markers.set(eventId, []);
+    GMAPS.markers.get(eventId).push(m);
+    GMAPS.bounds.extend(new google.maps.LatLng(lat,lng));
+  }
+  function gClearMarkers(){
+    GMAPS.markers.forEach(list=> list.forEach(m=> m.setMap(null)));
+    GMAPS.markers.clear();
+    GMAPS.bounds = new google.maps.LatLngBounds();
+  }
+  function gFit(){ if (!GMAPS.bounds.isEmpty()) GMAPS.map.fitBounds(GMAPS.bounds); }
+  function gSetSelected(eventId, on){
+    (GMAPS.markers.get(eventId)||[]).forEach(m=>{
+      m.setIcon({
+        url: on ? ICON_SELECTED : ICON_NORMAL,
+        scaledSize:new google.maps.Size(34,38),
+        anchor:new google.maps.Point(19,38)
+      });
+    });
+  }
+
+  function initLeaf(){
+    LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
+    L.control.attribution({prefix:false}).addTo(LEAF.map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(LEAF.map);
+    LEAF.pinIcon = L.divIcon({
       className:'sq-pin',
       html:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="30" height="34" style="display:block;filter:drop-shadow(0 0 2px #fff)">
               <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0" stroke="#ffffff" stroke-width="2"/>
@@ -204,26 +268,51 @@
       iconSize:[30,34], iconAnchor:[15,34], popupAnchor:[0,-30]
     });
   }
+  function lAddMarker(eventId, lat, lng, title){
+    const m = L.marker([lat,lng], {icon:LEAF.pinIcon}).addTo(LEAF.map).bindPopup(`<div style="color:#081421"><b>${title}</b></div>`);
+    m.on('click', ()=> toggleSelect(eventId));
+    if (!LEAF.markers.has(eventId)) LEAF.markers.set(eventId, []);
+    LEAF.markers.get(eventId).push(m);
+  }
+  function lClearMarkers(){
+    LEAF.markers.forEach(list=> list.forEach(m=> LEAF.map.removeLayer(m)));
+    LEAF.markers.clear();
+  }
+  function lFit(){
+    const all = [];
+    LEAF.markers.forEach(list=> list.forEach(m=> all.push(m.getLatLng())));
+    if (all.length) LEAF.map.fitBounds(L.latLngBounds(all), {padding:[40,40]});
+  }
+  function lSetSelected(eventId, on){
+    // su Leaflet evidenziamo cambiando bordo via CSS class sul DOM element
+    (LEAF.markers.get(eventId)||[]).forEach(m=>{
+      const el = m.getElement(); if (!el) return;
+      if (on) el.style.outline = '3px solid #ffd24d';
+      else    el.style.outline = '';
+    });
+  }
 
-  // === DATA ===
-  const getTitle = e => e.title || e.titolo || '(evento)';
-  const getCats = e => Array.isArray(e.categories) ? e.categories : (Array.isArray(e.categorie) ? e.categorie : []);
+  // ====== STATO & DATI ======
+  const EVENTS = new Map();         // id -> { id, title, published, deleted_at, cats }
+  const OCCS_BY_EVENT = new Map();  // id -> [ occ non cestinate ]
+  const SELECTED = new Set();
+  function setSelectedIcon(id, on){ USE_GMAPS ? gSetSelected(id,on) : lSetSelected(id,on); }
 
   async function loadData(){
-    // Eventi (prendiamo published & deleted_at)
+    // Eventi
     const { data: evs, error: evErr } = await sb
       .from('events')
       .select('id, title, titolo, published, deleted_at, categories, categorie');
     if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
 
-    // Occorrenze (anche deleted_at per filtrare quelle cestinate)
-    const { data: occs, error: occErr } = await sb
+    // Occorrenze (solo non cestinate per mappa)
+    const { data: occs, error: ocErr } = await sb
       .from('occurrences')
       .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, deleted_at');
-    if (occErr){ console.error(occErr); alert('Errore lettura occurrences'); return; }
+    if (ocErr){ console.error(ocErr); alert('Errore lettura occurrences'); return; }
 
     EVENTS.clear();
-    evs.forEach(e => {
+    (evs||[]).forEach(e=>{
       EVENTS.set(e.id, {
         id: e.id,
         title: getTitle(e),
@@ -236,7 +325,7 @@
     OCCS_BY_EVENT.clear();
     (occs||[]).forEach(o=>{
       if (o.lat==null || o.lng==null) return;
-      if (o.deleted_at) return; // niente occorrenze cestinate
+      if (o.deleted_at) return; // sulla mappa non mostriamo occorrenze nel cestino
       if (!OCCS_BY_EVENT.has(o.event_id)) OCCS_BY_EVENT.set(o.event_id, []);
       OCCS_BY_EVENT.get(o.event_id).push(o);
     });
@@ -245,53 +334,35 @@
   }
 
   function drawMarkers(){
-    // pulisci markers esistenti
-    MARKERS.forEach(list => list.forEach(m => MAP.removeLayer(m)));
-    MARKERS.clear();
+    if (USE_GMAPS){ gClearMarkers(); } else { lClearMarkers(); }
+    SELECTED.clear();
+    updateSelectionUI();
 
-    const all = [];
     OCCS_BY_EVENT.forEach((list, eventId)=>{
       const ev = EVENTS.get(eventId); if (!ev) return;
-      // Mostra solo EVENTI ATTIVI (pubblicati e non cestinati)
-      if (ev.deleted_at || ev.published !== true) return;
-
-      const markers = [];
+      if (ev.deleted_at || ev.published !== true) return; // sulla mappa SOLO attivi
       list.forEach(occ=>{
-        const m = L.marker([occ.lat,occ.lng], {icon:PINICON});
-        const html = `<div style="color:#081421"><b>${ev.title}</b><br><small>${occ.citta||''}</small></div>`;
-        m.bindPopup(html);
-        m.on('click', ()=> toggleSelect(eventId, true));
-        m.addTo(MAP);
-        markers.push(m);
-        all.push([occ.lat,occ.lng]);
+        if (USE_GMAPS) gAddMarker(eventId, occ.lat, occ.lng, ev.title);
+        else           lAddMarker(eventId, occ.lat, occ.lng, ev.title);
       });
-      if (markers.length) MARKERS.set(eventId, markers);
     });
 
-    if (all.length){
-      const b = L.latLngBounds(all);
-      MAP.fitBounds(b, {padding:[40,40]});
-    }
-
-    updateSelectionUI();
+    if (USE_GMAPS) gFit(); else lFit();
   }
 
-  // --- Selezione ---
+  // ====== SELEZIONE ======
   function toggleSelect(eventId){
     if (!EVENTS.has(eventId)) return;
-    if (SELECTED.has(eventId)) SELECTED.delete(eventId);
-    else SELECTED.add(eventId);
-    // evidenzia markers dell’evento
-    const list = MARKERS.get(eventId) || [];
-    list.forEach(m=>{
-      const el = m.getElement();
-      if (el){
-        if (SELECTED.has(eventId)) el.classList.add('pin-selected');
-        else el.classList.remove('pin-selected');
-      }
-    });
+    const on = !SELECTED.has(eventId);
+    if (on) SELECTED.add(eventId); else SELECTED.delete(eventId);
+    setSelectedIcon(eventId, on);
     updateSelectionUI();
   }
+  $('#clearSel').addEventListener('click', ()=>{
+    [...SELECTED].forEach(id=> setSelectedIcon(id,false));
+    SELECTED.clear();
+    updateSelectionUI();
+  });
 
   function updateSelectionUI(){
     $('#selCount').textContent = SELECTED.size;
@@ -312,84 +383,41 @@
     });
   }
 
-  $('#clearSel').addEventListener('click', ()=>{
-    const ids = [...SELECTED];
-    ids.forEach(id => toggleSelect(id));
-  });
-
-  // --- Azioni principali ---
+  // ====== AZIONI ======
   async function softHide(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
-    if (!confirm(`Nascondere ${SELECTED.size} evento/i? Verranno esclusi dalla home (published=false).`)) return;
-
+    if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
     const ids = [...SELECTED];
-    try{
-      const { error } = await sb.from('events').update({ published: false }).in('id', ids);
-      if (error){
-        if (String(error.code) === '42703'){ alert('La colonna "published" non esiste.'); return; }
-        throw error;
-      }
-    }catch(e){
-      alert('Aggiornamento non riuscito:\n' + (e?.message||String(e))); return;
-    }
-
-    // UI: rimuovi immediatamente i marker perché non più attivi
-    ids.forEach(id=>{
-      (MARKERS.get(id)||[]).forEach(m => MAP.removeLayer(m));
-      MARKERS.delete(id);
-      SELECTED.delete(id);
-      const ev = EVENTS.get(id); if (ev) ev.published = false;
-    });
-    updateSelectionUI();
-    $('#lastAction').textContent = 'Fatto: eventi nascosti (published=false).';
+    const { error } = await sb.from('events').update({ published:false }).in('id', ids);
+    if (error){ alert('Errore: '+(error.message||String(error))); return; }
+    ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.published=false; } });
+    drawMarkers();
+    $('#lastAction').textContent = 'Fatto: eventi nascosti.';
   }
-
-  // Elimina -> CESTINO (soft delete con deleted_at + published=false)
   async function hardDelete(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
-    if (!confirm(`Spostare nel CESTINO ${SELECTED.size} evento/i?\nSaranno ripristinabili dal pannello "Cestino eventi".`)) return;
-
+    if (!confirm(`Spostare nel CESTINO ${SELECTED.size} evento/i?`)) return;
     const ids = [...SELECTED];
     const nowIso = new Date().toISOString();
-
-    // 1) marca occurrences come cestinate
     const r1 = await sb.from('occurrences').update({ deleted_at: nowIso }).in('event_id', ids);
-    if (r1.error && String(r1.error.code) !== '42703'){ // 42703 = colonna non esiste
-      alert('Errore nel marcare occorrenze come eliminate:\n' + (r1.error.message||String(r1.error)));
-      return;
-    }
-
-    // 2) marca eventi come cestinati e non pubblicati
-    const r2 = await sb.from('events').update({ deleted_at: nowIso, published: false }).in('id', ids);
-    if (r2.error && String(r2.error.code) !== '42703'){
-      alert('Errore nel marcare eventi come eliminati:\n' + (r2.error.message||String(r2.error)));
-      return;
-    }
-
-    // UI: rimuovi immediatamente i marker perché non più attivi
-    ids.forEach(id=>{
-      (MARKERS.get(id)||[]).forEach(m => MAP.removeLayer(m));
-      MARKERS.delete(id);
-      SELECTED.delete(id);
-      const ev = EVENTS.get(id); if (ev){ ev.deleted_at = nowIso; ev.published = false; }
-    });
-    updateSelectionUI();
-    $('#lastAction').textContent = 'Fatto: eventi spostati nel cestino.';
+    if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore occorrenze: '+(r1.error.message||String(r1.error))); return; }
+    const r2 = await sb.from('events').update({ deleted_at: nowIso, published:false }).in('id', ids);
+    if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore eventi: '+(r2.error.message||String(r2.error))); return; }
+    ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.deleted_at=nowIso; e.published=false; } });
+    drawMarkers();
+    $('#lastAction').textContent = 'Fatto: eventi nel cestino.';
   }
-
   $('#btnSoft').addEventListener('click', softHide);
   $('#btnHard').addEventListener('click', hardDelete);
 
-  // === Pannello "Nascosti" ===
-  function openModal(id){ const m = $('#'+id); if(!m) return; m.style.display='flex'; }
-  function closeModal(id){ const m = $('#'+id); if(!m) return; m.style.display='none'; }
+  // ====== MODALI ======
+  function openModal(id){ const m=$('#'+id); if(m) m.style.display='flex'; }
+  function closeModal(id){ const m=$('#'+id); if(m) m.style.display='none'; }
   $$('[data-close]').forEach(b=> b.addEventListener('click', ()=> closeModal(b.getAttribute('data-close')) ));
-  $('#btnViewHidden').addEventListener('click', ()=> { openModal('modalHidden'); renderHidden(); });
 
-  $('#hReset').addEventListener('click', ()=>{
-    $('#hFrom').value=''; $('#hTo').value=''; $('#hCity').value=''; $('#hCat').value='';
-    renderHidden();
-  });
+  // --- Nascosti ---
+  $('#btnViewHidden').addEventListener('click', ()=> { openModal('modalHidden'); renderHidden(); });
+  $('#hReset').addEventListener('click', ()=>{ $('#hFrom').value=''; $('#hTo').value=''; $('#hCity').value=''; $('#hCat').value=''; renderHidden(); });
   $('#hFilter').addEventListener('click', renderHidden);
 
   async function renderHidden(){
@@ -398,83 +426,59 @@
     const city = ($('#hCity').value||'').trim().toLowerCase();
     const cat  = $('#hCat').value || '';
 
-    // 1) prendi eventi nascosti (non cestinati)
     const { data: evs, error } = await sb.from('events')
       .select('id, title, titolo, published, deleted_at, categories, categorie')
-      .eq('published', false)
-      .is('deleted_at', null);
+      .eq('published', false).is('deleted_at', null);
     if (error){ $('#hResults').innerHTML = `<div class="small">Errore: ${error.message}</div>`; return; }
 
-    // filtra per categoria (se richiesta)
-    const evFiltered = (evs||[]).filter(e=>{
-      if (!cat) return true;
-      const cats = getCats(e);
-      return cats.includes(cat);
-    });
-
+    const evFiltered = (evs||[]).filter(e=> !cat || getCats(e).includes(cat));
     const ids = evFiltered.map(e=>e.id);
     if (!ids.length){ $('#hResults').innerHTML = '<div class="small">Nessun evento nascosto.</div>'; return; }
 
-    // 2) occorrenze degli eventi selezionati (solo non cestinate)
     const { data: occs } = await sb.from('occurrences')
       .select('event_id, data, citta, city, deleted_at')
-      .in('event_id', ids)
-      .is('deleted_at', null);
+      .in('event_id', ids).is('deleted_at', null);
 
-    // 3) filtri client su occorrenze (date e città)
     const byEvent = new Map();
     (occs||[]).forEach(o=>{
-      const d = o.data;
-      if (from && (!d || d < from)) return;
-      if (to && (!d || d > to)) return;
-      const c = (o.citta || o.city || '').toLowerCase();
+      const d=o.data, c=(o.citta||o.city||'').toLowerCase();
+      if (from && (!d || d<from)) return;
+      if (to   && (!d || d>to))   return;
       if (city && !c.includes(city)) return;
       if (!byEvent.has(o.event_id)) byEvent.set(o.event_id, []);
       byEvent.get(o.event_id).push(o);
     });
 
-    // 4) render
-    let html = '';
+    let html='';
     evFiltered.forEach(e=>{
-      const occsOk = byEvent.get(e.id) || [];
-      if (from || to || city){ if (!occsOk.length) return; } // se ho filtri tempo/città e questo evento non matcha occorrenze → salta
+      const occsOk = byEvent.get(e.id)||[];
+      if ((from||to||city) && !occsOk.length) return;
       const cats = getCats(e);
       const cityTxt = occsOk[0]?.citta || occsOk[0]?.city || '';
-      const occCount = occsOk.length || '—';
       html += `<div class="row">
         <div>
           <div><b>${getTitle(e)}</b> <span class="muted">— ${cityTxt}</span> <span class="muted" title="ID evento">${e.id}</span></div>
           <div>${cats.map(c=>`<span class="pillCat">${c}</span>`).join('')}</div>
-          <div class="small muted">Occorrenze che soddisfano i filtri: ${occCount}</div>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn small" data-restore-hidden="${e.id}" type="button">Ripristina</button>
-        </div>
+        <div><button class="btn small" data-restore-hidden="${e.id}" type="button">Ripristina</button></div>
       </div>`;
     });
     $('#hResults').innerHTML = html || '<div class="small">Nessun evento nascosto per i filtri impostati.</div>';
 
-    // bind ripristina
     $$('#hResults [data-restore-hidden]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-hidden');
         const r = await sb.from('events').update({ published:true }).eq('id', id);
         if (r.error){ alert('Errore ripristino: '+(r.error.message||String(r.error))); return; }
-        // aggiorna cache locale e mappa
-        const ev = EVENTS.get(id); if (ev){ ev.published = true; }
         $('#lastAction').textContent = 'Evento ripristinato.';
-        await loadData(); // ricarica per aggiornare mappa e liste
-        renderHidden();
+        await loadData(); renderHidden();
       });
     });
   }
 
-  // === Pannello "Eliminati" (Cestino) ===
+  // --- Eliminati (Cestino) ---
   $('#btnViewDeleted').addEventListener('click', ()=> { openModal('modalDeleted'); renderDeleted(); });
-  $('#dReset').addEventListener('click', ()=>{
-    $('#dFrom').value=''; $('#dTo').value=''; $('#dCity').value=''; $('#dCat').value='';
-    renderDeleted();
-  });
+  $('#dReset').addEventListener('click', ()=>{ $('#dFrom').value=''; $('#dTo').value=''; $('#dCity').value=''; $('#dCat').value=''; renderDeleted(); });
   $('#dFilter').addEventListener('click', renderDeleted);
 
   async function renderDeleted(){
@@ -483,85 +487,90 @@
     const city = ($('#dCity').value||'').trim().toLowerCase();
     const cat  = $('#dCat').value || '';
 
-    // 1) Eventi nel cestino (deleted_at non nullo)
-    const { data: evs, error } = await sb.from('events')
-      .select('id, title, titolo, published, deleted_at, categories, categorie')
-      .not('deleted_at', 'is', null);
-    if (error){
-      const msg = (String(error.code)==='42703')
-        ? 'Il cestino richiede la colonna "deleted_at". Esegui lo script SQL indicato a fine istruzioni.'
-        : error.message;
-      $('#dResults').innerHTML = `<div class="small">Errore: ${msg}</div>`;
+    // 1) PRIMO TENTATIVO: prendo direttamente gli eventi con deleted_at NON nullo
+    let evs = [];
+    let errTxt = '';
+    try{
+      const r = await sb.from('events')
+        .select('id, title, titolo, published, deleted_at, categories, categorie')
+        .not('deleted_at', 'is', null);
+      if (r.error) errTxt = r.error.message; else evs = r.data || [];
+    }catch(e){ errTxt = String(e&&e.message||e); }
+
+    // 2) FALLBACK: se non trovo nulla, pesco dagli id delle occorrenze cestinate
+    if (!evs.length){
+      try{
+        const rOcc = await sb.from('occurrences').select('event_id, deleted_at, data, citta, city').not('deleted_at','is',null);
+        const ids = [...new Set((rOcc.data||[]).map(o=>o.event_id))];
+        if (ids.length){
+          const rEv = await sb.from('events').select('id, title, titolo, published, deleted_at, categories, categorie').in('id', ids);
+          if (!rEv.error) evs = rEv.data||[];
+        }
+      }catch(_){}
+    }
+
+    if (errTxt){
+      $('#dResults').innerHTML = `<div class="small">Errore: ${errTxt}</div>`;
+      return;
+    }
+    if (!evs.length){
+      $('#dResults').innerHTML = '<div class="small">Nessun evento nel cestino.</div>';
       return;
     }
 
-    const evFiltered = (evs||[]).filter(e=>{
-      if (!cat) return true;
-      const cats = getCats(e);
-      return cats.includes(cat);
-    });
+    // filtra per categoria
+    const evFiltered = evs.filter(e=> !cat || getCats(e).includes(cat));
     const ids = evFiltered.map(e=>e.id);
-    if (!ids.length){ $('#dResults').innerHTML = '<div class="small">Nessun evento nel cestino.</div>'; return; }
+    if (!ids.length){ $('#dResults').innerHTML = '<div class="small">Nessun evento nel cestino per questa categoria.</div>'; return; }
 
-    // 2) occorrenze relative (anche se cestinate)
+    // prendo TUTTE le occorrenze (cestinate o no) per filtrare per data/città
     const { data: occs } = await sb.from('occurrences')
       .select('event_id, data, citta, city, deleted_at')
       .in('event_id', ids);
 
-    // 3) filtri client per data/città sulle occorrenze (consideriamo tutte le occorrenze dell’evento)
     const byEvent = new Map();
     (occs||[]).forEach(o=>{
-      const d = o.data;
-      if (from && (!d || d < from)) return;
-      if (to && (!d || d > to)) return;
-      const c = (o.citta || o.city || '').toLowerCase();
+      const d=o.data, c=(o.citta||o.city||'').toLowerCase();
+      if (from && (!d || d<from)) return;
+      if (to   && (!d || d>to))   return;
       if (city && !c.includes(city)) return;
       if (!byEvent.has(o.event_id)) byEvent.set(o.event_id, []);
       byEvent.get(o.event_id).push(o);
     });
 
-    let html = '';
+    let html='';
     evFiltered.forEach(e=>{
-      const occsOk = byEvent.get(e.id) || [];
-      if (from || to || city){ if (!occsOk.length) return; }
+      const occsOk = byEvent.get(e.id)||[];
+      if ((from||to||city) && !occsOk.length) return;
       const cats = getCats(e);
       const cityTxt = occsOk[0]?.citta || occsOk[0]?.city || '';
-      const occCount = occsOk.length || '—';
       html += `<div class="row">
         <div>
           <div><b>${getTitle(e)}</b> <span class="muted">— ${cityTxt}</span> <span class="muted" title="ID evento">${e.id}</span></div>
           <div>${cats.map(c=>`<span class="pillCat">${c}</span>`).join('')}</div>
-          <div class="small muted">Occorrenze che soddisfano i filtri: ${occCount}</div>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn small" data-restore-deleted="${e.id}" type="button">Ripristina</button>
-        </div>
+        <div><button class="btn small" data-restore-deleted="${e.id}" type="button">Ripristina</button></div>
       </div>`;
     });
     $('#dResults').innerHTML = html || '<div class="small">Nessun evento nel cestino per i filtri impostati.</div>';
 
-    // bind ripristina
     $$('#dResults [data-restore-deleted]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-deleted');
-        // 1) ripristina occorrenze
-        const r1 = await sb.from('occurrences').update({ deleted_at: null }).eq('event_id', id);
+        const r1 = await sb.from('occurrences').update({ deleted_at:null }).eq('event_id', id);
         if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
-        // 2) ripristina evento e pubblica
-        const r2 = await sb.from('events').update({ deleted_at: null, published: true }).eq('id', id);
+        const r2 = await sb.from('events').update({ deleted_at:null, published:true }).eq('id', id);
         if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
-
-        const ev = EVENTS.get(id); if (ev){ ev.deleted_at = null; ev.published = true; }
         $('#lastAction').textContent = 'Evento ripristinato dal cestino.';
-        await loadData();
-        renderDeleted();
+        await loadData(); renderDeleted();
       });
     });
   }
 
-  // Avvio
-  initMap();
-  loadData();
+  // ====== AVVIO ======
+  setupMap();
+  // attendo un attimo per permettere a Google di inizializzarsi, poi carico i dati
+  setTimeout(()=> loadData(), 300);
 })();
 </script>
 </body>
