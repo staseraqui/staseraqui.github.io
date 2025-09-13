@@ -1,30 +1,25 @@
 <!doctype html>
 <html lang="it">
 <head>
-  <script src="assets/app-config.js?v=6"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Admin — Stasera Qui</title>
-    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+
+  <script src="assets/app-config.js?v=6"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=12">
   <style>
     .wrap{max-width:980px;margin:0 auto;padding:16px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media (max-width:720px){.grid{grid-template-columns:1fr}}
     .card h2{margin:0 0 8px}
+    pre.console{background:#0b1623;border:1px solid rgba(255,255,255,.12);padding:12px;border-radius:10px;max-height:420px;overflow:auto;margin:0;white-space:pre-wrap}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    input[type="text"]{padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#081421}
+    .small.muted{color:#97a5b2}
   </style>
 </head>
-<!-- === Diagnostica piattaforma (blocchetto) === -->
-<div class="card" id="diagCard" style="margin-top:16px">
-  <h2 style="margin-top:0">Diagnostica</h2>
-  <p class="small">Esegue test rapidi su chiavi, DB, storage e funzioni Edge.</p>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-    <button class="btn primary" id="runDiag" type="button">Esegui test</button>
-    <button class="btn" id="copyDiag" type="button">Copia report</button>
-  </div>
-  <pre id="diagOut" style="background:#0b1623;border:1px solid rgba(255,255,255,.12);padding:12px;border-radius:10px;max-height:420px;overflow:auto;margin:0;white-space:pre-wrap"></pre>
-</div>
-<!-- === /Diagnostica === -->
 <body>
 <header class="header" style="padding:0 16px">
   <a href="index.html" class="logo">
@@ -39,6 +34,18 @@
 <main class="wrap">
   <h1 style="margin:8px 0 14px">Area admin</h1>
 
+  <!-- Diagnostica -->
+  <div class="card" id="diagCard" style="margin-top:0">
+    <h2>Diagnostica</h2>
+    <p class="small">Esegue test rapidi su chiavi, DB, storage e funzioni Edge.</p>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn primary" id="runDiag" type="button">Esegui test</button>
+      <button class="btn" id="copyDiag" type="button">Copia report</button>
+    </div>
+    <pre id="diagOut" class="console"></pre>
+  </div>
+
+  <!-- Azioni rapide -->
   <div class="card">
     <h2>Azioni rapide</h2>
     <div class="grid">
@@ -53,6 +60,25 @@
     </div>
   </div>
 
+  <!-- Manutenzione dati: cancellazione cascata e pulizia orfani -->
+  <div class="card">
+    <h2>Manutenzione dati</h2>
+
+    <div class="row" style="margin-bottom:8px">
+      <input id="delId" type="text" placeholder="ID evento (UUID)" style="min-width:260px">
+      <button class="btn danger" id="btnDelCascade" type="button">Elimina evento (cancellazione sicura)</button>
+    </div>
+    <p class="small muted" style="margin-top:-4px">Esegue: DELETE su <code>occurrences</code> per <code>event_id</code> poi DELETE su <code>events</code>.</p>
+
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="btnCleanOrphans" type="button">Pulisci occorrenze orfane</button>
+      <span class="small muted">Rimuove le righe di <code>occurrences</code> senza evento esistente.</span>
+    </div>
+
+    <pre id="maintOut" class="console" style="margin-top:10px"></pre>
+  </div>
+
+  <!-- Reportistica / pubblicazione singola -->
   <div class="card">
     <h2>Reportistica</h2>
     <p class="small">Statistiche per periodo, città e tipologia.</p>
@@ -67,15 +93,18 @@
 </main>
 
 <footer class="page-footer"><a class="btn" href="index.html">← Torna alla mappa</a></footer>
+
 <script>
 (function(){
   // --- util ---
   const $ = s => document.querySelector(s);
   const out = $('#diagOut');
-  function line(msg){ out.textContent += msg + '\n'; }
+  const mout = $('#maintOut');
+  function line(msg){ out.textContent += msg + '\\n'; }
   function ok(msg){ line('✅ ' + msg); }
   function ko(msg){ line('❌ ' + msg); }
   function sep(){ line('—'.repeat(48)); }
+  function mlog(msg){ mout.textContent += msg + '\\n'; }
 
   // --- config da assets/app-config.js ---
   const CFG = window.SQ_CONFIG || {};
@@ -86,7 +115,7 @@
   // Edge base: https://<project>.functions.supabase.co
   function fnBaseFromSupabaseUrl(u){
     try{
-      const host = new URL(u).host; // es. rubdzlno....supabase.co
+      const host = new URL(u).host;
       return 'https://' + host.replace('.supabase.co', '.functions.supabase.co');
     }catch(_){ return null; }
   }
@@ -102,17 +131,14 @@
   async function pingFunction(url){
     if (!url) return { ok:false, status:0, note:'URL non costruibile' };
     try{
-      // 1° tentativo: OPTIONS (CORS preflight)
       let res = await fetch(url, { method:'OPTIONS' });
       if (res.ok || res.status===204) return { ok:true, status:res.status, note:'OPTIONS OK' };
 
-      // 2° tentativo: POST "ping" (ci aspettiamo 400/405 ma rete OK)
       res = await fetch(url, {
         method:'POST',
         headers:{ 'content-type':'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer '+SUPABASE_ANON },
         body: JSON.stringify({ ping:true })
       });
-      // se arriva una risposta 2xx-4xx, la rete/endpoint sono raggiungibili
       return { ok:true, status:res.status, note:'POST raggiungibile (expected 400/405)' };
     }catch(e){
       return { ok:false, status:0, note:String(e&&e.message||e) };
@@ -124,20 +150,12 @@
     line('DIAGNOSTICA STASERA QUI — '+ new Date().toLocaleString());
     sep();
 
-    // Chiavi presenti?
-    if (SUPABASE_URL)  ok('SUPABASE_URL presente');
-    else               ko('SUPABASE_URL mancante (assets/app-config.js)');
-
-    if (SUPABASE_ANON) ok('SUPABASE_ANON presente');
-    else               ko('SUPABASE_ANON mancante (assets/app-config.js)');
-
-    if (GOOGLE_KEY)    ok('GOOGLE_MAPS_API_KEY presente');
-    else               ko('GOOGLE_MAPS_API_KEY mancante (assets/app-config.js)');
-
+    if (SUPABASE_URL)  ok('SUPABASE_URL presente'); else ko('SUPABASE_URL mancante (assets/app-config.js)');
+    if (SUPABASE_ANON) ok('SUPABASE_ANON presente'); else ko('SUPABASE_ANON mancante (assets/app-config.js)');
+    if (GOOGLE_KEY)    ok('GOOGLE_MAPS_API_KEY presente'); else ko('GOOGLE_MAPS_API_KEY mancante (assets/app-config.js)');
     if (FN_BASE){ ok('Functions base: '+FN_BASE); } else { ko('Functions base non derivabile da SUPABASE_URL'); }
     sep();
 
-    // Supabase: query rapide
     if (!sb){
       ko('Client Supabase non inizializzato (manca SDK o chiavi)');
     } else {
@@ -153,7 +171,6 @@
         ko('DB select error: ' + (e?.message||String(e)));
       }
 
-      // Storage: lista 1 file (se policy consente listing)
       try{
         const st = await sb.storage.from('event-images').list('', { limit:1 });
         if (st.error) throw st.error;
@@ -164,7 +181,6 @@
     }
     sep();
 
-    // Edge functions raggiungibili?
     if (URL_CHECKOUT){
       const r1 = await pingFunction(URL_CHECKOUT);
       (r1.ok ? ok : ko)(`create-checkout-session raggiungibile — status ${r1.status} (${r1.note})`);
@@ -172,7 +188,6 @@
 
     if (URL_WEBHOOK){
       const r2 = await pingFunction(URL_WEBHOOK);
-      // Il webhook in produzione in genere risponde 400/405: è normale.
       (r2.ok ? ok : ko)(`stripe-webhook raggiungibile — status ${r2.status} (${r2.note})`);
     } else ko('stripe-webhook: URL non disponibile');
 
@@ -180,6 +195,51 @@
     line('FINE TEST ✅');
   }
 
+  // ====== Manutenzione ======
+  async function deleteEventCascade(eventId){
+    if (!sb) { mlog('❌ Supabase client non inizializzato'); return; }
+    if (!eventId) { mlog('❌ Inserisci un ID evento'); return; }
+    mlog(`— Eliminazione sicura evento ${eventId}`);
+
+    const { error: e1 } = await sb.from('occurrences').delete().eq('event_id', eventId);
+    if (e1){ mlog('❌ Errore eliminando occorrenze: ' + e1.message); return; }
+    mlog('✔ Occorrenze collegate eliminate');
+
+    const { error: e2 } = await sb.from('events').delete().eq('id', eventId);
+    if (e2){ mlog('❌ Errore eliminando evento: ' + e2.message); return; }
+    mlog('✔ Evento eliminato');
+
+    mlog('✅ Completato. Verifica sulla mappa con un hard refresh.');
+    mlog('—'.repeat(48));
+  }
+
+  async function cleanOrphans(){
+    if (!sb) { mlog('❌ Supabase client non inizializzato'); return; }
+    mlog('— Pulizia occorrenze orfane avviata');
+
+    const { data: evs, error: e0 } = await sb.from('events').select('id');
+    if (e0){ mlog('❌ Lettura events fallita: ' + e0.message); return; }
+    const valid = new Set((evs||[]).map(e=>e.id));
+
+    const { data: occs, error: e1 } = await sb.from('occurrences').select('id,event_id');
+    if (e1){ mlog('❌ Lettura occurrences fallita: ' + e1.message); return; }
+
+    const toDelete = (occs||[]).filter(o => !valid.has(o.event_id)).map(o=>o.id);
+    if (!toDelete.length){ mlog('✔ Nessuna occorrenza orfana trovata'); mlog('—'.repeat(48)); return; }
+
+    // Cancella a blocchi per sicurezza
+    const chunk = 500;
+    for (let i=0;i<toDelete.length;i+=chunk){
+      const slice = toDelete.slice(i,i+chunk);
+      const { error: e2 } = await sb.from('occurrences').delete().in('id', slice);
+      if (e2){ mlog('❌ Errore durante la cancellazione a blocchi: ' + e2.message); return; }
+    }
+    mlog(`✔ Rimosse ${toDelete.length} occorrenze orfane`);
+    mlog('✅ Completato. Hard refresh sulla home per verificare.');
+    mlog('—'.repeat(48));
+  }
+
+  // Bind UI
   $('#runDiag')?.addEventListener('click', run);
   $('#copyDiag')?.addEventListener('click', ()=>{
     try{
@@ -189,6 +249,14 @@
       alert('Non riesco a copiare. Seleziona il testo e copia manualmente.');
     }
   });
+
+  $('#btnDelCascade')?.addEventListener('click', ()=>{
+    const id = ($('#delId').value||'').trim();
+    if (!id) { alert('Inserisci un ID evento.'); return; }
+    if (confirm('Confermi la cancellazione definitiva?')) deleteEventCascade(id);
+  });
+
+  $('#btnCleanOrphans')?.addEventListener('click', cleanOrphans);
 })();
 </script>
 </body>
