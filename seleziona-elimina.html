@@ -26,8 +26,7 @@
     .help{font-size:13px;color:#b8c2ce;margin:4px 0 0}
     .flag{display:inline-block;font-size:11px;padding:2px 6px;border-radius:6px;background:#ffd24d;color:#081421;font-weight:800;margin-left:8px}
     label.chk{display:inline-flex;gap:8px;align-items:center;font-size:13px;color:#b8c2ce}
-    /* bordi arrotondati anche al canvas di Google */
-    #map > div { border-radius: 12px; overflow: hidden; }
+    #map > div { border-radius: 12px; overflow: hidden; } /* arrotonda anche il canvas di Google */
   </style>
 </head>
 <body>
@@ -68,20 +67,18 @@
 
 <script>
 (function(){
-  // ========== CONFIG ==========
+  // ===== CONFIG =====
   const CFG = window.SQ_CONFIG || {};
   const SB_URL  = CFG.SUPABASE_URL;
   const SB_ANON = CFG.SUPABASE_ANON;
   const GMAPS_KEY = CFG.GOOGLE_MAPS_API_KEY;
-  if (!SB_URL || !SB_ANON) { alert('Config Supabase mancante (assets/app-config.js).'); }
-
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
-  // ========== GOOGLE MAPS (solo Google, niente Leaflet) ==========
+  // ===== Google Maps =====
   function loadGoogleJs(){
     return new Promise((resolve, reject)=>{
-      if (!GMAPS_KEY){ reject(new Error('Manca GOOGLE_MAPS_API_KEY in assets/app-config.js')); return; }
-      if (window.google && window.google.maps){ resolve(); return; }
+      if (!GMAPS_KEY) return reject(new Error('Manca GOOGLE_MAPS_API_KEY in assets/app-config.js'));
+      if (window.google && window.google.maps) return resolve();
       const s = document.createElement('script');
       s.src = 'https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GMAPS_KEY);
       s.async = true; s.defer = true;
@@ -110,24 +107,22 @@
   }
   function icon(selected){ return { url:pinSvgUrl({selected}), scaledSize:new google.maps.Size(34,38), anchor:new google.maps.Point(19,38) }; }
 
-  // ========== STATO ==========
+  // ===== Stato =====
   const EVENTS = new Map();          // id -> {id,title,published}
   const OCCS_BY_EVENT = new Map();   // id -> [occ,...]
   const MARKERS = new Map();         // id -> [marker,...]
   const SELECTED = new Set();        // id selezionati
   let SHOW_HIDDEN = false;
 
-  // ========== DATA ==========
+  // ===== Data =====
   function visible(ev){ return (ev.published==null || ev.published===true) || SHOW_HIDDEN; }
 
   async function loadData(){
-    // events
     const { data: evs, error: e1 } = await sb.from('events').select('id, title, titolo, published');
     if (e1){ alert('Errore lettura events: '+(e1.message||e1)); return; }
     EVENTS.clear();
     (evs||[]).forEach(e=> EVENTS.set(e.id, { id:e.id, title: e.title || e.titolo || '(evento)', published: e.published }));
 
-    // occurrences
     const { data: occs, error: e2 } = await sb.from('occurrences').select('id, event_id, lat, lng, citta, data, ora');
     if (e2){ alert('Errore lettura occurrences: '+(e2.message||e2)); return; }
     OCCS_BY_EVENT.clear();
@@ -203,21 +198,15 @@
     updateList();
   });
 
-  // ========== AZIONI ==========
+  // ===== Azioni (via RPC) =====
   async function softHide(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
     const ids=[...SELECTED];
 
     try{
-      const { error } = await sb.from('events').update({ published:false }).in('id', ids);
-      if (error){
-        if (String(error.code)==='42703'){
-          alert('Manca la colonna "published". Esegui:\n\nALTER TABLE public.events ADD COLUMN IF NOT EXISTS published boolean NOT NULL DEFAULT true;');
-          return;
-        }
-        throw error;
-      }
+      const { error } = await sb.rpc('hide_events', { ids });
+      if (error) throw error;
     }catch(e){
       alert('Aggiornamento fallito: '+(e?.message||String(e)));
       return;
@@ -225,10 +214,8 @@
 
     ids.forEach(id=>{ const ev=EVENTS.get(id); if (ev) ev.published=false; });
     if (document.getElementById('showHidden').checked){
-      // resta visibile ma con badge
       ids.forEach(id => (MARKERS.get(id)||[]).forEach(m=>m.setIcon(icon(SELECTED.has(id)))));
     } else {
-      // sparisce subito
       ids.forEach(id=>{
         (MARKERS.get(id)||[]).forEach(m=>m.setMap(null));
         MARKERS.delete(id);
@@ -245,12 +232,10 @@
     const ids=[...SELECTED];
 
     try{
-      const r1 = await sb.from('occurrences').delete().in('event_id', ids);
-      if (r1.error) throw r1.error;
-      const r2 = await sb.from('events').delete().in('id', ids);
-      if (r2.error) throw r2.error;
+      const { error } = await sb.rpc('delete_events', { ids });
+      if (error) throw error;
     }catch(e){
-      alert('Eliminazione bloccata (probabile RLS). Dettagli: '+(e?.message||String(e))+'\nSuggerimento: usa "Nascondi (published=false)".');
+      alert('Eliminazione fallita: '+(e?.message||String(e)));
       return;
     }
 
@@ -269,7 +254,7 @@
   document.getElementById('btnHard').addEventListener('click', hardDelete);
   document.getElementById('showHidden').addEventListener('change', (e)=>{ SHOW_HIDDEN = !!e.target.checked; drawMarkers(); });
 
-  // ========== BOOT ==========
+  // ===== Boot =====
   (async function(){
     try{
       await loadGoogleJs();
