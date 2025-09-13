@@ -8,6 +8,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=12">
 
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
   <!-- Supabase -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
@@ -20,13 +24,16 @@
     .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.25);padding:6px 10px;border-radius:999px;background:#0f1c2d}
     .list{margin-top:8px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;max-height:22vh;overflow:auto;font-size:14px}
-    .item{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.12)}
+    .item{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.12)}
     .item:last-child{border-bottom:none}
     .muted{color:#b8c2ce}
-    .help{font-size:13px;color:#b8c2ce;margin:4px 0 0}
-    .flag{display:inline-block;font-size:11px;padding:2px 6px;border-radius:6px;background:#ffd24d;color:#081421;font-weight:800;margin-left:8px}
-    label.chk{display:inline-flex;gap:8px;align-items:center;font-size:13px;color:#b8c2ce}
-    #map > div { border-radius: 12px; overflow: hidden; } /* arrotonda anche il canvas di Google */
+    .pin-selected{outline:3px solid #ffd24d;box-shadow:0 0 0 3px rgba(255,210,77,.25)}
+    .help{font-size:13px;color:#b8c2ce;margin:4px 0 10px}
+    .chip-badge{display:inline-block;background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:6px}
+    .id{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12px}
+    .btn.small{padding:6px 8px;font-size:12px;line-height:1}
+    label.inline{display:inline-flex;gap:8px;align-items:center}
+    input[type="checkbox"]{width:16px;height:16px}
   </style>
 </head>
 <body>
@@ -41,17 +48,22 @@
 </header>
 
 <main class="wrap">
-  <h1 style="margin:8px 0 10px">Seleziona & elimina eventi</h1>
-  <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft-delete: <i>published=false</i>) oppure <b>Eliminare definitivamente</b> (hard-delete: rimuove anche le occorrenze).</p>
-
-  <label class="chk" style="margin:6px 0 10px">
-    <input type="checkbox" id="showHidden"> Mostra anche gli eventi nascosti (published=false)
-  </label>
+  <h1 style="margin:8px 0 4px">Seleziona & elimina eventi</h1>
+  <p class="help">
+    Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft-delete: <i>published=false</i>),
+    <b>Ripristinare</b> (rimettere <i>published=true</i>) oppure <b>Eliminare definitivamente</b> (hard-delete: rimuove evento e occorrenze).
+  </p>
 
   <div id="map"></div>
 
   <div class="toolbar">
     <span class="badge">Selezionati: <b id="selCount">0</b></span>
+
+    <label class="badge inline" title="Includi in mappa anche gli eventi nascosti (published=false)">
+      <input type="checkbox" id="showHidden">
+      <span>Mostra anche gli eventi nascosti</span>
+    </label>
+
     <button class="btn" id="clearSel" type="button">Pulisci selezione</button>
     <span class="muted" id="lastAction"></span>
   </div>
@@ -59,73 +71,76 @@
   <div class="list" id="selList" aria-live="polite"></div>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-    <button class="btn accent"  id="btnSoft" type="button">Nascondi (published=false)</button>
-    <button class="btn danger"  id="btnHard" type="button">Elimina definitivamente</button>
+    <button class="btn accent"   id="btnSoft"    type="button" title="Imposta published=false">Nascondi (published=false)</button>
+    <button class="btn primary"  id="btnRestore" type="button" title="Imposta published=true">Ripristina (published=true)</button>
+    <button class="btn danger"   id="btnHard"    type="button">Elimina definitivamente</button>
     <a class="btn" href="admin.html">← Torna all’area admin</a>
   </div>
 </main>
 
 <script>
 (function(){
-  // ===== CONFIG =====
+  // --- Config/Supabase ---
   const CFG = window.SQ_CONFIG || {};
   const SB_URL  = CFG.SUPABASE_URL;
   const SB_ANON = CFG.SUPABASE_ANON;
-  const GMAPS_KEY = CFG.GOOGLE_MAPS_API_KEY;
+  if (!SB_URL || !SB_ANON) {
+    alert('Configurazione Supabase mancante (assets/app-config.js).');
+  }
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
-  // ===== Google Maps =====
-  function loadGoogleJs(){
-    return new Promise((resolve, reject)=>{
-      if (!GMAPS_KEY) return reject(new Error('Manca GOOGLE_MAPS_API_KEY in assets/app-config.js'));
-      if (window.google && window.google.maps) return resolve();
-      const s = document.createElement('script');
-      s.src = 'https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GMAPS_KEY);
-      s.async = true; s.defer = true;
-      s.onload = resolve; s.onerror = ()=>reject(new Error('Caricamento Google Maps fallito'));
-      document.head.appendChild(s);
+  const $ = s => document.querySelector(s);
+
+  // --- Stato ---
+  let MAP=null;
+  const EVENTS = new Map();        // idEvento -> { id, title/titolo, published }
+  const OCCS_BY_EVENT = new Map(); // idEvento -> [ occorrenze ]
+  const MARKERS = new Map();       // idEvento -> [markers Leaflet]
+  const SELECTED = new Set();      // idEvento selezionati
+
+  // --- Map UI ---
+  function initMap(){
+    MAP = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
+    L.control.attribution({prefix:false}).addTo(MAP);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(MAP);
+
+    MAP.on('zoomend', drawMarkers);
+    MAP.on('dragend', drawMarkers);
+  }
+
+  // Pin SVG a colore variabile (blu=pubblicato, grigio=nascosto)
+  function pinIcon(color='#22b3f0'){
+    return L.divIcon({
+      className:'sq-pin',
+      html:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="30" height="34" style="display:block;filter:drop-shadow(0 0 2px #fff)">
+              <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="${color}" stroke="#ffffff" stroke-width="2"/>
+              <circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>`,
+      iconSize:[30,34], iconAnchor:[15,34], popupAnchor:[0,-30]
     });
   }
 
-  let MAP=null, INFOWIN=null;
-  function initGoogleMap(){
-    MAP = new google.maps.Map(document.getElementById('map'), {
-      center:{lat:43.8, lng:11.2}, zoom:6, streetViewControl:false, mapTypeControl:false
-    });
-    INFOWIN = new google.maps.InfoWindow();
-  }
-
-  function pinSvgUrl({selected=false}={}){
-    const stroke = selected ? '#ffd24d' : '#ffffff';
-    const sw = selected ? 4 : 3;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72">
-      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z"
-            fill="#22b3f0" stroke="${stroke}" stroke-width="${sw}"/>
-      <circle cx="32" cy="24" r="9" fill="#ffffff"/>
-    </svg>`;
-    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
-  }
-  function icon(selected){ return { url:pinSvgUrl({selected}), scaledSize:new google.maps.Size(34,38), anchor:new google.maps.Point(19,38) }; }
-
-  // ===== Stato =====
-  const EVENTS = new Map();          // id -> {id,title,published}
-  const OCCS_BY_EVENT = new Map();   // id -> [occ,...]
-  const MARKERS = new Map();         // id -> [marker,...]
-  const SELECTED = new Set();        // id selezionati
-  let SHOW_HIDDEN = false;
-
-  // ===== Data =====
-  function visible(ev){ return (ev.published==null || ev.published===true) || SHOW_HIDDEN; }
+  // --- Data load ---
+  function isTruthyPub(v){ return (v===true || v===1 || v==='1' || v==='t' || v==='true' || v==='T' || v==='TRUE'); }
 
   async function loadData(){
-    const { data: evs, error: e1 } = await sb.from('events').select('id, title, titolo, published');
-    if (e1){ alert('Errore lettura events: '+(e1.message||e1)); return; }
-    EVENTS.clear();
-    (evs||[]).forEach(e=> EVENTS.set(e.id, { id:e.id, title: e.title || e.titolo || '(evento)', published: e.published }));
+    const { data: evs, error: evErr } = await sb.from('events')
+      .select('id, title, titolo, published');
+    if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
 
-    const { data: occs, error: e2 } = await sb.from('occurrences').select('id, event_id, lat, lng, citta, data, ora');
-    if (e2){ alert('Errore lettura occurrences: '+(e2.message||e2)); return; }
-    OCCS_BY_EVENT.clear();
+    const { data: occs, error: occErr } = await sb.from('occurrences')
+      .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta');
+    if (occErr){ console.error(occErr); alert('Errore lettura occurrences'); return; }
+
+    EVENTS.clear(); OCCS_BY_EVENT.clear();
+
+    evs.forEach(e => {
+      EVENTS.set(e.id, {
+        id: e.id,
+        title: e.title || e.titolo || '(evento)',
+        published: isTruthyPub(e.published)
+      });
+    });
+
     (occs||[]).forEach(o=>{
       if (o.lat==null || o.lng==null) return;
       if (!OCCS_BY_EVENT.has(o.event_id)) OCCS_BY_EVENT.set(o.event_id, []);
@@ -135,135 +150,200 @@
     drawMarkers();
   }
 
-  function clearMarkers(){ MARKERS.forEach(list=>list.forEach(m=>m.setMap(null))); MARKERS.clear(); }
-
   function drawMarkers(){
-    clearMarkers();
-    const bounds = new google.maps.LatLngBounds();
-    let any=false;
+    // pulisci markers esistenti
+    MARKERS.forEach(list => list.forEach(m => MAP.removeLayer(m)));
+    MARKERS.clear();
 
-    OCCS_BY_EVENT.forEach((list, id)=>{
-      const ev = EVENTS.get(id); if (!ev) return;
-      if (!visible(ev)) return;
+    const includeHidden = $('#showHidden').checked;
 
-      const arr=[];
-      list.forEach(o=>{
-        const m = new google.maps.Marker({ position:{lat:o.lat,lng:o.lng}, map:MAP, icon:icon(SELECTED.has(id)) });
-        const flag = (ev.published===false) ? '<span class="flag">nascosto</span>' : '';
-        const html = `<div style="color:#081421;max-width:260px"><b>${ev.title}</b> ${flag}<br><small>${o.citta||''}${o.data?' — '+o.data:''}${o.ora?' ore '+o.ora:''}</small></div>`;
-        m.addListener('click', ()=>{
-          INFOWIN.setContent(html);
-          INFOWIN.open(MAP, m);
-          toggleSelect(id);
-        });
-        arr.push(m);
-        bounds.extend(m.getPosition());
-        any=true;
+    // bounds
+    const all = [];
+    OCCS_BY_EVENT.forEach((list, eventId)=>{
+      const ev = EVENTS.get(eventId); if (!ev) return;
+
+      // se non voglio i nascosti, skippa quelli con published=false
+      if (!includeHidden && !ev.published) return;
+
+      const color = ev.published ? '#22b3f0' : '#9fb7c9';
+      const icon = pinIcon(color);
+      const markers = [];
+
+      list.forEach(occ=>{
+        const badge = ev.published ? '' : ' <span class="chip-badge">nascosto</span>';
+        const html = `<div style="color:#081421"><b>${ev.title}</b>${badge}<br><small>${occ.citta||''}</small></div>`;
+        const m = L.marker([occ.lat,occ.lng], {icon});
+        m.bindPopup(html);
+        m.on('click', ()=> toggleSelect(eventId));
+        m.addTo(MAP);
+        markers.push(m);
+        all.push([occ.lat,occ.lng]);
       });
-      MARKERS.set(id, arr);
+      MARKERS.set(eventId, markers);
     });
 
-    if (any) MAP.fitBounds(bounds, { top:40, bottom:40, left:40, right:40 });
-    updateList();
+    if (all.length){
+      try{
+        const b = L.latLngBounds(all);
+        MAP.fitBounds(b, {padding:[40,40]});
+      }catch(_){}
+    }
+
+    updateSelectionUI();
   }
 
-  function toggleSelect(id){
-    if (!EVENTS.has(id)) return;
-    if (SELECTED.has(id)) SELECTED.delete(id); else SELECTED.add(id);
-    const list = MARKERS.get(id)||[];
-    list.forEach(m => m.setIcon(icon(SELECTED.has(id))));
-    updateList();
+  // --- Selezione ---
+  function toggleSelect(eventId){
+    if (!EVENTS.has(eventId)) return;
+    if (SELECTED.has(eventId)) SELECTED.delete(eventId);
+    else SELECTED.add(eventId);
+
+    // evidenzia markers dell’evento
+    const list = MARKERS.get(eventId) || [];
+    list.forEach(m=>{
+      const el = m.getElement();
+      if (el){
+        if (SELECTED.has(eventId)) el.classList.add('pin-selected');
+        else el.classList.remove('pin-selected');
+      }
+    });
+    updateSelectionUI();
   }
 
-  function updateList(){
-    document.getElementById('selCount').textContent = SELECTED.size;
-    const box = document.getElementById('selList');
+  function updateSelectionUI(){
+    $('#selCount').textContent = SELECTED.size;
+    const box = $('#selList');
     if (!SELECTED.size){ box.innerHTML = '<div class="muted">Nessun evento selezionato.</div>'; return; }
-    box.innerHTML = [...SELECTED].map(id=>{
-      const ev = EVENTS.get(id); const occs = OCCS_BY_EVENT.get(id)||[]; const city=occs[0]?.citta||'';
-      const hidden = (ev?.published===false) ? ' <span class="flag">nascosto</span>' : '';
+
+    const rows = [...SELECTED].map(id=>{
+      const ev = EVENTS.get(id);
+      const occs = OCCS_BY_EVENT.get(id)||[];
+      const city = occs[0]?.citta || '';
+      const state = ev?.published ? '' : ' <span class="chip-badge">nascosto</span>';
       return `<div class="item">
-        <div><b>${ev?.title||'(evento)'}</b>${hidden} <span class="muted">— ${city}</span></div>
-        <button class="btn small" data-id="${id}" type="button">Rimuovi</button>
+        <div>
+          <b>${ev?.title||'(evento)'}</b>${state}
+          <span class="muted">— ${city}</span><br>
+          <span class="muted id">${id}</span>
+        </div>
+        <button class="btn small" data-copy="${id}" type="button" title="Copia ID">Copia ID</button>
+        <button class="btn small" data-unselect="${id}" type="button">Rimuovi</button>
       </div>`;
     }).join('');
-    box.querySelectorAll('button[data-id]').forEach(b=>{
-      b.addEventListener('click', ()=> toggleSelect(b.getAttribute('data-id')));
+    box.innerHTML = rows;
+
+    box.querySelectorAll('[data-unselect]').forEach(b=>{
+      b.addEventListener('click', ()=> toggleSelect(b.getAttribute('data-unselect')));
+    });
+    box.querySelectorAll('[data-copy]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        try{
+          await navigator.clipboard.writeText(b.getAttribute('data-copy'));
+          $('#lastAction').textContent = 'ID copiato negli appunti.';
+        }catch(_){ alert('Non riesco a copiare.'); }
+      });
     });
   }
 
-  document.getElementById('clearSel').addEventListener('click', ()=>{
-    const ids=[...SELECTED]; SELECTED.clear();
-    ids.forEach(id => (MARKERS.get(id)||[]).forEach(m=>m.setIcon(icon(false))));
-    updateList();
+  $('#clearSel').addEventListener('click', ()=>{
+    const ids = [...SELECTED];
+    ids.forEach(id => toggleSelect(id));
   });
 
-  // ===== Azioni (via RPC) =====
+  // --- Azioni ---
   async function softHide(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
-    if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
-    const ids=[...SELECTED];
+    if (!confirm(`Nascondere ${SELECTED.size} evento/i? Verranno esclusi dalla home (published=false).`)) return;
+
+    const ids = [...SELECTED];
 
     try{
-      const { error } = await sb.rpc('hide_events', { ids });
-      if (error) throw error;
+      const { error } = await sb.from('events').update({ published:false }).in('id', ids);
+      if (error){
+        if (String(error.code) === '42703'){ // colonna mancante
+          if (confirm('La colonna "published" non esiste. Procedo con ELIMINAZIONE DEFINITIVA?')){
+            return hardDelete();
+          } else return;
+        }
+        throw error;
+      }
     }catch(e){
-      alert('Aggiornamento fallito: '+(e?.message||String(e)));
+      alert('Aggiornamento non riuscito: '+(e?.message||String(e)));
       return;
     }
 
-    ids.forEach(id=>{ const ev=EVENTS.get(id); if (ev) ev.published=false; });
-    if (document.getElementById('showHidden').checked){
-      ids.forEach(id => (MARKERS.get(id)||[]).forEach(m=>m.setIcon(icon(SELECTED.has(id)))));
-    } else {
-      ids.forEach(id=>{
-        (MARKERS.get(id)||[]).forEach(m=>m.setMap(null));
-        MARKERS.delete(id);
-        SELECTED.delete(id);
-      });
+    // aggiorna stato locale + ridisegna
+    ids.forEach(id=>{ const ev = EVENTS.get(id); if (ev) ev.published = false; });
+    redrawAfterChange('Fatto: eventi nascosti.');
+  }
+
+  async function restoreEvents(){
+    if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
+    if (!confirm(`Ripristinare ${SELECTED.size} evento/i? Verranno rimessi online (published=true).`)) return;
+
+    const ids = [...SELECTED];
+    try{
+      const { error } = await sb.from('events').update({ published:true }).in('id', ids);
+      if (error) throw error;
+    }catch(e){
+      alert('Ripristino non riuscito: '+(e?.message||String(e)));
+      return;
     }
-    updateList();
-    document.getElementById('lastAction').textContent = 'Fatto: eventi nascosti.';
+
+    ids.forEach(id=>{ const ev = EVENTS.get(id); if (ev) ev.published = true; });
+    redrawAfterChange('Fatto: eventi ripristinati.');
   }
 
   async function hardDelete(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
-    if (!confirm(`Eliminare DEFINITIVAMENTE ${SELECTED.size} evento/i?\nVerranno eliminate anche le occorrenze.`)) return;
-    const ids=[...SELECTED];
+    if (!confirm(`Eliminare DEFINITIVAMENTE ${SELECTED.size} evento/i? Saranno cancellate anche le relative occorrenze.`)) return;
+
+    const ids = [...SELECTED];
 
     try{
-      const { error } = await sb.rpc('delete_events', { ids });
-      if (error) throw error;
+      const r1 = await sb.from('occurrences').delete().in('event_id', ids);
+      if (r1.error) throw r1.error;
+
+      const r2 = await sb.from('events').delete().in('id', ids);
+      if (r2.error) throw r2.error;
     }catch(e){
-      alert('Eliminazione fallita: '+(e?.message||String(e)));
+      alert('Cancellazione bloccata (probabile policy RLS).\n\nDettagli: '+(e?.message||String(e)));
       return;
     }
 
+    // togli da strutture locali
     ids.forEach(id=>{
-      (MARKERS.get(id)||[]).forEach(m=>m.setMap(null));
+      (MARKERS.get(id)||[]).forEach(m => MAP.removeLayer(m));
       MARKERS.delete(id);
       SELECTED.delete(id);
       EVENTS.delete(id);
       OCCS_BY_EVENT.delete(id);
     });
-    updateList();
-    document.getElementById('lastAction').textContent = 'Fatto: eventi eliminati.';
+
+    updateSelectionUI();
+    $('#lastAction').textContent = 'Fatto: eventi eliminati definitivamente.';
   }
 
-  document.getElementById('btnSoft').addEventListener('click', softHide);
-  document.getElementById('btnHard').addEventListener('click', hardDelete);
-  document.getElementById('showHidden').addEventListener('change', (e)=>{ SHOW_HIDDEN = !!e.target.checked; drawMarkers(); });
+  function redrawAfterChange(msg){
+    // Rimuovi evidenziatura, aggiorna lista e ridisegna i marker (così cambia colore/visibilità)
+    SELECTED.forEach(id=>{
+      const list = MARKERS.get(id) || [];
+      list.forEach(m=>{ const el = m.getElement(); if (el) el.classList.remove('pin-selected'); });
+    });
+    drawMarkers();
+    updateSelectionUI();
+    $('#lastAction').textContent = msg;
+  }
 
-  // ===== Boot =====
-  (async function(){
-    try{
-      await loadGoogleJs();
-      initGoogleMap();
-      await loadData();
-    }catch(e){
-      alert('Google Maps non caricato: '+(e?.message||String(e))+'\nControlla GOOGLE_MAPS_API_KEY in assets/app-config.js');
-    }
-  })();
+  // Bind bottoni / toggle
+  $('#btnSoft').addEventListener('click', softHide);
+  $('#btnRestore').addEventListener('click', restoreEvents);
+  $('#btnHard').addEventListener('click', hardDelete);
+  $('#showHidden').addEventListener('change', drawMarkers);
+
+  // Avvio
+  initMap();
+  loadData();
 })();
 </script>
 </body>
