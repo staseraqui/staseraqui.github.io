@@ -25,9 +25,8 @@
     .muted{color:#b8c2ce}
     .help{font-size:13px;color:#b8c2ce;margin:4px 0 0}
     .flag{display:inline-block;font-size:11px;padding:2px 6px;border-radius:6px;background:#ffd24d;color:#081421;font-weight:800;margin-left:8px}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     label.chk{display:inline-flex;gap:8px;align-items:center;font-size:13px;color:#b8c2ce}
-    /* Google map container rounds */
+    /* bordi arrotondati anche al canvas di Google */
     #map > div { border-radius: 12px; overflow: hidden; }
   </style>
 </head>
@@ -46,9 +45,9 @@
   <h1 style="margin:8px 0 10px">Seleziona & elimina eventi</h1>
   <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft-delete: <i>published=false</i>) oppure <b>Eliminare definitivamente</b> (hard-delete: rimuove anche le occorrenze).</p>
 
-  <div class="row" style="margin-bottom:8px">
-    <label class="chk"><input type="checkbox" id="showHidden"> Mostra anche gli eventi nascosti (published=false)</label>
-  </div>
+  <label class="chk" style="margin:6px 0 10px">
+    <input type="checkbox" id="showHidden"> Mostra anche gli eventi nascosti (published=false)
+  </label>
 
   <div id="map"></div>
 
@@ -69,27 +68,36 @@
 
 <script>
 (function(){
-  // --- Config / Supabase ---
+  // ========== CONFIG ==========
   const CFG = window.SQ_CONFIG || {};
   const SB_URL  = CFG.SUPABASE_URL;
   const SB_ANON = CFG.SUPABASE_ANON;
   const GMAPS_KEY = CFG.GOOGLE_MAPS_API_KEY;
-
-  if (!SB_URL || !SB_ANON) { alert('Configurazione Supabase mancante (assets/app-config.js).'); }
+  if (!SB_URL || !SB_ANON) { alert('Config Supabase mancante (assets/app-config.js).'); }
 
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
-  const $  = s => document.querySelector(s);
+  // ========== GOOGLE MAPS (solo Google, niente Leaflet) ==========
+  function loadGoogleJs(){
+    return new Promise((resolve, reject)=>{
+      if (!GMAPS_KEY){ reject(new Error('Manca GOOGLE_MAPS_API_KEY in assets/app-config.js')); return; }
+      if (window.google && window.google.maps){ resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GMAPS_KEY);
+      s.async = true; s.defer = true;
+      s.onload = resolve; s.onerror = ()=>reject(new Error('Caricamento Google Maps fallito'));
+      document.head.appendChild(s);
+    });
+  }
 
-  // --- Stato ---
-  let GMAP = null, INFO = null, GEOCODER = null;
-  const MARKERS = new Map();      // eventId -> Marker[]
-  const EVENTS  = new Map();      // eventId -> { id, title, published }
-  const OCCS_BY_EVENT = new Map();// eventId -> occorrenze[]
-  const SELECTED = new Set();     // eventId selezionati
-  let SHOW_HIDDEN = false;        // toggle UI
+  let MAP=null, INFOWIN=null;
+  function initGoogleMap(){
+    MAP = new google.maps.Map(document.getElementById('map'), {
+      center:{lat:43.8, lng:11.2}, zoom:6, streetViewControl:false, mapTypeControl:false
+    });
+    INFOWIN = new google.maps.InfoWindow();
+  }
 
-  // --- Pin SVG (normale / selezionato) ---
   function pinSvgUrl({selected=false}={}){
     const stroke = selected ? '#ffd24d' : '#ffffff';
     const sw = selected ? 4 : 3;
@@ -100,66 +108,28 @@
     </svg>`;
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   }
+  function icon(selected){ return { url:pinSvgUrl({selected}), scaledSize:new google.maps.Size(34,38), anchor:new google.maps.Point(19,38) }; }
 
-  function makeMarkerIcon(selected){
-    return {
-      url: pinSvgUrl({selected}),
-      scaledSize: new google.maps.Size(34, 38),
-      anchor: new google.maps.Point(19, 38)
-    };
-  }
+  // ========== STATO ==========
+  const EVENTS = new Map();          // id -> {id,title,published}
+  const OCCS_BY_EVENT = new Map();   // id -> [occ,...]
+  const MARKERS = new Map();         // id -> [marker,...]
+  const SELECTED = new Set();        // id selezionati
+  let SHOW_HIDDEN = false;
 
-  // --- Init Google Maps ---
-  function initGoogle(){
-    GMAP = new google.maps.Map(document.getElementById('map'), {
-      center:{lat:43.8, lng:11.2}, // Italia “centrale”
-      zoom:6,
-      streetViewControl:false,
-      mapTypeControl:false
-    });
-    INFO = new google.maps.InfoWindow();
-  }
-
-  function loadGoogleJs(){
-    return new Promise((resolve, reject)=>{
-      if (!GMAPS_KEY){ reject(new Error('Manca GOOGLE_MAPS_API_KEY.')); return; }
-      if (window.google && window.google.maps){ resolve(); return; }
-      const s = document.createElement('script');
-      s.src = 'https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GMAPS_KEY);
-      s.async = true; s.defer = true;
-      s.onload = resolve; s.onerror = ()=>reject(new Error('Caricamento Google Maps fallito'));
-      document.head.appendChild(s);
-    });
-  }
-
-  // --- Data load ---
-  function eventIsVisible(ev){
-    // Se published è undefined/null (schemi vecchi), consideriamo visibile.
-    if (ev.published === undefined || ev.published === null) return true;
-    return !!ev.published || SHOW_HIDDEN;
-  }
+  // ========== DATA ==========
+  function visible(ev){ return (ev.published==null || ev.published===true) || SHOW_HIDDEN; }
 
   async function loadData(){
-    // 1) events
-    const { data: evs, error: evErr } = await sb.from('events')
-      .select('id, title, titolo, published');
-
-    if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
-
+    // events
+    const { data: evs, error: e1 } = await sb.from('events').select('id, title, titolo, published');
+    if (e1){ alert('Errore lettura events: '+(e1.message||e1)); return; }
     EVENTS.clear();
-    (evs||[]).forEach(e=>{
-      EVENTS.set(e.id, {
-        id: e.id,
-        title: e.title || e.titolo || '(evento)',
-        published: e.published
-      });
-    });
+    (evs||[]).forEach(e=> EVENTS.set(e.id, { id:e.id, title: e.title || e.titolo || '(evento)', published: e.published }));
 
-    // 2) occurrences
-    const { data: occs, error: occErr } = await sb.from('occurrences')
-      .select('id, event_id, lat, lng, citta, data, ora');
-    if (occErr){ console.error(occErr); alert('Errore lettura occurrences'); return; }
-
+    // occurrences
+    const { data: occs, error: e2 } = await sb.from('occurrences').select('id, event_id, lat, lng, citta, data, ora');
+    if (e2){ alert('Errore lettura occurrences: '+(e2.message||e2)); return; }
     OCCS_BY_EVENT.clear();
     (occs||[]).forEach(o=>{
       if (o.lat==null || o.lng==null) return;
@@ -170,194 +140,145 @@
     drawMarkers();
   }
 
-  function clearAllMarkers(){
-    MARKERS.forEach(list => list.forEach(m => m.setMap(null)));
-    MARKERS.clear();
-  }
+  function clearMarkers(){ MARKERS.forEach(list=>list.forEach(m=>m.setMap(null))); MARKERS.clear(); }
 
   function drawMarkers(){
-    clearAllMarkers();
-
+    clearMarkers();
     const bounds = new google.maps.LatLngBounds();
-    let any = false;
+    let any=false;
 
-    OCCS_BY_EVENT.forEach((occs, eventId)=>{
-      const ev = EVENTS.get(eventId);
-      if (!ev) return;
-      if (!eventIsVisible(ev)) return; // 👈 nascondi i published=false (a meno che SHOW_HIDDEN)
+    OCCS_BY_EVENT.forEach((list, id)=>{
+      const ev = EVENTS.get(id); if (!ev) return;
+      if (!visible(ev)) return;
 
-      const mList=[];
-      occs.forEach(o=>{
-        const m = new google.maps.Marker({
-          position:{lat:o.lat, lng:o.lng},
-          map: GMAP,
-          icon: makeMarkerIcon(SELECTED.has(eventId))
-        });
+      const arr=[];
+      list.forEach(o=>{
+        const m = new google.maps.Marker({ position:{lat:o.lat,lng:o.lng}, map:MAP, icon:icon(SELECTED.has(id)) });
         const flag = (ev.published===false) ? '<span class="flag">nascosto</span>' : '';
-        const html = `<div style="color:#081421;max-width:260px">
-          <b>${ev.title}</b> ${flag}<br>
-          <small>${o.citta || ''}${o.data ? ' — '+o.data : ''}${o.ora ? ' ore '+o.ora : ''}</small>
-        </div>`;
+        const html = `<div style="color:#081421;max-width:260px"><b>${ev.title}</b> ${flag}<br><small>${o.citta||''}${o.data?' — '+o.data:''}${o.ora?' ore '+o.ora:''}</small></div>`;
         m.addListener('click', ()=>{
-          INFO.setContent(html);
-          INFO.open(GMAP, m);
-          toggleSelect(eventId, /*fromMap=*/true);
+          INFOWIN.setContent(html);
+          INFOWIN.open(MAP, m);
+          toggleSelect(id);
         });
-        mList.push(m);
+        arr.push(m);
         bounds.extend(m.getPosition());
-        any = true;
+        any=true;
       });
-      MARKERS.set(eventId, mList);
+      MARKERS.set(id, arr);
     });
 
-    if (any){
-      GMAP.fitBounds(bounds, { top: 40, bottom: 40, left: 40, right: 40 });
-    }
-
-    updateSelectionUI();
+    if (any) MAP.fitBounds(bounds, { top:40, bottom:40, left:40, right:40 });
+    updateList();
   }
 
-  // --- Selezione ---
-  function toggleSelect(eventId){
-    if (!EVENTS.has(eventId)) return;
-    if (SELECTED.has(eventId)) SELECTED.delete(eventId);
-    else SELECTED.add(eventId);
-
-    // Aggiorna stile marker (icona selezionata)
-    const list = MARKERS.get(eventId) || [];
-    list.forEach(m => m.setIcon(makeMarkerIcon(SELECTED.has(eventId))));
-
-    updateSelectionUI();
+  function toggleSelect(id){
+    if (!EVENTS.has(id)) return;
+    if (SELECTED.has(id)) SELECTED.delete(id); else SELECTED.add(id);
+    const list = MARKERS.get(id)||[];
+    list.forEach(m => m.setIcon(icon(SELECTED.has(id))));
+    updateList();
   }
 
-  function updateSelectionUI(){
-    $('#selCount').textContent = SELECTED.size;
-    const box = $('#selList');
+  function updateList(){
+    document.getElementById('selCount').textContent = SELECTED.size;
+    const box = document.getElementById('selList');
     if (!SELECTED.size){ box.innerHTML = '<div class="muted">Nessun evento selezionato.</div>'; return; }
-    const rows = [...SELECTED].map(id=>{
-      const ev = EVENTS.get(id);
-      const occs = OCCS_BY_EVENT.get(id)||[];
-      const city = occs[0]?.citta || '';
+    box.innerHTML = [...SELECTED].map(id=>{
+      const ev = EVENTS.get(id); const occs = OCCS_BY_EVENT.get(id)||[]; const city=occs[0]?.citta||'';
       const hidden = (ev?.published===false) ? ' <span class="flag">nascosto</span>' : '';
       return `<div class="item">
-        <div><b>${ev?.title||'(evento)'}</b> ${hidden} <span class="muted">— ${city}</span></div>
-        <button class="btn small" data-unselect="${id}" type="button">Rimuovi</button>
+        <div><b>${ev?.title||'(evento)'}</b>${hidden} <span class="muted">— ${city}</span></div>
+        <button class="btn small" data-id="${id}" type="button">Rimuovi</button>
       </div>`;
     }).join('');
-    box.innerHTML = rows;
-    box.querySelectorAll('[data-unselect]').forEach(b=>{
-      b.addEventListener('click', ()=> toggleSelect(b.getAttribute('data-unselect')));
+    box.querySelectorAll('button[data-id]').forEach(b=>{
+      b.addEventListener('click', ()=> toggleSelect(b.getAttribute('data-id')));
     });
   }
 
-  $('#clearSel').addEventListener('click', ()=>{
-    const ids = [...SELECTED];
-    ids.forEach(id=>{
-      SELECTED.delete(id);
-      const list = MARKERS.get(id) || [];
-      list.forEach(m => m.setIcon(makeMarkerIcon(false)));
-    });
-    updateSelectionUI();
+  document.getElementById('clearSel').addEventListener('click', ()=>{
+    const ids=[...SELECTED]; SELECTED.clear();
+    ids.forEach(id => (MARKERS.get(id)||[]).forEach(m=>m.setIcon(icon(false))));
+    updateList();
   });
 
-  // --- Azioni ---
+  // ========== AZIONI ==========
   async function softHide(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
-    if (!confirm(`Nascondere ${SELECTED.size} evento/i? Verranno esclusi dalla home (published=false).`)) return;
-
-    const ids = [...SELECTED];
+    if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
+    const ids=[...SELECTED];
 
     try{
-      const { error } = await sb.from('events').update({ published: false }).in('id', ids);
+      const { error } = await sb.from('events').update({ published:false }).in('id', ids);
       if (error){
-        // Colonna mancante => Postgres 42703
-        if (String(error.code) === '42703'){
-          alert('La colonna "published" non esiste.\n\nEsegui una volta questo SQL:\n\nALTER TABLE public.events ADD COLUMN IF NOT EXISTS published boolean NOT NULL DEFAULT true;');
+        if (String(error.code)==='42703'){
+          alert('Manca la colonna "published". Esegui:\n\nALTER TABLE public.events ADD COLUMN IF NOT EXISTS published boolean NOT NULL DEFAULT true;');
           return;
         }
         throw error;
       }
     }catch(e){
-      alert('Aggiornamento non riuscito.\n\nDettagli: ' + (e?.message || String(e)));
+      alert('Aggiornamento fallito: '+(e?.message||String(e)));
       return;
     }
 
-    // Aggiorna stato locale
-    ids.forEach(id=>{
-      const ev = EVENTS.get(id); if (ev) ev.published = false;
-    });
-
-    // Se non sto mostrando i nascosti, rimuovo i marker; altrimenti tengo e mostro il badge
-    if (!SHOW_HIDDEN){
+    ids.forEach(id=>{ const ev=EVENTS.get(id); if (ev) ev.published=false; });
+    if (document.getElementById('showHidden').checked){
+      // resta visibile ma con badge
+      ids.forEach(id => (MARKERS.get(id)||[]).forEach(m=>m.setIcon(icon(SELECTED.has(id)))));
+    } else {
+      // sparisce subito
       ids.forEach(id=>{
-        (MARKERS.get(id)||[]).forEach(m => m.setMap(null));
+        (MARKERS.get(id)||[]).forEach(m=>m.setMap(null));
         MARKERS.delete(id);
         SELECTED.delete(id);
       });
-      updateSelectionUI();
-    }else{
-      // Dentro “mostra nascosti”: aggiorno l’icona (selezione può rimanere)
-      ids.forEach(id=>{
-        const list = MARKERS.get(id) || [];
-        list.forEach(m => m.setIcon(makeMarkerIcon(SELECTED.has(id))));
-      });
-      updateSelectionUI();
     }
-
-    $('#lastAction').textContent = 'Fatto: eventi nascosti (published=false).';
+    updateList();
+    document.getElementById('lastAction').textContent = 'Fatto: eventi nascosti.';
   }
 
   async function hardDelete(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
-    if (!confirm(`Eliminare DEFINITIVAMENTE ${SELECTED.size} evento/i?\nSaranno cancellate anche le relative occorrenze.`)) return;
-
-    const ids = [...SELECTED];
+    if (!confirm(`Eliminare DEFINITIVAMENTE ${SELECTED.size} evento/i?\nVerranno eliminate anche le occorrenze.`)) return;
+    const ids=[...SELECTED];
 
     try{
-      // 1) occorrenze
       const r1 = await sb.from('occurrences').delete().in('event_id', ids);
       if (r1.error) throw r1.error;
-
-      // 2) eventi
       const r2 = await sb.from('events').delete().in('id', ids);
       if (r2.error) throw r2.error;
     }catch(e){
-      alert('Cancellazione bloccata (probabile policy RLS o permessi insufficienti).\n\nDettagli: ' + (e?.message || String(e)) + '\n\nSuggerimento: usa "Nascondi (published=false)".');
+      alert('Eliminazione bloccata (probabile RLS). Dettagli: '+(e?.message||String(e))+'\nSuggerimento: usa "Nascondi (published=false)".');
       return;
     }
 
-    // Pulizia UI
     ids.forEach(id=>{
-      (MARKERS.get(id)||[]).forEach(m => m.setMap(null));
+      (MARKERS.get(id)||[]).forEach(m=>m.setMap(null));
       MARKERS.delete(id);
       SELECTED.delete(id);
       EVENTS.delete(id);
       OCCS_BY_EVENT.delete(id);
     });
-    updateSelectionUI();
-    $('#lastAction').textContent = 'Fatto: eventi eliminati definitivamente.';
+    updateList();
+    document.getElementById('lastAction').textContent = 'Fatto: eventi eliminati.';
   }
 
-  // --- Toggle mostra nascosti ---
-  $('#showHidden').addEventListener('change', (e)=>{
-    SHOW_HIDDEN = !!e.target.checked;
-    drawMarkers();
-  });
+  document.getElementById('btnSoft').addEventListener('click', softHide);
+  document.getElementById('btnHard').addEventListener('click', hardDelete);
+  document.getElementById('showHidden').addEventListener('change', (e)=>{ SHOW_HIDDEN = !!e.target.checked; drawMarkers(); });
 
-  // --- Avvio ---
-  (async function boot(){
+  // ========== BOOT ==========
+  (async function(){
     try{
       await loadGoogleJs();
-      initGoogle();
+      initGoogleMap();
       await loadData();
     }catch(e){
-      alert('Impossibile caricare Google Maps. Verifica la chiave in assets/app-config.js.');
+      alert('Google Maps non caricato: '+(e?.message||String(e))+'\nControlla GOOGLE_MAPS_API_KEY in assets/app-config.js');
     }
   })();
-
-  // Bottoni azione
-  $('#btnSoft').addEventListener('click', softHide);
-  $('#btnHard').addEventListener('click', hardDelete);
 })();
 </script>
 </body>
