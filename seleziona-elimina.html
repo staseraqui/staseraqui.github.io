@@ -184,7 +184,9 @@
   const hasGoogleKey = GMAPS_KEY && !/^INSERISCI_/.test(GMAPS_KEY);
 
   if (!SB_URL || !SB_ANON) alert('Configurazione Supabase mancante (assets/app-config.js).');
-  const sb = supabase.createClient(SB_URL, SB_ANON);
+  const sb = supabase.createClient(SB_URL, SB_ANON, {
+  auth: { persistSession: true, autoRefreshToken: true }
+});
 
   // ====== UTILS ======
   const $  = s => document.querySelector(s);
