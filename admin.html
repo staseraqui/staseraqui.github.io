@@ -70,7 +70,7 @@
 <footer class="page-footer"><a class="btn" href="index.html">← Torna alla mappa</a></footer>
 
 <script>
-(function(){
+(async function(){
   // --- util ---
   const $ = s => document.querySelector(s);
   const out = $('#diagOut');
@@ -85,6 +85,37 @@
   const SUPABASE_ANON = CFG.SUPABASE_ANON;
   const GOOGLE_KEY    = CFG.GOOGLE_MAPS_API_KEY;
 
+  // client supabase con sessione persistente
+  let sb = null;
+  if (window.supabase && SUPABASE_URL && SUPABASE_ANON){
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: { persistSession: true, autoRefreshToken: true }
+    });
+  }
+
+  // === Guard: solo admin autenticati ===
+  async function requireAdmin(){
+    if (!sb) throw new Error('Supabase non inizializzato');
+    const { data:{ session } } = await sb.auth.getSession();
+    if (session) return;
+
+    const email = prompt('Email admin per accedere:');
+    if (!email) { alert('Accesso annullato'); throw new Error('no-login'); }
+
+    const { error } = await sb.auth.signInWithOtp({ email });
+    if (error) { alert('Errore login: ' + error.message); throw error; }
+
+    alert('Ti ho inviato un link di accesso via email. Aprilo, poi ricarica questa pagina.');
+    throw new Error('pending-login');
+  }
+
+  try {
+    await requireAdmin();
+  } catch(e){
+    if (String(e).includes('pending-login')) return; // attendo login, poi refresh
+    throw e;
+  }
+
   // Edge base: https://<project>.functions.supabase.co
   function fnBaseFromSupabaseUrl(u){
     try{
@@ -95,11 +126,6 @@
   const FN_BASE = fnBaseFromSupabaseUrl(SUPABASE_URL);
   const URL_CHECKOUT = FN_BASE ? (FN_BASE + '/create-checkout-session') : null;
   const URL_WEBHOOK  = FN_BASE ? (FN_BASE + '/stripe-webhook')         : null;
-
-  let sb = null;
-  if (window.supabase && SUPABASE_URL && SUPABASE_ANON){
-    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-  }
 
   async function pingFunction(url){
     if (!url) return { ok:false, status:0, note:'URL non costruibile' };
@@ -136,6 +162,7 @@
     if (GOOGLE_KEY)    ok('GOOGLE_MAPS_API_KEY presente');
     else               ko('GOOGLE_MAPS_API_KEY mancante (assets/app-config.js)');
 
+    const FN_BASE = fnBaseFromSupabaseUrl(SUPABASE_URL);
     if (FN_BASE){ ok('Functions base: '+FN_BASE); } else { ko('Functions base non derivabile da SUPABASE_URL'); }
     sep();
 
