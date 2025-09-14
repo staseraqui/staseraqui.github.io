@@ -42,6 +42,12 @@
     /* Giallo su "Elimina definitivamente" */
     .btn.warning{background:var(--primary); border-color:var(--primary-border); color:#081421; font-weight:800}
     .btn.ghost{background:#111f31;border:1px solid rgba(255,255,255,.25);color:#fff}
+
+    /* Overlay login semplice */
+    #authGate{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:999999}
+    #authBox{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px;max-width:360px;width:92%}
+    #authBox h3{margin:0 0 8px}
+    #authErr{color:#ff9a9a;margin-top:8px;display:none}
   </style>
 </head>
 <body>
@@ -170,7 +176,23 @@
     </div>
 
     <div class="results" id="dResults" aria-live="polite"></div>
-    <p class="small" style="margin-top:8px;opacity:.8">Gli eventi “scaduti” (tutte le date < oggi) non sono ripristinabili; puoi solo eliminarli definitivamente.</p>
+    <p class="small" style="margin-top:8px;opacity:.8">Gli eventi “scaduti” (tutte le date &lt; oggi) non sono ripristinabili; puoi solo eliminarli definitivamente.</p>
+  </div>
+</div>
+
+<!-- OVERLAY LOGIN (email + password) -->
+<div id="authGate" aria-hidden="true">
+  <div id="authBox">
+    <h3>Accedi</h3>
+    <p class="small" style="margin-top:0">Usa la tua email e password.</p>
+    <label class="small">Email</label>
+    <input id="authEmail" placeholder="es. andrea.cordero@staseraqui.it">
+    <label class="small">Password</label>
+    <input id="authPass" type="password" placeholder="Password">
+    <div class="footer-actions" style="justify-content:flex-end;margin-top:10px">
+      <button class="btn primary" id="authLogin" type="button">Entra</button>
+    </div>
+    <div id="authErr" class="small"></div>
   </div>
 </div>
 
@@ -188,26 +210,45 @@
     auth: { persistSession: true, autoRefreshToken: true }
   });
 
-  // === Guard: solo admin autenticati ===
-  async function requireAdmin(){
+  // ====== LOGIN SOLO PASSWORD ======
+  const AUTH_EMAIL_WHITELIST = ['andrea.cordero@staseraqui.it']; // aggiungi qui eventuali altri admin
+
+  async function requireLogin(){
     const { data:{ session } } = await sb.auth.getSession();
-    if (session) return; // già loggato
+    if (session && AUTH_EMAIL_WHITELIST.includes(session.user.email)) {
+      document.getElementById('authGate').style.display='none';
+      return true;
+    }
+    const gate = document.getElementById('authGate');
+    const email = document.getElementById('authEmail');
+    const pass  = document.getElementById('authPass');
+    const btn   = document.getElementById('authLogin');
+    const err   = document.getElementById('authErr');
 
-    const email = prompt('Email admin per accedere:');
-    if (!email) { alert('Accesso annullato'); throw new Error('no-login'); }
+    gate.style.display='flex';
+    email.value = AUTH_EMAIL_WHITELIST[0] || '';
+    err.style.display='none'; err.textContent='';
 
-    const { error } = await sb.auth.signInWithOtp({ email });
-    if (error) { alert('Errore login: ' + error.message); throw error; }
-
-    alert('Ti ho inviato un link di accesso via email. Aprilo, poi ricarica questa pagina.');
-    throw new Error('pending-login');
-  }
-
-  try {
-    await requireAdmin();
-  } catch(e){
-    if (String(e).includes('pending-login')) return; // stop qui in attesa del login
-    throw e;
+    return new Promise((resolve)=>{
+      btn.onclick = async ()=>{
+        err.style.display='none'; err.textContent='';
+        const e = (email.value||'').trim();
+        const p = pass.value||'';
+        if (!e || !p){ err.textContent='Inserisci email e password.'; err.style.display='block'; return; }
+        try{
+          const { data, error } = await sb.auth.signInWithPassword({ email:e, password:p });
+          if (error){ err.textContent = error.message || 'Accesso non riuscito.'; err.style.display='block'; return; }
+          if (!AUTH_EMAIL_WHITELIST.includes(data.user.email)) {
+            await sb.auth.signOut();
+            err.textContent='Utente non autorizzato per questa pagina.'; err.style.display='block'; return;
+          }
+          gate.style.display='none';
+          resolve(true);
+        }catch(ex){
+          err.textContent = String(ex && ex.message || ex); err.style.display='block';
+        }
+      };
+    });
   }
 
   // ====== UTILS ======
@@ -619,9 +660,12 @@
     });
   }
 
-  // ====== AVVIO ======
-  setupMap();
-  setTimeout(()=> loadData(), 300);
+  // ====== AVVIO (dopo login) ======
+  const ok = await requireLogin();
+  if (ok){
+    setupMap();
+    setTimeout(()=> loadData(), 300);
+  }
 })();
 </script>
 </body>
