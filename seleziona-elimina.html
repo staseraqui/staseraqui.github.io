@@ -175,7 +175,7 @@
 </div>
 
 <script>
-(function(){
+(async function(){
   // ====== CONFIG / SUPABASE ======
   const CFG = window.SQ_CONFIG || {};
   const SB_URL  = CFG.SUPABASE_URL;
@@ -185,8 +185,30 @@
 
   if (!SB_URL || !SB_ANON) alert('Configurazione Supabase mancante (assets/app-config.js).');
   const sb = supabase.createClient(SB_URL, SB_ANON, {
-  auth: { persistSession: true, autoRefreshToken: true }
-});
+    auth: { persistSession: true, autoRefreshToken: true }
+  });
+
+  // === Guard: solo admin autenticati ===
+  async function requireAdmin(){
+    const { data:{ session } } = await sb.auth.getSession();
+    if (session) return; // già loggato
+
+    const email = prompt('Email admin per accedere:');
+    if (!email) { alert('Accesso annullato'); throw new Error('no-login'); }
+
+    const { error } = await sb.auth.signInWithOtp({ email });
+    if (error) { alert('Errore login: ' + error.message); throw error; }
+
+    alert('Ti ho inviato un link di accesso via email. Aprilo, poi ricarica questa pagina.');
+    throw new Error('pending-login');
+  }
+
+  try {
+    await requireAdmin();
+  } catch(e){
+    if (String(e).includes('pending-login')) return; // stop qui in attesa del login
+    throw e;
+  }
 
   // ====== UTILS ======
   const $  = s => document.querySelector(s);
@@ -496,25 +518,25 @@
     const cat  = $('#dCat').value || '';
     const today = todayISO();
 
-    // 1) prendo ID dal CESTINO occorrenze (è la fonte più affidabile perché l’azione tocca sempre le occ)
+    // 1) ID dal CESTINO occorrenze
     const rOcc = await sb.from('occurrences')
       .select('event_id, data, citta, city, deleted_at')
       .not('deleted_at','is',null);
     if (rOcc.error){ $('#dResults').innerHTML = `<div class="small">Errore: ${rOcc.error.message}</div>`; return; }
     const ids = [...new Set((rOcc.data||[]).map(o=>o.event_id))];
 
-    // 2) recupero eventi relativi (anche se events.deleted_at fosse NULL)
+    // 2) eventi relativi
     let evs = [];
     if (ids.length){
       const rEv = await sb.from('events').select('id, title, titolo, published, deleted_at, categories, categorie').in('id', ids);
       if (!rEv.error) evs = rEv.data||[];
     }
 
-    // 3) applico filtro categoria sugli eventi
+    // 3) filtro per categoria
     const evFiltered = evs.filter(e=> !cat || getCats(e).includes(cat));
     if (!evFiltered.length){ $('#dResults').innerHTML = '<div class="small">Cestino vuoto per i filtri impostati.</div>'; return; }
 
-    // 4) filtro per data/città guardando le occorrenze associate (anche cestinate)
+    // 4) filtro data/città sulle occ
     const byEvent = new Map();
     (rOcc.data||[]).forEach(o=>{
       const c=(o.citta||o.city||'').toLowerCase();
@@ -528,7 +550,7 @@
     // 5) render
     let html='';
     evFiltered.forEach(e=>{
-      const occsAll = (ALL_OCCS_BY_EVENT.get(e.id)||[]); // tutte (anche non cestinate) per capire se scaduto
+      const occsAll = (ALL_OCCS_BY_EVENT.get(e.id)||[]);
       const hasFuture = occsAll.some(o => o.data && o.data >= today);
       const occsOk = byEvent.get(e.id)||[];
       if ((from||to||city) && !occsOk.length) return;
@@ -557,7 +579,6 @@
     $$('#dResults [data-restore-deleted]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-deleted');
-        // ripristino: tolgo dal cestino le occorrenze + ri-pubblico l’evento
         const r1 = await sb.from('occurrences').update({ deleted_at:null }).eq('event_id', id);
         if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
         const r2 = await sb.from('events').update({ deleted_at:null, published:true }).eq('id', id);
@@ -572,7 +593,7 @@
         const id = b.getAttribute('data-hardpurge');
         if (!confirm('Eliminare DEFINITIVAMENTE questo evento? Verrà rimosso dal DB (rimane solo nello storico se configurato).')) return;
 
-        // Prova a salvare nello storico (se esistono le tabelle events_log/occurrences_log)
+        // log (best-effort)
         try{
           const ev = EVENTS.get(id);
           const occs = ALL_OCCS_BY_EVENT.get(id)||[];
@@ -585,9 +606,8 @@
             const rows = occs.map(o=>({ event_id:id, occ_id:o.id, action:'hard_delete', snapshot:o, action_at: new Date().toISOString() }));
             await sb.from('occurrences_log').insert(rows);
           }
-        }catch(_){ /* se non esistono le tabelle di log, ignora */ }
+        }catch(_){}
 
-        // Hard delete reale
         const r1 = await sb.from('occurrences').delete().eq('event_id', id);
         if (r1.error){ alert('Errore delete occorrenze: '+(r1.error.message||String(r1.error))); return; }
         const r2 = await sb.from('events').delete().eq('id', id);
