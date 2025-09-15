@@ -25,7 +25,7 @@
   </style>
 </head>
 <body>
-<header class="header">
+<header class="header" style="padding:0 16px">
   <a href="index.html" class="logo">
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
@@ -82,14 +82,6 @@
       <button class="btn primary" id="btnAddPartner" type="button">➕ Nuovo partner</button>
       <span class="smallmuted">Gestisci l’anagrafica e genera il codice partner univoco.</span>
     </div>
-
-    <!-- Filtri & azioni partner -->
-    <div class="flex" style="margin:6px 0 8px">
-      <label class="small"><input type="checkbox" id="partnersOnlyActive" checked> Solo attivi</label>
-      <button class="btn" id="btnExportPartners" type="button">Esporta CSV partner</button>
-      <span id="partnersCount" class="smallmuted"></span>
-    </div>
-
     <div id="partnersTableWrap" class="smallmuted">Caricamento…</div>
   </div>
 
@@ -260,7 +252,7 @@
   const URL_WEBHOOK  = FN_BASE ? (FN_BASE + '/stripe-webhook')         : null;
   const URL_COUPON   = FN_BASE ? (FN_BASE + '/stripe-admin')           : null;
 
-  // ===== DIAGNOSTICA =====
+  // ===== DIAGNOSTICA (come prima) =====
   async function pingFunction(url){
     if (!url) return { ok:false, status:0, note:'URL non costruibile' };
     try{
@@ -286,10 +278,6 @@
 
   // ====================== PARTNER: UI/CRUD ======================
   const partnersWrap = $('#partnersTableWrap');
-  const onlyActiveChk = $('#partnersOnlyActive');
-  const btnExportPartners = $('#btnExportPartners');
-  const partnersCount = $('#partnersCount');
-
   const pm = $('#partnerModal');
   const pmClose = $('#pmClose');
   const pmTitle = $('#pmTitle');
@@ -338,7 +326,7 @@
   $('#btnAddPartner').onclick = ()=> openPM('Nuovo partner');
 
   function genCode(){
-    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans confusione
     let c=''; for(let i=0;i<6;i++) c+=s[Math.floor(Math.random()*s.length)];
     return c;
   }
@@ -361,14 +349,10 @@
     pmCodeMsg.textContent = (await codeExists(c)) ? '❌ codice già presente' : '✅ codice disponibile';
   });
 
-  async function loadPartners(onlyActive){
+  async function loadPartners(){
     partnersWrap.textContent = 'Caricamento…';
-    let q = sb.from('partners').select('*').order('created_at',{ascending:false});
-    if (onlyActive) q = q.eq('active', true);
-    const { data, error } = await q;
+    const { data, error } = await sb.from('partners').select('*').order('created_at',{ascending:false});
     if (error){ partnersWrap.textContent = 'Errore: '+error.message; return; }
-    partnersCount.textContent = (data?.length || 0) + (onlyActive ? ' partner attivi' : ' partner totali');
-
     if (!data || !data.length){ partnersWrap.textContent='Nessun partner. Clicca “Nuovo partner”.'; return; }
     const rows = data.map(p=>`
       <tr>
@@ -392,11 +376,10 @@
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
-
     partnersWrap.querySelectorAll('[data-edit]').forEach(b=>{
       b.addEventListener('click', ()=>{
         const id=b.getAttribute('data-edit');
-        const p = data.find(x=>String(x.id)===String(id));
+        const p = data.find(x=>x.id===id);
         openPM('Modifica partner', p);
       });
     });
@@ -405,7 +388,7 @@
         const id=b.getAttribute('data-toggle');
         const on=b.getAttribute('data-on')==='1';
         await sb.from('partners').update({active:on}).eq('id', id);
-        loadPartners(onlyActiveChk?.checked);
+        loadPartners();
       });
     });
   }
@@ -417,6 +400,7 @@
     const email = (pmEmail.value||'').trim();
     const code  = (pmCode.value||'').trim().toUpperCase();
     if (!first || !last || !email || !code){ pmErr.textContent='Compila Nome, Cognome, Email e Codice partner.'; return; }
+    // se nuovo, verifica unicità codice
     if (!editingPartnerId && await codeExists(code)){ pmErr.textContent='Codice già esistente.'; return; }
 
     const payload = {
@@ -429,33 +413,14 @@
       code, active:(pmActive.value==='true'),
       name: `${first} ${last}`.trim()
     };
-    const { error } = await sb.from('partners')
-      .upsert(editingPartnerId ? { id:editingPartnerId, ...payload } : payload)
-      .select('id').single();
+    let q = sb.from('partners').upsert(editingPartnerId ? { id:editingPartnerId, ...payload } : payload).select('id').single();
+    const { error } = await q;
     if (error){ pmErr.textContent='Errore: '+error.message; return; }
-    closePM(); loadPartners(onlyActiveChk?.checked);
+    closePM(); loadPartners();
   };
 
-  // Filtro & export partner
-  onlyActiveChk?.addEventListener('change', ()=> loadPartners(onlyActiveChk.checked));
-  btnExportPartners?.addEventListener('click', async ()=>{
-    let q = sb.from('partners').select('*').order('created_at',{ascending:false});
-    if (onlyActiveChk?.checked) q = q.eq('active', true);
-    const { data, error } = await q;
-    if (error){ alert('Errore: '+error.message); return; }
-    if (!data?.length){ alert('Nessun partner da esportare.'); return; }
-    const head = ['code','first_name','last_name','email','phone','iban','stripe_account_id','active','created_at'].join(',');
-    const body = data.map(p=>[
-      p.code||'', p.first_name||'', p.last_name||'', p.email||'', p.phone||'',
-      p.iban||'', p.stripe_account_id||'', (p.active?'true':'false'), p.created_at||''
-    ].map(x=>`"${String(x).replaceAll('"','""')}"`).join(',')).join('\n');
-    const blob = new Blob([head+'\n'+body], {type:'text/csv;charset=utf-8;'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `partners_${onlyActiveChk?.checked?'attivi_':''}${new Date().toISOString().slice(0,10)}.csv`; a.click();
-  });
-
-  // Init partners (solo attivi di default)
-  loadPartners(true);
+  // Init partners
+  loadPartners();
 
   // ====================== PAYOUTS ======================
   const payMonth = $('#payMonth');
@@ -464,5 +429,212 @@
   const payoutsDetailTitle = $('#payoutDetailTitle');
   const payoutsDetailTable = $('#payoutDetailTable');
   const payRef = $('#payRef');
+  let currentPartnerCode = null;
 
- 
+  function monthToRange(ym){
+    const [y,m] = ym.split('-').map(n=>parseInt(n,10));
+    const from = new Date(Date.UTC(y,m-1,1));
+    const to   = new Date(Date.UTC(m===12?y+1:y, m===12?1:m, 1));
+    const d = x => x.toISOString().slice(0,10);
+    return { from: d(from), to: d(to) };
+  }
+  $('#btnLoadPayouts').onclick = async ()=>{
+    payoutsDetailBox.style.display='none';
+    payoutsSummary.textContent = 'Caricamento…';
+    const ym = payMonth.value; if (!ym){ payoutsSummary.textContent='Seleziona un mese.'; return; }
+    const { from } = monthToRange(ym);
+    const { data, error } = await sb.from('v_partner_payouts_month').select('*').eq('month', from);
+    if (error){ payoutsSummary.textContent = 'Errore: '+error.message; return; }
+    if (!data?.length){ payoutsSummary.textContent='Nessun pending per questo mese.'; return; }
+    const rows = data.map(r=>`
+      <tr>
+        <td>${r.partner_code}</td>
+        <td>${r.month}</td>
+        <td class="right"><b>${Number(r.partner_share_eur).toFixed(2).replace('.',',')} €</b></td>
+        <td class="right">${r.items}</td>
+        <td><button class="btn small" data-open="${r.partner_code}">Dettaglio</button></td>
+      </tr>`).join('');
+    payoutsSummary.innerHTML = `
+      <table class="table" aria-label="Payout mensile">
+        <thead><tr><th>Partner</th><th>Mese</th><th>Totale</th><th>Items</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+    payoutsSummary.querySelectorAll('[data-open]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const ym = payMonth.value; const range = monthToRange(ym);
+        openPayoutDetail(b.getAttribute('data-open'), range);
+      });
+    });
+  };
+  async function openPayoutDetail(partnerCode, range){
+    currentPartnerCode = partnerCode;
+    payoutsDetailTitle.textContent = `Dettaglio ${partnerCode} — ${range.from} → ${range.to}`;
+    payRef.value = '';
+    payoutsDetailTable.textContent = 'Caricamento…';
+    payoutsDetailBox.style.display='block';
+    const { data, error } = await sb.from('partner_commissions')
+      .select('created_at,item_type,currency,unit_amount_cents,stripe_fee_cents,net_cents,partner_share_cents')
+      .eq('status','pending').eq('partner_code', partnerCode)
+      .gte('created_at', range.from).lt('created_at', range.to)
+      .order('created_at');
+    if (error){ payoutsDetailTable.textContent = 'Errore: '+error.message; return; }
+    if (!data?.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending.'; return; }
+    const total = data.reduce((s,r)=> s+(r.partner_share_cents||0), 0);
+    const rows = data.map(r=>`
+      <tr>
+        <td>${r.created_at?.slice(0,10)||''}</td>
+        <td>${r.item_type}</td>
+        <td class="right">${money(r.unit_amount_cents)} €</td>
+        <td class="right">${money(r.stripe_fee_cents)} €</td>
+        <td class="right">${money(r.net_cents)} €</td>
+        <td class="right"><b>${money(r.partner_share_cents)} €</b></td>
+      </tr>`).join('');
+    payoutsDetailTable.innerHTML = `
+      <table class="table" aria-label="Dettaglio partner">
+        <thead><tr><th>Data</th><th>Tipo</th><th>Lordo</th><th>Fee Stripe</th><th>Netto</th><th>Quota 50%</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><th colspan="5" class="right">Totale</th><th class="right">${money(total)} €</th></tr></tfoot>
+      </table>`;
+
+    $('#btnCSVMonth').onclick = async ()=>{
+      const ym = payMonth.value; if (!ym){ alert('Seleziona un mese.'); return; }
+      const { from, to } = monthToRange(ym);
+      const { data: rowsAll, error: errAll } = await sb.from('partner_commissions')
+        .select('*').eq('status','pending').gte('created_at',from).lt('created_at',to)
+        .order('partner_code').order('created_at');
+      if (errAll){ alert('Errore: '+errAll.message); return; }
+      if (!rowsAll?.length){ alert('Nessun dato.'); return; }
+      const head = ['created_at','partner_code','item_type','currency','unit_amount','stripe_fee','net','partner_share'].join(',');
+      const body = rowsAll.map(r=>[
+        r.created_at, r.partner_code, r.item_type, r.currency,
+        (r.unit_amount_cents/100).toFixed(2),(r.stripe_fee_cents/100).toFixed(2),
+        (r.net_cents/100).toFixed(2),(r.partner_share_cents/100).toFixed(2)
+      ].join(',')).join('\n');
+      const blob = new Blob([head+'\n'+body], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `staseraqui_payout_${from}.csv`; a.click();
+    };
+
+    $('#btnMarkPaid').onclick = async ()=>{
+      const ref = (payRef.value||'').trim();
+      if (!ref){ alert('Inserisci un riferimento pagamento.'); return; }
+      if (!confirm('Segnare come pagato tutti gli elementi pending per questo partner e mese?')) return;
+      const ym = payMonth.value; const { from,to } = monthToRange(ym);
+      const { error } = await sb.from('partner_commissions')
+        .update({ status:'paid', payment_ref: ref })
+        .eq('status','pending').eq('partner_code', partnerCode).gte('created_at',from).lt('created_at',to);
+      if (error){ alert('Errore: '+error.message); return; }
+      alert('Aggiornato a paid.');
+      $('#btnLoadPayouts').click();
+      payoutsDetailBox.style.display='none';
+    };
+  }
+
+  // ====================== COUPON STRIPE (via Edge: stripe-admin) ======================
+  const cpCode = $('#cp_code');
+  const cpType = $('#cp_type');
+  const cpPercentWrap = $('#cp_percent_wrap');
+  const cpAmountWrap  = $('#cp_amount_wrap');
+  const cpPercent = $('#cp_percent');
+  const cpAmount  = $('#cp_amount');
+  const cpMax     = $('#cp_max');
+  const cpExp     = $('#cp_exp');
+  const cpCreate  = $('#cp_create');
+  const cpMsg     = $('#cp_msg');
+  const cpListBox = $('#cp_list');
+
+  cpType.addEventListener('change', ()=>{
+    const t = cpType.value;
+    if (t==='percent'){ cpPercentWrap.style.display='block'; cpAmountWrap.style.display='none'; }
+    else { cpPercentWrap.style.display='none'; cpAmountWrap.style.display='block'; }
+  });
+
+  async function getAccessToken(){
+    const { data:{ session } } = await sb.auth.getSession();
+    return session?.access_token || '';
+  }
+
+  async function loadPromoList(){
+    if (!URL_COUPON){ cpListBox.textContent = 'Function non disponibile.'; return; }
+    cpListBox.textContent = 'Caricamento…';
+    const token = await getAccessToken();
+    const res = await fetch(URL_COUPON + '?active=true&limit=50', { headers:{ 'Authorization':'Bearer '+token } });
+    const txt = await res.text();
+    if (!res.ok){ cpListBox.textContent = 'Errore: '+txt; return; }
+    const j = JSON.parse(txt);
+    if (!j?.data?.length){ cpListBox.textContent='Nessun codice attivo.'; return; }
+    const rows = j.data.map(p=>`
+      <tr>
+        <td>${p.code}</td>
+        <td>${p.coupon?.percent_off ? (p.coupon.percent_off+'%') : (p.coupon?.amount_off ? ( (p.coupon.amount_off/100).toFixed(2)+' €') : '—')}</td>
+        <td class="right">${p.max_redemptions ?? '—'}</td>
+        <td class="right">${p.times_redeemed ?? 0}</td>
+        <td>${p.expires_at ? new Date(p.expires_at*1000).toISOString().slice(0,16).replace('T',' ') : '—'}</td>
+        <td><button class="btn small" data-deact="${p.id}">Disattiva</button></td>
+      </tr>`).join('');
+    cpListBox.innerHTML = `
+      <table class="table" aria-label="Codici attivi">
+        <thead><tr><th>Codice</th><th>Sconto</th><th class="right">Max</th><th class="right">Usati</th><th>Scadenza</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    cpListBox.querySelectorAll('[data-deact]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        if (!confirm('Disattivare questo codice?')) return;
+        const id = b.getAttribute('data-deact');
+        const token = await getAccessToken();
+        const r = await fetch(URL_COUPON, {
+          method:'POST',
+          headers:{ 'content-type':'application/json', 'Authorization':'Bearer '+token },
+          body: JSON.stringify({ action:'deactivate_promo', id })
+        });
+        if (!r.ok){ alert('Errore: '+await r.text()); return; }
+        loadPromoList();
+      });
+    });
+  }
+
+  cpCreate.onclick = async ()=>{
+    try{
+      cpMsg.textContent = '';
+      if (!URL_COUPON){ cpMsg.textContent='Function non disponibile.'; return; }
+      const code = (cpCode.value||'').trim().toUpperCase();
+      if (!code){ cpMsg.textContent='Inserisci il codice.'; return; }
+      const type = cpType.value;
+      let payload = { action:'create_promo', data:{ code } };
+      if (type==='percent'){
+        const p = Math.max(1, Math.min(100, Math.floor(Number(cpPercent.value||0))));
+        if (!p) { cpMsg.textContent='Percentuale non valida.'; return; }
+        payload.data.percent_off = p;
+      } else {
+        const eur = Math.max(1, Math.floor(Number(cpAmount.value||0)));
+        if (!eur) { cpMsg.textContent='Importo non valido.'; return; }
+        payload.data.amount_off_cents = eur*100; payload.data.currency = 'eur';
+      }
+      const max = Number(cpMax.value||0);
+      if (max>0) payload.data.max_redemptions = max;
+
+      const expIso = cpExp.value; // yyyy-MM-ddTHH:mm
+      if (expIso){
+        const ts = Math.floor(new Date(expIso).getTime()/1000);
+        if (ts>0) payload.data.expires_at = ts;
+      }
+
+      const token = await getAccessToken();
+      const r = await fetch(URL_COUPON, {
+        method:'POST',
+        headers:{ 'content-type':'application/json', 'Authorization':'Bearer '+token },
+        body: JSON.stringify(payload)
+      });
+      const txt = await r.text();
+      if (!r.ok){ cpMsg.textContent = 'Errore: '+txt; return; }
+      cpMsg.textContent = 'Creato ✅';
+      cpCode.value=''; cpPercent.value=''; cpAmount.value=''; cpMax.value=''; cpExp.value='';
+      loadPromoList();
+    }catch(e){ cpMsg.textContent='Errore: '+(e?.message||String(e)); }
+  };
+
+  // inizializza lista
+  loadPromoList();
+
+})();
+</script>
+</body>
+</html>
