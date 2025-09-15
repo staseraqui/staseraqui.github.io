@@ -696,49 +696,114 @@ cpCreate.addEventListener('click', async () => {
   }
 });
 </script>
-  async function loadPromoList(){
-    try{
-      if (!URL_COUPON){ cpListBox.textContent = 'Function non disponibile.'; return; }
-      cpListBox.textContent = 'Caricamento…';
-      const token = await getAccessToken();
-      const res = await fetch(URL_COUPON + '?active=true&limit=50', { headers:{ 'Authorization':'Bearer '+token } });
-      const txt = await res.text();
-      if (!res.ok){ cpListBox.textContent = 'Errore: '+txt; logErr('promo list: '+txt); return; }
-      const j = JSON.parse(txt);
-      if (!j?.data?.length){ cpListBox.textContent='Nessun codice attivo.'; return; }
-      const rows = j.data.map(p=>`
+  <script>
+// SOSTITUISCI l'intera funzione loadPromoList con questa
+async function loadPromoList(){
+  const tbodyHtml = (rows) => `
+    <table class="table" aria-label="Codici attivi">
+      <thead>
         <tr>
-          <td>${p.code}</td>
-          <td>${p.coupon?.percent_off ? (p.coupon.percent_off+'%') : (p.coupon?.amount_off ? ( (p.coupon.amount_off/100).toFixed(2)+' €') : '—')}</td>
-          <td class="right">${p.max_redemptions ?? '—'}</td>
-          <td class="right">${p.times_redeemed ?? 0}</td>
-          <td>${p.expires_at ? new Date(p.expires_at*1000).toISOString().slice(0,16).replace('T',' ') : '—'}</td>
-          <td><button class="btn small" data-deact="${p.id}">Disattiva</button></td>
-        </tr>`).join('');
-      cpListBox.innerHTML = `
-        <table class="table" aria-label="Codici attivi">
-          <thead><tr><th>Codice</th><th>Sconto</th><th class="right">Max</th><th class="right">Usati</th><th>Scadenza</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
-      cpListBox.querySelectorAll('[data-deact]').forEach(b=>{
-        b.addEventListener('click', async ()=>{
-          try{
-            if (!confirm('Disattivare questo codice?')) return;
-            const id = b.getAttribute('data-deact');
-            const token = await getAccessToken();
-            const r = await fetch(URL_COUPON, {
-              method:'POST',
-              headers:{ 'content-type':'application/json', 'Authorization':'Bearer '+token },
-              body: JSON.stringify({ action:'deactivate_promo', id })
-            });
-            if (!r.ok){ alert('Errore: '+await r.text()); return; }
-            loadPromoList();
-          }catch(e){ logErr('deactivate ex: '+(e?.message||e)); }
-        });
-      });
-    }catch(e){ cpListBox.textContent='Errore caricamento codici.'; logErr('loadPromoList ex: '+(e?.message||e)); }
-  }
+          <th>Codice</th>
+          <th>Sconto</th>
+          <th class="right">Max</th>
+          <th class="right">Usati</th>
+          <th>Scadenza</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 
+  try{
+    if (!URL_COUPON){
+      cpListBox.textContent = 'Function non disponibile (URL_COUPON non configurato).';
+      return;
+    }
+    cpListBox.textContent = 'Caricamento…';
+
+    const token = await getAccessToken();
+    if (!token){
+      cpListBox.textContent = 'Non sei loggato: inserisci la tua email quando la pagina lo chiede, poi riapri questa pagina.';
+      return;
+    }
+
+    // Timeout di sicurezza: massimo 10s, poi smettiamo di “caricare…”
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+
+    let res;
+    try{
+      res = await fetch(URL_COUPON + '?active=true&limit=50', {
+        headers: { 'Authorization': 'Bearer ' + token },
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    const txt = await res.text().catch(()=> '');
+    if (!res.ok){
+      cpListBox.textContent = `Errore (${res.status}): ${txt || 'impossibile caricare'}`;
+      logErr('promo list HTTP ' + res.status + ': ' + txt);
+      return;
+    }
+
+    let j = null;
+    try { j = JSON.parse(txt); }
+    catch(e){
+      cpListBox.textContent = 'Errore: risposta non valida dal server.';
+      logErr('promo list JSON: ' + (e?.message || e));
+      return;
+    }
+
+    if (!j?.data?.length){
+      cpListBox.textContent = 'Nessun codice attivo.';
+      return;
+    }
+
+    const rows = j.data.map(p => `
+      <tr>
+        <td>${p.code}</td>
+        <td>${
+          p.coupon?.percent_off
+            ? (p.coupon.percent_off + '%')
+            : (p.coupon?.amount_off ? ((p.coupon.amount_off/100).toFixed(2) + ' €') : '—')
+        }</td>
+        <td class="right">${p.max_redemptions ?? '—'}</td>
+        <td class="right">${p.times_redeemed ?? 0}</td>
+        <td>${p.expires_at ? new Date(p.expires_at*1000).toISOString().slice(0,16).replace('T',' ') : '—'}</td>
+        <td><button class="btn small" data-deact="${p.id}">Disattiva</button></td>
+      </tr>
+    `).join('');
+
+    cpListBox.innerHTML = tbodyHtml(rows);
+
+    // Ricollega i bottoni "Disattiva"
+    cpListBox.querySelectorAll('[data-deact]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        try{
+          if (!confirm('Disattivare questo codice?')) return;
+          const id = b.getAttribute('data-deact');
+          const tkn = await getAccessToken();
+          const r = await fetch(URL_COUPON, {
+            method:'POST',
+            headers:{ 'content-type':'application/json', 'Authorization': 'Bearer ' + tkn },
+            body: JSON.stringify({ action:'deactivate_promo', id })
+          });
+          if (!r.ok){ alert('Errore: ' + await r.text()); return; }
+          loadPromoList();
+        }catch(e){ logErr('deactivate ex: ' + (e?.message||e)); }
+      });
+    });
+
+  }catch(e){
+    cpListBox.textContent = (e?.name === 'AbortError')
+      ? 'Errore: timeout (nessuna risposta dal server).'
+      : ('Errore caricamento codici: ' + (e?.message || e));
+    logErr('loadPromoList ex: ' + (e?.message || e));
+  }
+}
+</script>
   // inizializza viste
   await loadAvailableMonths();
   loadPromoList();
