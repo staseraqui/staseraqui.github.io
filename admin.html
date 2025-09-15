@@ -633,7 +633,69 @@
     const { data:{ session } } = await sb.auth.getSession();
     return session?.access_token || '';
   }
+  <script>
+// ——— AGGIUNTA: collega il bottone "Crea codice sconto" ———
+cpCreate.addEventListener('click', async () => {
+  try {
+    cpMsg.textContent = 'Creazione in corso…';
 
+    const code = (cpCode.value || '').trim().toUpperCase();
+    const type = cpType.value; // 'percent' o 'amount'
+    const percent = Number(cpPercent.value);
+    const amount  = Number(cpAmount.value);
+    const maxRed  = cpMax.value ? Number(cpMax.value) : null;
+    const expUnix = cpExp.value ? Math.floor(new Date(cpExp.value).getTime() / 1000) : null;
+
+    if (!code) { cpMsg.textContent = 'Inserisci un codice (es. ADMIN100).'; return; }
+    if (type === 'percent') {
+      if (!percent || percent < 1 || percent > 100) {
+        cpMsg.textContent = 'Inserisci una percentuale tra 1 e 100.'; return;
+      }
+    } else {
+      if (!amount || amount < 1) {
+        cpMsg.textContent = 'Inserisci un importo in euro (≥ 1).'; return;
+      }
+    }
+
+    if (!URL_COUPON) { cpMsg.textContent = 'Funzione non disponibile (URL_COUPON non configurato).'; return; }
+
+    const token = await getAccessToken();
+    if (!token) { cpMsg.textContent = 'Devi essere loggato per creare un codice.'; return; }
+
+    // Preparo i dati per la Function "stripe-admin"
+    const payload = {
+      action: 'create_promo',
+      code,
+      type,                                  // 'percent' | 'amount'
+      value: type === 'percent' ? percent : Math.round(amount * 100), // importo in centesimi
+      max_redemptions: maxRed,
+      expires_at: expUnix                    // unix timestamp (secondi) oppure null
+    };
+
+    const res = await fetch(URL_COUPON, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(payload)
+    });
+
+    const text = await res.text();
+    if (!res.ok) { cpMsg.textContent = 'Errore: ' + text; return; }
+
+    let data = {};
+    try { data = JSON.parse(text); } catch (_) {}
+    cpMsg.textContent = '✅ Creato: ' + (data?.code || code);
+
+    // pulizia campi
+    cpCode.value = ''; cpPercent.value = ''; cpAmount.value = '';
+    cpMax.value = ''; cpExp.value = '';
+
+    // aggiorna elenco
+    loadPromoList();
+  } catch (e) {
+    cpMsg.textContent = 'Errore imprevisto: ' + (e?.message || e);
+  }
+});
+</script>
   async function loadPromoList(){
     try{
       if (!URL_COUPON){ cpListBox.textContent = 'Function non disponibile.'; return; }
