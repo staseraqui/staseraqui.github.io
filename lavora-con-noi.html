@@ -16,17 +16,8 @@
 <meta name="twitter:title" content="Lavora con noi — Stasera Qui">
 <meta name="twitter:description" content="Diventa partner locale e guadagna il 50% su ogni evento pubblicato con il tuo codice.">
 <meta name="twitter:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
-
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
-
-<!-- Dati strutturati -->
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"Organization","name":"Stasera Qui","url":"https://www.staseraqui.it/","logo":"https://www.staseraqui.it/favicon.ico","sameAs":[]}
-</script>
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebSite","name":"Stasera Qui","url":"https://www.staseraqui.it/","potentialAction":{"@type":"SearchAction","target":"https://www.staseraqui.it/?q={search_term_string}","query-input":"required name=search_term_string"}}
-</script>
 </head>
 <body>
 <header class="header">
@@ -39,7 +30,7 @@
 <main class="container">
   <h1>Lavora con noi</h1>
   <div class="card">
-    <p>Entra nel progetto e diventa <b>partner ufficiale</b> sul tuo territorio. Guadagni una <b>percentuale del 50%</b> su ogni evento che un cliente pubblica usando il <b>tuo codice</b>. Aiutaci a contattare locali e Pro Loco, a far crescere la community e a portare vita nelle piazze.</p>
+    <p>Entra nel progetto e diventa <b>partner ufficiale</b> sul tuo territorio. Guadagni una <b>percentuale del 50%</b> su ogni evento che un cliente pubblica usando il tuo codice. Aiutaci a contattare locali e Pro Loco, a far crescere la community e a portare vita nelle piazze.</p>
     <p class="small">Nessun rischio, solo opportunità: formazione veloce, materiali pronti, supporto continuo.</p>
   </div>
 
@@ -86,14 +77,12 @@
 
 <script>
 (function(){
-  function genCode(){ var s='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', c=''; for(var i=0;i<6;i++){ c+=s[Math.floor(Math.random()*s.length)]; } return c; }
   document.getElementById('w_submit').addEventListener('click', function(){
     var nome=w_nome.value.trim(), cognome=w_cognome.value.trim(), email=w_email.value.trim(), tel=w_tel.value.trim(), citta=w_citta.value.trim(), ruolo=w_ruolo.value, note=w_note.value.trim();
     if(!nome||!cognome||!email||!tel||!citta){ alert('Compila tutti i campi obbligatori.'); return; }
-    var code=genCode();
-    var msg=['Nuova candidatura partner — Stasera Qui','','Nome: '+nome+' '+cognome,'Email: '+email,'Telefono: '+tel,'Città/Provincia: '+citta,'Ruolo: '+ruolo,'Note: '+(note||'—'),'','Codice partner assegnato: '+code].join('\n');
+    var msg=['Nuova candidatura partner — Stasera Qui','','Nome: '+nome+' '+cognome,'Email: '+email,'Telefono: '+tel,'Città/Provincia: '+citta,'Ruolo: '+ruolo,'Note: '+(note||'—')].join('\\n');
     window.location.href='mailto:lavoraconnoi@staseraqui.it?subject='+encodeURIComponent('Candidatura partner — '+nome+' '+cognome)+'&body='+encodeURIComponent(msg);
-    var r=document.getElementById('w_result'); r.style.display='block'; r.innerHTML='<h3>Grazie!</h3><p class="small">Il tuo <b>codice partner</b> è:</p><h2 style="margin:6px 0">'+code+'</h2><p class="small">Si aprirà ora l’email con il riepilogo; inviala per completare la candidatura.</p>';
+    var r=document.getElementById('w_result'); r.style.display='block'; r.innerHTML='<h3>Grazie!</h3><p class="small">Ti abbiamo aperto l’email con il riepilogo: inviala per completare la candidatura. Riceverai il tuo <b>codice partner</b> dopo la verifica da parte del nostro team.</p>';
   });
 })();
 </script>
