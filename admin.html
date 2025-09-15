@@ -25,7 +25,7 @@
   </style>
 </head>
 <body>
-<header class="header" style="padding:0 16px">
+<header class="header">
   <a href="index.html" class="logo">
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
@@ -114,7 +114,10 @@
     <div class="grid">
       <div>
         <label>Codice*</label>
-        <input id="cp_code" placeholder="Es. ADMIN100">
+        <div class="flex">
+          <input id="cp_code" placeholder="Es. ADMIN100" style="flex:1">
+          <button class="btn small" id="cp_gen" type="button" title="Genera codice">Genera</button>
+        </div>
       </div>
       <div>
         <label>Tipo sconto*</label>
@@ -213,7 +216,7 @@
   // === util ===
   const $ = s => document.querySelector(s);
   const out = $('#diagOut');
-  function line(msg){ out.textContent += msg + '\\n'; }
+  function line(msg){ if(out) out.textContent += msg + '\n'; }
   function ok(msg){ line('✅ ' + msg); }
   function ko(msg){ line('❌ ' + msg); }
   function sep(){ line('—'.repeat(48)); }
@@ -252,7 +255,7 @@
   const URL_WEBHOOK  = FN_BASE ? (FN_BASE + '/stripe-webhook')         : null;
   const URL_COUPON   = FN_BASE ? (FN_BASE + '/stripe-admin')           : null;
 
-  // ===== DIAGNOSTICA (come prima) =====
+  // ===== DIAGNOSTICA =====
   async function pingFunction(url){
     if (!url) return { ok:false, status:0, note:'URL non costruibile' };
     try{
@@ -263,6 +266,7 @@
     }catch(e){ return { ok:false, status:0, note:String(e&&e.message||e) }; }
   }
   async function run(){
+    if (!out) return;
     out.textContent = '';
     line('DIAGNOSTICA STASERA QUI — '+ new Date().toLocaleString()); sep();
     if (SUPABASE_URL)  ok('SUPABASE_URL presente'); else ko('SUPABASE_URL mancante');
@@ -326,13 +330,13 @@
   $('#btnAddPartner').onclick = ()=> openPM('Nuovo partner');
 
   function genCode(){
-    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans confusione
+    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let c=''; for(let i=0;i<6;i++) c+=s[Math.floor(Math.random()*s.length)];
     return c;
   }
   async function codeExists(code){
     const { data, error } = await sb.from('partners').select('id').eq('code', code).limit(1);
-    if (error) return true; // prudenza
+    if (error) return true;
     return Array.isArray(data) && data.length>0;
   }
   pmGen.onclick = async ()=>{
@@ -379,7 +383,7 @@
     partnersWrap.querySelectorAll('[data-edit]').forEach(b=>{
       b.addEventListener('click', ()=>{
         const id=b.getAttribute('data-edit');
-        const p = data.find(x=>x.id===id);
+        const p = data.find(x=>String(x.id)===String(id));
         openPM('Modifica partner', p);
       });
     });
@@ -400,10 +404,9 @@
     const email = (pmEmail.value||'').trim();
     const code  = (pmCode.value||'').trim().toUpperCase();
     if (!first || !last || !email || !code){ pmErr.textContent='Compila Nome, Cognome, Email e Codice partner.'; return; }
-    // se nuovo, verifica unicità codice
     if (!editingPartnerId && await codeExists(code)){ pmErr.textContent='Codice già esistente.'; return; }
 
-    const payload:any = {
+    const payload = {
       first_name:first, last_name:last, email,
       phone:(pmPhone.value||'').trim(),
       address:(pmAddr.value||'').trim(),
@@ -413,8 +416,9 @@
       code, active:(pmActive.value==='true'),
       name: `${first} ${last}`.trim()
     };
-    let q = sb.from('partners').upsert(editingPartnerId ? { id:editingPartnerId, ...payload } : payload).select('id').single();
-    const { error } = await q;
+    const { error } = await sb.from('partners').upsert(
+      editingPartnerId ? { id:editingPartnerId, ...payload } : payload
+    ).select('id').single();
     if (error){ pmErr.textContent='Errore: '+error.message; return; }
     closePM(); loadPartners();
   };
@@ -422,7 +426,7 @@
   // Init partners
   loadPartners();
 
-  // ====================== PAYOUTS (come nella tua versione) ======================
+  // ====================== PAYOUTS ======================
   const payMonth = $('#payMonth');
   const payoutsSummary = $('#payoutsSummary');
   const payoutsDetailBox = $('#payoutDetail');
@@ -432,9 +436,9 @@
   let currentPartnerCode = null;
 
   function monthToRange(ym){
-    const [y,m] = ym.split('-').map(n=>parseInt(n,10));
-    const from = new Date(Date.UTC(y,m-1,1));
-    const to   = new Date(Date.UTC(m===12?y+1:y, m===12?1:m, 1));
+    const [y,m] = ym.split('-').map(n=>parseInt(n,10)); // m = 1..12
+    const from = new Date(Date.UTC(y, m-1, 1));         // primo giorno mese
+    const to   = new Date(Date.UTC(y, m, 1));           // primo giorno mese successivo (JS gestisce oltre-12)
     const d = x => x.toISOString().slice(0,10);
     return { from: d(from), to: d(to) };
   }
@@ -530,6 +534,7 @@
 
   // ====================== COUPON STRIPE (via Edge: stripe-admin) ======================
   const cpCode = $('#cp_code');
+  const cpGen  = $('#cp_gen');
   const cpType = $('#cp_type');
   const cpPercentWrap = $('#cp_percent_wrap');
   const cpAmountWrap  = $('#cp_amount_wrap');
@@ -545,6 +550,15 @@
     const t = cpType.value;
     if (t==='percent'){ cpPercentWrap.style.display='block'; cpAmountWrap.style.display='none'; }
     else { cpPercentWrap.style.display='none'; cpAmountWrap.style.display='block'; }
+  });
+
+  function genCouponCode(){
+    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let c='SQ-'; for(let i=0;i<6;i++) c+=s[Math.floor(Math.random()*s.length)];
+    return c;
+  }
+  cpGen.addEventListener('click', ()=>{
+    cpCode.value = genCouponCode();
   });
 
   async function getAccessToken(){
@@ -595,10 +609,10 @@
     try{
       cpMsg.textContent = '';
       if (!URL_COUPON){ cpMsg.textContent='Function non disponibile.'; return; }
-      const code = (cpCode.value||'').trim().toUpperCase();
-      if (!code){ cpMsg.textContent='Inserisci il codice.'; return; }
+      let code = (cpCode.value||'').trim().toUpperCase();
+      if (!code){ code = genCouponCode(); cpCode.value = code; }
       const type = cpType.value;
-      let payload:any = { action:'create_promo', data:{ code } };
+      let payload = { action:'create_promo', data:{ code } };
       if (type==='percent'){
         const p = Math.max(1, Math.min(100, Math.floor(Number(cpPercent.value||0))));
         if (!p) { cpMsg.textContent='Percentuale non valida.'; return; }
