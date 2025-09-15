@@ -90,12 +90,12 @@
     <h2>Payout partner</h2>
     <div class="flex" style="margin-bottom:8px">
       <label class="small">Mese:</label>
-      <input type="month" id="payMonth">
-      <button class="btn" id="btnLoadPayouts" type="button">Carica</button>
-      <button class="btn" id="btnCSVMonth" type="button">Scarica CSV (mese)</button>
+      <select id="payMonth" style="min-width:220px"></select>
+      <button class="btn" id="btnLoadPayouts" type="button" disabled>Carica</button>
+      <button class="btn" id="btnCSVMonth" type="button" disabled>Scarica CSV (mese)</button>
       <span class="smallmuted">Totali “pending” da pagare; apri il dettaglio e marca come pagato.</span>
     </div>
-    <div id="payoutsSummary" class="smallmuted">Seleziona un mese e premi “Carica”.</div>
+    <div id="payoutsSummary" class="smallmuted">Seleziona un mese con dati “pending”.</div>
     <div id="payoutDetail" style="margin-top:12px; display:none">
       <h3 style="margin:0 0 8px" id="payoutDetailTitle">Dettaglio</h3>
       <div class="flex" style="margin-bottom:6px">
@@ -114,7 +114,10 @@
     <div class="grid">
       <div>
         <label>Codice*</label>
-        <input id="cp_code" placeholder="Es. ADMIN100">
+        <div class="flex">
+          <input id="cp_code" placeholder="Es. ADMIN100" style="flex:1">
+          <button class="btn small" id="cp_gen" type="button" title="Genera un codice casuale">Genera</button>
+        </div>
       </div>
       <div>
         <label>Tipo sconto*</label>
@@ -252,7 +255,7 @@
   const URL_WEBHOOK  = FN_BASE ? (FN_BASE + '/stripe-webhook')         : null;
   const URL_COUPON   = FN_BASE ? (FN_BASE + '/stripe-admin')           : null;
 
-  // ===== DIAGNOSTICA (come prima) =====
+  // ===== DIAGNOSTICA =====
   async function pingFunction(url){
     if (!url) return { ok:false, status:0, note:'URL non costruibile' };
     try{
@@ -270,7 +273,7 @@
     sep();
     if (URL_CHECKOUT){ const r1 = await pingFunction(URL_CHECKOUT); (r1.ok ? ok : ko)(`create-checkout-session — ${r1.status} (${r1.note})`); }
     if (URL_WEBHOOK) { const r2 = await pingFunction(URL_WEBHOOK);  (r2.ok ? ok : ko)(`stripe-webhook — ${r2.status} (${r2.note})`); }
-    if (URL_COUPON)  { const r3 = await pingFunction(URL_COUPON);   (r3.ok ? ok : ko)(`stripe-admin — ${r3.status} (${r3.note})`); }
+    if (URL_COUPON)  { const r3 = await pingFunction(URL_COUPON);   (r3.ok ? ok)(`stripe-admin — ${r3.status} (${r3.note})`); }
     sep(); line('FINE TEST ✅');
   }
   $('#runDiag')?.addEventListener('click', run);
@@ -326,13 +329,13 @@
   $('#btnAddPartner').onclick = ()=> openPM('Nuovo partner');
 
   function genCode(){
-    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans confusione
+    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let c=''; for(let i=0;i<6;i++) c+=s[Math.floor(Math.random()*s.length)];
     return c;
   }
   async function codeExists(code){
     const { data, error } = await sb.from('partners').select('id').eq('code', code).limit(1);
-    if (error) return true; // prudenza
+    if (error) return true;
     return Array.isArray(data) && data.length>0;
   }
   pmGen.onclick = async ()=>{
@@ -400,7 +403,6 @@
     const email = (pmEmail.value||'').trim();
     const code  = (pmCode.value||'').trim().toUpperCase();
     if (!first || !last || !email || !code){ pmErr.textContent='Compila Nome, Cognome, Email e Codice partner.'; return; }
-    // se nuovo, verifica unicità codice
     if (!editingPartnerId && await codeExists(code)){ pmErr.textContent='Codice già esistente.'; return; }
 
     const payload = {
@@ -413,8 +415,9 @@
       code, active:(pmActive.value==='true'),
       name: `${first} ${last}`.trim()
     };
-    let q = sb.from('partners').upsert(editingPartnerId ? { id:editingPartnerId, ...payload } : payload).select('id').single();
-    const { error } = await q;
+    const { error } = await sb.from('partners').upsert(
+      editingPartnerId ? { id:editingPartnerId, ...payload } : payload
+    ).select('id').single();
     if (error){ pmErr.textContent='Errore: '+error.message; return; }
     closePM(); loadPartners();
   };
@@ -431,17 +434,53 @@
   const payRef = $('#payRef');
   let currentPartnerCode = null;
 
-  function monthToRange(ym){
+  function prettyMonthLabel(ymd){
+    // ymd in formato "YYYY-MM-DD"
+    try{
+      const d = new Date(ymd + 'T00:00:00Z');
+      const s = d.toLocaleDateString('it-IT',{ month:'long', year:'numeric' });
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }catch(_){ return ymd.slice(0,7); }
+  }
+  function monthToRange(ym){ // ym = "YYYY-MM"
     const [y,m] = ym.split('-').map(n=>parseInt(n,10));
     const from = new Date(Date.UTC(y,m-1,1));
     const to   = new Date(Date.UTC(m===12?y+1:y, m===12?1:m, 1));
     const d = x => x.toISOString().slice(0,10);
     return { from: d(from), to: d(to) };
   }
+
+  async function loadAvailableMonths(){
+    // Prende i mesi presenti nella view v_partner_payouts_month (solo quelli con pending)
+    payMonth.innerHTML = '<option disabled selected>Caricamento mesi…</option>';
+    $('#btnLoadPayouts').disabled = true;
+    $('#btnCSVMonth').disabled = true;
+
+    const { data, error } = await sb.from('v_partner_payouts_month')
+      .select('month').order('month', { ascending:false });
+    if (error){ payMonth.innerHTML = `<option disabled selected>Errore: ${error.message}</option>`; return; }
+    if (!data || !data.length){ payMonth.innerHTML = '<option disabled selected>Nessun mese con pending</option>'; return; }
+
+    // dedup mesi
+    const seen = new Set();
+    const opts = [];
+    for (const r of data){
+      if (!r.month || seen.has(r.month)) continue;
+      seen.add(r.month);
+      const val = r.month.slice(0,7); // "YYYY-MM"
+      const label = prettyMonthLabel(r.month);
+      opts.push(`<option value="${val}">${label}</option>`);
+    }
+    payMonth.innerHTML = `<option disabled selected>— Scegli un mese —</option>` + opts.join('');
+    $('#btnLoadPayouts').disabled = false;
+    $('#btnCSVMonth').disabled = false;
+  }
+
   $('#btnLoadPayouts').onclick = async ()=>{
     payoutsDetailBox.style.display='none';
     payoutsSummary.textContent = 'Caricamento…';
-    const ym = payMonth.value; if (!ym){ payoutsSummary.textContent='Seleziona un mese.'; return; }
+    const ym = payMonth.value;
+    if (!ym || ym.startsWith('—')){ payoutsSummary.textContent='Seleziona un mese.'; return; }
     const { from } = monthToRange(ym);
     const { data, error } = await sb.from('v_partner_payouts_month').select('*').eq('month', from);
     if (error){ payoutsSummary.textContent = 'Errore: '+error.message; return; }
@@ -449,7 +488,7 @@
     const rows = data.map(r=>`
       <tr>
         <td>${r.partner_code}</td>
-        <td>${r.month}</td>
+        <td>${prettyMonthLabel(r.month)}</td>
         <td class="right"><b>${Number(r.partner_share_eur).toFixed(2).replace('.',',')} €</b></td>
         <td class="right">${r.items}</td>
         <td><button class="btn small" data-open="${r.partner_code}">Dettaglio</button></td>
@@ -465,6 +504,7 @@
       });
     });
   };
+
   async function openPayoutDetail(partnerCode, range){
     currentPartnerCode = partnerCode;
     payoutsDetailTitle.textContent = `Dettaglio ${partnerCode} — ${range.from} → ${range.to}`;
@@ -540,11 +580,19 @@
   const cpCreate  = $('#cp_create');
   const cpMsg     = $('#cp_msg');
   const cpListBox = $('#cp_list');
+  const cpGenBtn  = $('#cp_gen');
 
   cpType.addEventListener('change', ()=>{
     const t = cpType.value;
     if (t==='percent'){ cpPercentWrap.style.display='block'; cpAmountWrap.style.display='none'; }
     else { cpPercentWrap.style.display='none'; cpAmountWrap.style.display='block'; }
+  });
+
+  // Genera codice promo casuale
+  cpGenBtn.addEventListener('click', ()=>{
+    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let c=''; for(let i=0;i<6;i++) c+=s[Math.floor(Math.random()*s.length)];
+    cpCode.value = 'ADMIN-' + c;
   });
 
   async function getAccessToken(){
@@ -631,7 +679,8 @@
     }catch(e){ cpMsg.textContent='Errore: '+(e?.message||String(e)); }
   };
 
-  // inizializza lista
+  // inizializza liste
+  await loadAvailableMonths();
   loadPromoList();
 
 })();
