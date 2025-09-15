@@ -12,6 +12,14 @@
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media (max-width:720px){.grid{grid-template-columns:1fr}}
     .card h2{margin:0 0 8px}
+    .table{width:100%;border-collapse:collapse;margin:10px 0}
+    .table th,.table td{border:1px solid rgba(255,255,255,.15);padding:8px;text-align:left}
+    .table th{background:#0f1c2d}
+    .smallmuted{font-size:13px;color:#b8c2ce}
+    .row-actions{display:flex;gap:6px;flex-wrap:wrap}
+    .modal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.5);z-index:99999}
+    .modal .box{margin-top:60px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;min-width:320px;max-width:800px;width:92%}
+    .flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   </style>
 </head>
 <body>
@@ -28,7 +36,7 @@
 <main class="wrap">
   <h1 style="margin:8px 0 14px">Area admin</h1>
 
-  <!-- === Diagnostica piattaforma (ora dentro <body>) === -->
+  <!-- === Diagnostica piattaforma === -->
   <div class="card" id="diagCard" style="margin-top:16px">
     <h2 style="margin-top:0">Diagnostica</h2>
     <p class="small">Esegue test rapidi su chiavi, DB, storage e funzioni Edge.</p>
@@ -38,7 +46,6 @@
     </div>
     <pre id="diagOut" style="background:#0b1623;border:1px solid rgba(255,255,255,.12);padding:12px;border-radius:10px;max-height:420px;overflow:auto;margin:0;white-space:pre-wrap"></pre>
   </div>
-  <!-- === /Diagnostica === -->
 
   <div class="card">
     <h2>Azioni rapide</h2>
@@ -65,19 +72,80 @@
     <p class="small">Flusso pubblico con pagamento Stripe.</p>
     <a class="btn" href="pubblica-evento.html">Pubblica evento (singolo)</a>
   </div>
+
+  <!-- ================== PARTNER ================== -->
+  <div class="card" id="partnersCard">
+    <h2>Partner</h2>
+    <div class="flex" style="margin-bottom:8px">
+      <button class="btn primary" id="btnAddPartner" type="button">➕ Nuovo partner</button>
+      <span class="smallmuted">Crea / modifica i partner (codice, email, IBAN…)</span>
+    </div>
+    <div id="partnersTableWrap" class="smallmuted">Caricamento…</div>
+  </div>
+
+  <!-- ================== PAYOUT PARTNER ================== -->
+  <div class="card" id="payoutsCard">
+    <h2>Payout partner</h2>
+    <div class="flex" style="margin-bottom:8px">
+      <label class="small">Mese:</label>
+      <input type="month" id="payMonth">
+      <button class="btn" id="btnLoadPayouts" type="button">Carica</button>
+      <button class="btn" id="btnCSVMonth" type="button">Scarica CSV (mese)</button>
+      <span class="smallmuted">Vedi totale da pagare ai partner (stato: pending). Poi apri il dettaglio e segna come pagato.</span>
+    </div>
+    <div id="payoutsSummary" class="smallmuted">Seleziona un mese e premi “Carica”.</div>
+    <div id="payoutDetail" style="margin-top:12px; display:none">
+      <h3 style="margin:0 0 8px" id="payoutDetailTitle">Dettaglio</h3>
+      <div class="flex" style="margin-bottom:6px">
+        <input id="payRef" placeholder="Riferimento pagamento/bonifico (es. SEPA 2024-09 batch #1)" style="flex:1;min-width:260px">
+        <button class="btn primary" id="btnMarkPaid" type="button">Segna tutto come pagato</button>
+      </div>
+      <div id="payoutDetailTable" class="smallmuted">—</div>
+    </div>
+  </div>
 </main>
 
 <footer class="page-footer"><a class="btn" href="index.html">← Torna alla mappa</a></footer>
+
+<!-- ===== MODALE PARTNER ===== -->
+<div id="partnerModal" class="modal" aria-hidden="true">
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <h3 style="margin:0" id="pmTitle">Nuovo partner</h3>
+      <button class="btn" id="pmClose" type="button">Chiudi</button>
+    </div>
+    <div class="grid" style="margin-top:8px">
+      <div><label>Codice*</label><input id="pmCode" placeholder="Es. ABC123" maxlength="12"></div>
+      <div><label>Nome*</label><input id="pmName" placeholder="Ragione sociale / Nome e Cognome"></div>
+    </div>
+    <div class="grid">
+      <div><label>Email*</label><input id="pmEmail" type="email"></div>
+      <div><label>IBAN</label><input id="pmIBAN" placeholder="IT.."></div>
+    </div>
+    <div class="grid">
+      <div><label>Stripe account ID</label><input id="pmStripe" placeholder="acct_... (se useremo Connect)"></div>
+      <div>
+        <label>Attivo</label>
+        <select id="pmActive"><option value="true">Sì</option><option value="false">No</option></select>
+      </div>
+    </div>
+    <div class="flex" style="justify-content:flex-end;margin-top:8px">
+      <button class="btn primary" id="pmSave" type="button">Salva</button>
+    </div>
+    <div id="pmErr" class="smallmuted" style="color:#ff9a9a;margin-top:6px"></div>
+  </div>
+</div>
 
 <script>
 (async function(){
   // --- util ---
   const $ = s => document.querySelector(s);
   const out = $('#diagOut');
-  function line(msg){ out.textContent += msg + '\n'; }
+  function line(msg){ out.textContent += msg + '\\n'; }
   function ok(msg){ line('✅ ' + msg); }
   function ko(msg){ line('❌ ' + msg); }
   function sep(){ line('—'.repeat(48)); }
+  const money = c => (c/100).toFixed(2).replace('.',',');
 
   // --- config da assets/app-config.js ---
   const CFG = window.SQ_CONFIG || {};
@@ -93,7 +161,7 @@
     });
   }
 
-  // === Guard: solo admin autenticati ===
+  // === Guard: solo admin autenticati (email deve essere in admin_users) ===
   async function requireAdmin(){
     if (!sb) throw new Error('Supabase non inizializzato');
     const { data:{ session } } = await sb.auth.getSession();
@@ -112,14 +180,14 @@
   try {
     await requireAdmin();
   } catch(e){
-    if (String(e).includes('pending-login')) return; // attendo login, poi refresh
+    if (String(e).includes('pending-login')) return;
     throw e;
   }
 
-  // Edge base: https://<project>.functions.supabase.co
+  // ====================== DIAGNOSTICA (immutata) ======================
   function fnBaseFromSupabaseUrl(u){
     try{
-      const host = new URL(u).host; // es. rubdzlno....supabase.co
+      const host = new URL(u).host;
       return 'https://' + host.replace('.supabase.co', '.functions.supabase.co');
     }catch(_){ return null; }
   }
@@ -130,17 +198,13 @@
   async function pingFunction(url){
     if (!url) return { ok:false, status:0, note:'URL non costruibile' };
     try{
-      // 1° tentativo: OPTIONS (CORS preflight)
       let res = await fetch(url, { method:'OPTIONS' });
       if (res.ok || res.status===204) return { ok:true, status:res.status, note:'OPTIONS OK' };
-
-      // 2° tentativo: POST "ping" (ci aspettiamo 400/405 ma rete OK)
       res = await fetch(url, {
         method:'POST',
         headers:{ 'content-type':'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer '+SUPABASE_ANON },
         body: JSON.stringify({ ping:true })
       });
-      // Se arriva 2xx-4xx, la rete/endpoint sono raggiungibili
       return { ok:true, status:res.status, note:'POST raggiungibile (expected 400/405)' };
     }catch(e){
       return { ok:false, status:0, note:String(e&&e.message||e) };
@@ -152,29 +216,21 @@
     line('DIAGNOSTICA STASERA QUI — '+ new Date().toLocaleString());
     sep();
 
-    // Chiavi presenti?
-    if (SUPABASE_URL)  ok('SUPABASE_URL presente');
-    else               ko('SUPABASE_URL mancante (assets/app-config.js)');
-
-    if (SUPABASE_ANON) ok('SUPABASE_ANON presente');
-    else               ko('SUPABASE_ANON mancante (assets/app-config.js)');
-
-    if (GOOGLE_KEY)    ok('GOOGLE_MAPS_API_KEY presente');
-    else               ko('GOOGLE_MAPS_API_KEY mancante (assets/app-config.js)');
+    if (SUPABASE_URL)  ok('SUPABASE_URL presente'); else ko('SUPABASE_URL mancante');
+    if (SUPABASE_ANON) ok('SUPABASE_ANON presente'); else ko('SUPABASE_ANON mancante');
+    if (GOOGLE_KEY)    ok('GOOGLE_MAPS_API_KEY presente'); else ko('GOOGLE_MAPS_API_KEY mancante');
 
     const FN_BASE = fnBaseFromSupabaseUrl(SUPABASE_URL);
-    if (FN_BASE){ ok('Functions base: '+FN_BASE); } else { ko('Functions base non derivabile da SUPABASE_URL'); }
+    if (FN_BASE){ ok('Functions base: '+FN_BASE); } else { ko('Functions base non derivabile'); }
     sep();
 
-    // Supabase: query rapide
     if (!sb){
-      ko('Client Supabase non inizializzato (manca SDK o chiavi)');
+      ko('Client Supabase non inizializzato');
     } else {
       try{
         const ev = await sb.from('events').select('id', { count:'exact', head:true });
         if (ev.error) throw ev.error;
         ok('DB events accessibile — totale stimato: '+ (ev.count ?? 'n/d'));
-
         const oc = await sb.from('occurrences').select('id', { count:'exact', head:true });
         if (oc.error) throw oc.error;
         ok('DB occurrences accessibile — totale stimato: '+ (oc.count ?? 'n/d'));
@@ -182,18 +238,16 @@
         ko('DB select error: ' + (e?.message||String(e)));
       }
 
-      // Storage: lista 1 file (se policy consente listing)
       try{
         const st = await sb.storage.from('event-images').list('', { limit:1 });
         if (st.error) throw st.error;
         ok('Storage event-images accessibile (list 1) — elementi: '+ (st.data?.length ?? 0));
       }catch(e){
-        ko('Storage list fallita: ' + (e?.message||String(e)) + ' (nota: ok se listing non permesso, ma public URL deve funzionare)');
+        ko('Storage list fallita: ' + (e?.message||String(e)));
       }
     }
     sep();
 
-    // Edge functions raggiungibili?
     if (URL_CHECKOUT){
       const r1 = await pingFunction(URL_CHECKOUT);
       (r1.ok ? ok : ko)(`create-checkout-session raggiungibile — status ${r1.status} (${r1.note})`);
@@ -210,13 +264,257 @@
 
   $('#runDiag')?.addEventListener('click', run);
   $('#copyDiag')?.addEventListener('click', ()=>{
-    try{
-      navigator.clipboard.writeText(out.textContent||'');
-      alert('Report copiato negli appunti.');
-    }catch(_){
-      alert('Non riesco a copiare. Seleziona il testo e copia manualmente.');
-    }
+    try{ navigator.clipboard.writeText(out.textContent||''); alert('Report copiato.'); }
+    catch(_){ alert('Seleziona e copia manualmente.'); }
   });
+
+  // ====================== PARTNER: UI ======================
+  const partnersWrap = $('#partnersTableWrap');
+  const pm = $('#partnerModal');
+  const pmClose = $('#pmClose');
+  const pmTitle = $('#pmTitle');
+  const pmCode = $('#pmCode');
+  const pmName = $('#pmName');
+  const pmEmail = $('#pmEmail');
+  const pmIBAN = $('#pmIBAN');
+  const pmStripe = $('#pmStripe');
+  const pmActive = $('#pmActive');
+  const pmSave = $('#pmSave');
+  const pmErr = $('#pmErr');
+  let editingPartnerId = null;
+
+  function openPM(title, partner){
+    pmTitle.textContent = title;
+    pmErr.textContent = '';
+    if (partner){
+      editingPartnerId = partner.id;
+      pmCode.value   = partner.code || '';
+      pmName.value   = partner.name || '';
+      pmEmail.value  = partner.email || '';
+      pmIBAN.value   = partner.iban || '';
+      pmStripe.value = partner.stripe_account_id || '';
+      pmActive.value = String(!!partner.active);
+    } else {
+      editingPartnerId = null;
+      pmCode.value = ''; pmName.value=''; pmEmail.value=''; pmIBAN.value=''; pmStripe.value='';
+      pmActive.value = 'true';
+    }
+    pm.style.display='flex';
+  }
+  function closePM(){ pm.style.display='none'; }
+  pmClose.onclick = closePM;
+  pm.addEventListener('click', e=>{ if(e.target===pm) closePM(); });
+
+  $('#btnAddPartner').onclick = ()=> openPM('Nuovo partner');
+
+  async function loadPartners(){
+    partnersWrap.textContent = 'Caricamento…';
+    const { data, error } = await sb.from('partners').select('*').order('created_at',{ascending:false});
+    if (error){ partnersWrap.textContent = 'Errore: '+error.message; return; }
+    if (!data || !data.length){ partnersWrap.textContent='Nessun partner. Clicca “Nuovo partner”.'; return; }
+
+    const rows = data.map(p=>`
+      <tr>
+        <td>${p.code||'—'}</td>
+        <td>${p.name||'—'}</td>
+        <td>${p.email||'—'}</td>
+        <td>${p.iban||'—'}</td>
+        <td>${p.stripe_account_id||'—'}</td>
+        <td>${p.active?'Sì':'No'}</td>
+        <td class="row-actions">
+          <button class="btn small" data-edit="${p.id}">Modifica</button>
+          <button class="btn small" data-toggle="${p.id}" data-on="${p.active?0:1}">${p.active?'Disattiva':'Attiva'}</button>
+        </td>
+      </tr>
+    `).join('');
+    partnersWrap.innerHTML = `
+      <table class="table" aria-label="Partner">
+        <thead><tr>
+          <th>Codice</th><th>Nome</th><th>Email</th><th>IBAN</th><th>Stripe acct</th><th>Attivo</th><th>Azioni</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    partnersWrap.querySelectorAll('[data-edit]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const id=b.getAttribute('data-edit');
+        const p = data.find(x=>x.id===id);
+        openPM('Modifica partner', p);
+      });
+    });
+    partnersWrap.querySelectorAll('[data-toggle]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const id=b.getAttribute('data-toggle');
+        const on=b.getAttribute('data-on')==='1';
+        await sb.from('partners').update({active:on}).eq('id', id);
+        loadPartners();
+      });
+    });
+  }
+
+  pmSave.onclick = async ()=>{
+    pmErr.textContent='';
+    const code=(pmCode.value||'').trim().toUpperCase();
+    const name=(pmName.value||'').trim();
+    const email=(pmEmail.value||'').trim();
+    const iban=(pmIBAN.value||'').trim();
+    const stripe=(pmStripe.value||'').trim();
+    const active=(pmActive.value==='true');
+
+    if (!code || !name || !email){ pmErr.textContent='Compila Codice, Nome ed Email.'; return; }
+
+    const payload = { code,name,email,iban,stripe_account_id:stripe,active };
+    let q = sb.from('partners').upsert(editingPartnerId ? { id:editingPartnerId, ...payload } : payload).select('id').single();
+    const { error } = await q;
+    if (error){ pmErr.textContent='Errore: '+error.message; return; }
+    closePM();
+    loadPartners();
+  };
+
+  // ====================== PAYOUTS: UI ======================
+  const payMonth = $('#payMonth');
+  const payoutsSummary = $('#payoutsSummary');
+  const payoutsDetailBox = $('#payoutDetail');
+  const payoutsDetailTitle = $('#payoutDetailTitle');
+  const payoutsDetailTable = $('#payoutDetailTable');
+  const payRef = $('#payRef');
+  let currentMonthISO = null;        // 'YYYY-MM-01'
+  let currentPartnerCode = null;     // per dettaglio
+
+  function monthToRange(ym){ // '2024-09' -> {from:'2024-09-01', to:'2024-10-01'}
+    const [y,m] = ym.split('-').map(n=>parseInt(n,10));
+    const from = new Date(Date.UTC(y,m-1,1));
+    const to   = new Date(Date.UTC(m===12?y+1:y, m===12?1:m, 1));
+    const isod = d => d.toISOString().slice(0,10);
+    return { from: isod(from), to: isod(to) };
+  }
+
+  $('#btnLoadPayouts').onclick = async ()=>{
+    payoutsDetailBox.style.display='none';
+    payoutsSummary.textContent = 'Caricamento…';
+    const ym = payMonth.value;
+    if (!ym){ payoutsSummary.textContent='Seleziona un mese.'; return; }
+    const { from, to } = monthToRange(ym);
+    currentMonthISO = from;
+
+    // la view ha la colonna "month" (date), posso filtrarci sopra
+    const { data, error } = await sb.from('v_partner_payouts_month').select('*').eq('month', from);
+    if (error){ payoutsSummary.textContent = 'Errore: '+error.message; return; }
+    if (!data || !data.length){ payoutsSummary.textContent='Nessun pending per questo mese.'; return; }
+
+    const rows = data.map(r=>`
+      <tr>
+        <td>${r.partner_code}</td>
+        <td>${r.month}</td>
+        <td style="text-align:right"><b>${Number(r.partner_share_eur).toFixed(2).replace('.',',')} €</b></td>
+        <td style="text-align:right">${r.items}</td>
+        <td><button class="btn small" data-open="${r.partner_code}">Apri dettaglio</button></td>
+      </tr>
+    `).join('');
+    payoutsSummary.innerHTML = `
+      <table class="table" aria-label="Payout mensile">
+        <thead><tr><th>Partner</th><th>Mese</th><th>Totale (EUR)</th><th>Items</th><th>Dettaglio</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+
+    payoutsSummary.querySelectorAll('[data-open]').forEach(b=>{
+      b.addEventListener('click', ()=> openPayoutDetail(b.getAttribute('data-open'), {from,to}));
+    });
+  };
+
+  async function openPayoutDetail(partnerCode, range){
+    currentPartnerCode = partnerCode;
+    payoutsDetailTitle.textContent = `Dettaglio ${partnerCode} — ${range.from} → ${range.to}`;
+    payRef.value = '';
+    payoutsDetailTable.textContent = 'Caricamento…';
+    payoutsDetailBox.style.display='block';
+
+    const { data, error } = await sb
+      .from('partner_commissions')
+      .select('created_at, item_type, currency, unit_amount_cents, stripe_fee_cents, net_cents, partner_share_cents')
+      .eq('status','pending')
+      .eq('partner_code', partnerCode)
+      .gte('created_at', range.from)
+      .lt('created_at', range.to)
+      .order('created_at');
+
+    if (error){ payoutsDetailTable.textContent = 'Errore: '+error.message; return; }
+    if (!data || !data.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending per questo partner/mese.'; return; }
+
+    const total = data.reduce((s,r)=> s + (r.partner_share_cents||0), 0);
+    const rows = data.map(r=>`
+      <tr>
+        <td>${r.created_at?.slice(0,10) || ''}</td>
+        <td>${r.item_type}</td>
+        <td style="text-align:right">${money(r.unit_amount_cents)} €</td>
+        <td style="text-align:right">${money(r.stripe_fee_cents)} €</td>
+        <td style="text-align:right">${money(r.net_cents)} €</td>
+        <td style="text-align:right"><b>${money(r.partner_share_cents)} €</b></td>
+      </tr>
+    `).join('');
+    payoutsDetailTable.innerHTML = `
+      <table class="table" aria-label="Dettaglio partner">
+        <thead><tr>
+          <th>Data</th><th>Tipo</th><th>Lordo (post-sconto)</th><th>Fee Stripe</th><th>Netto</th><th>Quota partner (50%)</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><th colspan="5" style="text-align:right">Totale da pagare</th><th style="text-align:right">${money(total)} €</th></tr></tfoot>
+      </table>
+    `;
+
+    // CSV solo dettaglio corrente
+    $('#btnCSVMonth').onclick = async ()=>{
+      // se sto su dettaglio, scarico CSV aggregato mese (tutti i partner)
+      // Per comodità, qui scarico il mese intero dal summary
+      const ym = payMonth.value;
+      if (!ym){ alert('Seleziona un mese.'); return; }
+      const { from, to } = monthToRange(ym);
+      const { data: rowsAll, error: errAll } = await sb
+        .from('partner_commissions')
+        .select('*')
+        .eq('status','pending')
+        .gte('created_at', from).lt('created_at', to)
+        .order('partner_code').order('created_at');
+      if (errAll){ alert('Errore: '+errAll.message); return; }
+      if (!rowsAll?.length){ alert('Nessun dato.'); return; }
+      const head = ['created_at','partner_code','item_type','currency','unit_amount','stripe_fee','net','partner_share'].join(',');
+      const body = rowsAll.map(r => [
+        r.created_at, r.partner_code, r.item_type, r.currency,
+        (r.unit_amount_cents/100).toFixed(2),
+        (r.stripe_fee_cents/100).toFixed(2),
+        (r.net_cents/100).toFixed(2),
+        (r.partner_share_cents/100).toFixed(2)
+      ].join(',')).join('\n');
+      const blob = new Blob([head+'\n'+body], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `staseraqui_payout_${from}.csv`;
+      a.click();
+    };
+
+    $('#btnMarkPaid').onclick = async ()=>{
+      const ref = (payRef.value||'').trim();
+      if (!ref){ alert('Inserisci un riferimento pagamento (es. SEPA 2024-09 batch #1).'); return; }
+      if (!confirm('Confermi di segnare TUTTI gli elementi pending del partner/mese come pagati?')) return;
+      const { from, to } = monthToRange(payMonth.value);
+      const { error } = await sb
+        .from('partner_commissions')
+        .update({ status:'paid', payment_ref: ref })
+        .eq('status','pending')
+        .eq('partner_code', currentPartnerCode)
+        .gte('created_at', from)
+        .lt('created_at', to);
+      if (error){ alert('Errore: '+error.message); return; }
+      alert('Aggiornato a paid.');
+      $('#btnLoadPayouts').click();
+      payoutsDetailBox.style.display='none';
+    };
+  }
+
+  // Init partner list subito
+  loadPartners();
+
 })();
 </script>
 </body>
