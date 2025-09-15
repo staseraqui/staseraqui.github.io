@@ -18,8 +18,10 @@
     .smallmuted{font-size:13px;color:#b8c2ce}
     .row-actions{display:flex;gap:6px;flex-wrap:wrap}
     .modal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.5);z-index:99999}
-    .modal .box{margin-top:60px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;min-width:320px;max-width:800px;width:92%}
+    .modal .box{margin-top:60px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;min-width:320px;max-width:920px;width:92%}
     .flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .btn.small{padding:6px 8px;font-size:12px}
+    .right{ text-align:right }
   </style>
 </head>
 <body>
@@ -36,7 +38,7 @@
 <main class="wrap">
   <h1 style="margin:8px 0 14px">Area admin</h1>
 
-  <!-- === Diagnostica piattaforma === -->
+  <!-- Diagnostica -->
   <div class="card" id="diagCard" style="margin-top:16px">
     <h2 style="margin-top:0">Diagnostica</h2>
     <p class="small">Esegue test rapidi su chiavi, DB, storage e funzioni Edge.</p>
@@ -73,12 +75,12 @@
     <a class="btn" href="pubblica-evento.html">Pubblica evento (singolo)</a>
   </div>
 
-  <!-- ================== PARTNER ================== -->
+  <!-- ================== PARTNER (CRUD) ================== -->
   <div class="card" id="partnersCard">
     <h2>Partner</h2>
     <div class="flex" style="margin-bottom:8px">
       <button class="btn primary" id="btnAddPartner" type="button">➕ Nuovo partner</button>
-      <span class="smallmuted">Crea / modifica i partner (codice, email, IBAN…)</span>
+      <span class="smallmuted">Gestisci l’anagrafica e genera il codice partner univoco.</span>
     </div>
     <div id="partnersTableWrap" class="smallmuted">Caricamento…</div>
   </div>
@@ -91,7 +93,7 @@
       <input type="month" id="payMonth">
       <button class="btn" id="btnLoadPayouts" type="button">Carica</button>
       <button class="btn" id="btnCSVMonth" type="button">Scarica CSV (mese)</button>
-      <span class="smallmuted">Vedi totale da pagare ai partner (stato: pending). Poi apri il dettaglio e segna come pagato.</span>
+      <span class="smallmuted">Totali “pending” da pagare; apri il dettaglio e marca come pagato.</span>
     </div>
     <div id="payoutsSummary" class="smallmuted">Seleziona un mese e premi “Carica”.</div>
     <div id="payoutDetail" style="margin-top:12px; display:none">
@@ -102,6 +104,57 @@
       </div>
       <div id="payoutDetailTable" class="smallmuted">—</div>
     </div>
+  </div>
+
+  <!-- ================== CODICI SCONTO (STRIPE) ================== -->
+  <div class="card" id="couponCard">
+    <h2>Codici sconto (Stripe)</h2>
+    <p class="small">Crea promotion code (una tantum o con limite) che gli utenti possono inserire in Checkout.</p>
+
+    <div class="grid">
+      <div>
+        <label>Codice*</label>
+        <input id="cp_code" placeholder="Es. ADMIN100">
+      </div>
+      <div>
+        <label>Tipo sconto*</label>
+        <select id="cp_type">
+          <option value="percent">Percentuale (%)</option>
+          <option value="amount">Valore fisso (EUR)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div id="cp_percent_wrap">
+        <label>Percentuale (0–100)</label>
+        <input id="cp_percent" type="number" min="1" max="100" step="1" placeholder="es. 100">
+      </div>
+      <div id="cp_amount_wrap" style="display:none">
+        <label>Importo in EUR</label>
+        <input id="cp_amount" type="number" min="1" step="1" placeholder="es. 10">
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <label>Max utilizzi</label>
+        <input id="cp_max" type="number" min="1" step="1" placeholder="es. 1 per monouso">
+      </div>
+      <div>
+        <label>Scadenza</label>
+        <input id="cp_exp" type="datetime-local">
+      </div>
+    </div>
+
+    <div class="flex" style="justify-content:flex-end;margin-top:6px">
+      <button class="btn primary" id="cp_create" type="button">Crea codice sconto</button>
+    </div>
+
+    <div class="smallmuted" id="cp_msg" style="margin-top:6px"></div>
+
+    <h3 style="margin:14px 0 6px">Codici attivi</h3>
+    <div id="cp_list" class="smallmuted">Caricamento…</div>
   </div>
 </main>
 
@@ -114,21 +167,40 @@
       <h3 style="margin:0" id="pmTitle">Nuovo partner</h3>
       <button class="btn" id="pmClose" type="button">Chiudi</button>
     </div>
+
+    <!-- campi anagrafica -->
     <div class="grid" style="margin-top:8px">
-      <div><label>Codice*</label><input id="pmCode" placeholder="Es. ABC123" maxlength="12"></div>
-      <div><label>Nome*</label><input id="pmName" placeholder="Ragione sociale / Nome e Cognome"></div>
+      <div><label>Nome*</label><input id="pmFirst" placeholder="Nome"></div>
+      <div><label>Cognome*</label><input id="pmLast" placeholder="Cognome"></div>
     </div>
     <div class="grid">
       <div><label>Email*</label><input id="pmEmail" type="email"></div>
-      <div><label>IBAN</label><input id="pmIBAN" placeholder="IT.."></div>
+      <div><label>Telefono</label><input id="pmPhone" type="tel"></div>
     </div>
     <div class="grid">
-      <div><label>Stripe account ID</label><input id="pmStripe" placeholder="acct_... (se useremo Connect)"></div>
+      <div><label>Indirizzo di residenza</label><input id="pmAddr" placeholder="Via / civico / città / CAP"></div>
+      <div><label>Data di nascita</label><input id="pmBirth" type="date"></div>
+    </div>
+    <div class="grid">
+      <div><label>IBAN</label><input id="pmIBAN" placeholder="IT.."></div>
+      <div><label>Stripe account ID</label><input id="pmStripe" placeholder="acct_..."></div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <label>Codice partner*</label>
+        <div class="flex">
+          <input id="pmCode" placeholder="ABC123" style="flex:1" maxlength="12">
+          <button class="btn small" id="pmGen" type="button" title="Genera e verifica unicità">Genera</button>
+        </div>
+        <div id="pmCodeMsg" class="smallmuted"></div>
+      </div>
       <div>
         <label>Attivo</label>
         <select id="pmActive"><option value="true">Sì</option><option value="false">No</option></select>
       </div>
     </div>
+
     <div class="flex" style="justify-content:flex-end;margin-top:8px">
       <button class="btn primary" id="pmSave" type="button">Salva</button>
     </div>
@@ -138,7 +210,7 @@
 
 <script>
 (async function(){
-  // --- util ---
+  // === util ===
   const $ = s => document.querySelector(s);
   const out = $('#diagOut');
   function line(msg){ out.textContent += msg + '\\n'; }
@@ -147,157 +219,103 @@
   function sep(){ line('—'.repeat(48)); }
   const money = c => (c/100).toFixed(2).replace('.',',');
 
-  // --- config da assets/app-config.js ---
   const CFG = window.SQ_CONFIG || {};
   const SUPABASE_URL  = CFG.SUPABASE_URL;
   const SUPABASE_ANON = CFG.SUPABASE_ANON;
-  const GOOGLE_KEY    = CFG.GOOGLE_MAPS_API_KEY;
 
-  // client supabase con sessione persistente
   let sb = null;
   if (window.supabase && SUPABASE_URL && SUPABASE_ANON){
-    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
-      auth: { persistSession: true, autoRefreshToken: true }
-    });
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession: true, autoRefreshToken: true }});
   }
 
-  // === Guard: solo admin autenticati (email deve essere in admin_users) ===
+  // ===== Guard admin login =====
   async function requireAdmin(){
     if (!sb) throw new Error('Supabase non inizializzato');
     const { data:{ session } } = await sb.auth.getSession();
     if (session) return;
-
     const email = prompt('Email admin per accedere:');
     if (!email) { alert('Accesso annullato'); throw new Error('no-login'); }
-
     const { error } = await sb.auth.signInWithOtp({ email });
     if (error) { alert('Errore login: ' + error.message); throw error; }
-
     alert('Ti ho inviato un link di accesso via email. Aprilo, poi ricarica questa pagina.');
     throw new Error('pending-login');
   }
+  try { await requireAdmin(); } catch(e){ if (String(e).includes('pending-login')) return; throw e; }
 
-  try {
-    await requireAdmin();
-  } catch(e){
-    if (String(e).includes('pending-login')) return;
-    throw e;
-  }
-
-  // ====================== DIAGNOSTICA (immutata) ======================
+  // ===== Helper: funzione base URL =====
   function fnBaseFromSupabaseUrl(u){
-    try{
-      const host = new URL(u).host;
-      return 'https://' + host.replace('.supabase.co', '.functions.supabase.co');
-    }catch(_){ return null; }
+    try{ const host = new URL(u).host; return 'https://' + host.replace('.supabase.co', '.functions.supabase.co'); }
+    catch(_){ return null; }
   }
   const FN_BASE = fnBaseFromSupabaseUrl(SUPABASE_URL);
   const URL_CHECKOUT = FN_BASE ? (FN_BASE + '/create-checkout-session') : null;
   const URL_WEBHOOK  = FN_BASE ? (FN_BASE + '/stripe-webhook')         : null;
+  const URL_COUPON   = FN_BASE ? (FN_BASE + '/stripe-admin')           : null;
 
+  // ===== DIAGNOSTICA (come prima) =====
   async function pingFunction(url){
     if (!url) return { ok:false, status:0, note:'URL non costruibile' };
     try{
       let res = await fetch(url, { method:'OPTIONS' });
       if (res.ok || res.status===204) return { ok:true, status:res.status, note:'OPTIONS OK' };
-      res = await fetch(url, {
-        method:'POST',
-        headers:{ 'content-type':'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer '+SUPABASE_ANON },
-        body: JSON.stringify({ ping:true })
-      });
+      res = await fetch(url, { method:'POST', headers:{ 'content-type':'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer '+SUPABASE_ANON }, body: JSON.stringify({ ping:true }) });
       return { ok:true, status:res.status, note:'POST raggiungibile (expected 400/405)' };
-    }catch(e){
-      return { ok:false, status:0, note:String(e&&e.message||e) };
-    }
+    }catch(e){ return { ok:false, status:0, note:String(e&&e.message||e) }; }
   }
-
   async function run(){
     out.textContent = '';
-    line('DIAGNOSTICA STASERA QUI — '+ new Date().toLocaleString());
-    sep();
-
+    line('DIAGNOSTICA STASERA QUI — '+ new Date().toLocaleString()); sep();
     if (SUPABASE_URL)  ok('SUPABASE_URL presente'); else ko('SUPABASE_URL mancante');
     if (SUPABASE_ANON) ok('SUPABASE_ANON presente'); else ko('SUPABASE_ANON mancante');
-    if (GOOGLE_KEY)    ok('GOOGLE_MAPS_API_KEY presente'); else ko('GOOGLE_MAPS_API_KEY mancante');
-
-    const FN_BASE = fnBaseFromSupabaseUrl(SUPABASE_URL);
-    if (FN_BASE){ ok('Functions base: '+FN_BASE); } else { ko('Functions base non derivabile'); }
     sep();
-
-    if (!sb){
-      ko('Client Supabase non inizializzato');
-    } else {
-      try{
-        const ev = await sb.from('events').select('id', { count:'exact', head:true });
-        if (ev.error) throw ev.error;
-        ok('DB events accessibile — totale stimato: '+ (ev.count ?? 'n/d'));
-        const oc = await sb.from('occurrences').select('id', { count:'exact', head:true });
-        if (oc.error) throw oc.error;
-        ok('DB occurrences accessibile — totale stimato: '+ (oc.count ?? 'n/d'));
-      }catch(e){
-        ko('DB select error: ' + (e?.message||String(e)));
-      }
-
-      try{
-        const st = await sb.storage.from('event-images').list('', { limit:1 });
-        if (st.error) throw st.error;
-        ok('Storage event-images accessibile (list 1) — elementi: '+ (st.data?.length ?? 0));
-      }catch(e){
-        ko('Storage list fallita: ' + (e?.message||String(e)));
-      }
-    }
-    sep();
-
-    if (URL_CHECKOUT){
-      const r1 = await pingFunction(URL_CHECKOUT);
-      (r1.ok ? ok : ko)(`create-checkout-session raggiungibile — status ${r1.status} (${r1.note})`);
-    } else ko('create-checkout-session: URL non disponibile');
-
-    if (URL_WEBHOOK){
-      const r2 = await pingFunction(URL_WEBHOOK);
-      (r2.ok ? ok : ko)(`stripe-webhook raggiungibile — status ${r2.status} (${r2.note})`);
-    } else ko('stripe-webhook: URL non disponibile');
-
-    sep();
-    line('FINE TEST ✅');
+    if (URL_CHECKOUT){ const r1 = await pingFunction(URL_CHECKOUT); (r1.ok ? ok : ko)(`create-checkout-session — ${r1.status} (${r1.note})`); }
+    if (URL_WEBHOOK) { const r2 = await pingFunction(URL_WEBHOOK);  (r2.ok ? ok : ko)(`stripe-webhook — ${r2.status} (${r2.note})`); }
+    if (URL_COUPON)  { const r3 = await pingFunction(URL_COUPON);   (r3.ok ? ok : ko)(`stripe-admin — ${r3.status} (${r3.note})`); }
+    sep(); line('FINE TEST ✅');
   }
-
   $('#runDiag')?.addEventListener('click', run);
-  $('#copyDiag')?.addEventListener('click', ()=>{
-    try{ navigator.clipboard.writeText(out.textContent||''); alert('Report copiato.'); }
-    catch(_){ alert('Seleziona e copia manualmente.'); }
-  });
+  $('#copyDiag')?.addEventListener('click', ()=>{ try{ navigator.clipboard.writeText(out.textContent||''); alert('Report copiato.'); }catch(_){ alert('Seleziona e copia manualmente.'); } });
 
-  // ====================== PARTNER: UI ======================
+  // ====================== PARTNER: UI/CRUD ======================
   const partnersWrap = $('#partnersTableWrap');
   const pm = $('#partnerModal');
   const pmClose = $('#pmClose');
   const pmTitle = $('#pmTitle');
-  const pmCode = $('#pmCode');
-  const pmName = $('#pmName');
+  const pmFirst = $('#pmFirst');
+  const pmLast  = $('#pmLast');
   const pmEmail = $('#pmEmail');
-  const pmIBAN = $('#pmIBAN');
-  const pmStripe = $('#pmStripe');
-  const pmActive = $('#pmActive');
-  const pmSave = $('#pmSave');
-  const pmErr = $('#pmErr');
+  const pmPhone = $('#pmPhone');
+  const pmAddr  = $('#pmAddr');
+  const pmBirth = $('#pmBirth');
+  const pmIBAN  = $('#pmIBAN');
+  const pmStripe= $('#pmStripe');
+  const pmCode  = $('#pmCode');
+  const pmGen   = $('#pmGen');
+  const pmCodeMsg = $('#pmCodeMsg');
+  const pmActive= $('#pmActive');
+  const pmSave  = $('#pmSave');
+  const pmErr   = $('#pmErr');
   let editingPartnerId = null;
 
   function openPM(title, partner){
     pmTitle.textContent = title;
-    pmErr.textContent = '';
+    pmErr.textContent = ''; pmCodeMsg.textContent='';
     if (partner){
       editingPartnerId = partner.id;
-      pmCode.value   = partner.code || '';
-      pmName.value   = partner.name || '';
-      pmEmail.value  = partner.email || '';
-      pmIBAN.value   = partner.iban || '';
-      pmStripe.value = partner.stripe_account_id || '';
-      pmActive.value = String(!!partner.active);
+      pmFirst.value = partner.first_name || '';
+      pmLast.value  = partner.last_name  || '';
+      pmEmail.value = partner.email || '';
+      pmPhone.value = partner.phone || '';
+      pmAddr.value  = partner.address || '';
+      pmBirth.value = partner.birth_date ? String(partner.birth_date).slice(0,10) : '';
+      pmIBAN.value  = partner.iban || '';
+      pmStripe.value= partner.stripe_account_id || '';
+      pmCode.value  = partner.code || '';
+      pmActive.value= String(!!partner.active);
     } else {
       editingPartnerId = null;
-      pmCode.value = ''; pmName.value=''; pmEmail.value=''; pmIBAN.value=''; pmStripe.value='';
-      pmActive.value = 'true';
+      pmFirst.value=''; pmLast.value=''; pmEmail.value=''; pmPhone.value=''; pmAddr.value='';
+      pmBirth.value=''; pmIBAN.value=''; pmStripe.value=''; pmCode.value=''; pmActive.value='true';
     }
     pm.style.display='flex';
   }
@@ -307,17 +325,41 @@
 
   $('#btnAddPartner').onclick = ()=> openPM('Nuovo partner');
 
+  function genCode(){
+    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans confusione
+    let c=''; for(let i=0;i<6;i++) c+=s[Math.floor(Math.random()*s.length)];
+    return c;
+  }
+  async function codeExists(code){
+    const { data, error } = await sb.from('partners').select('id').eq('code', code).limit(1);
+    if (error) return true; // prudenza
+    return Array.isArray(data) && data.length>0;
+  }
+  pmGen.onclick = async ()=>{
+    let tries=0, code='';
+    do { code = genCode(); tries++; } while (tries<10 && await codeExists(code));
+    pmCode.value = code;
+    if (await codeExists(code)) { pmCodeMsg.textContent = '⚠️ impossibile garantire unicità, scegli tu un codice'; }
+    else pmCodeMsg.textContent = '✅ codice disponibile';
+  };
+  pmCode.addEventListener('blur', async ()=>{
+    const c=(pmCode.value||'').trim().toUpperCase();
+    if (!c) { pmCodeMsg.textContent=''; return; }
+    pmCode.value=c;
+    pmCodeMsg.textContent = (await codeExists(c)) ? '❌ codice già presente' : '✅ codice disponibile';
+  });
+
   async function loadPartners(){
     partnersWrap.textContent = 'Caricamento…';
     const { data, error } = await sb.from('partners').select('*').order('created_at',{ascending:false});
     if (error){ partnersWrap.textContent = 'Errore: '+error.message; return; }
     if (!data || !data.length){ partnersWrap.textContent='Nessun partner. Clicca “Nuovo partner”.'; return; }
-
     const rows = data.map(p=>`
       <tr>
         <td>${p.code||'—'}</td>
-        <td>${p.name||'—'}</td>
+        <td>${(p.first_name||'')+' '+(p.last_name||'')}</td>
         <td>${p.email||'—'}</td>
+        <td>${p.phone||'—'}</td>
         <td>${p.iban||'—'}</td>
         <td>${p.stripe_account_id||'—'}</td>
         <td>${p.active?'Sì':'No'}</td>
@@ -330,11 +372,10 @@
     partnersWrap.innerHTML = `
       <table class="table" aria-label="Partner">
         <thead><tr>
-          <th>Codice</th><th>Nome</th><th>Email</th><th>IBAN</th><th>Stripe acct</th><th>Attivo</th><th>Azioni</th>
+          <th>Codice</th><th>Nome</th><th>Email</th><th>Telefono</th><th>IBAN</th><th>Stripe acct</th><th>Attivo</th><th>Azioni</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
-
     partnersWrap.querySelectorAll('[data-edit]').forEach(b=>{
       b.addEventListener('click', ()=>{
         const id=b.getAttribute('data-edit');
@@ -354,157 +395,132 @@
 
   pmSave.onclick = async ()=>{
     pmErr.textContent='';
-    const code=(pmCode.value||'').trim().toUpperCase();
-    const name=(pmName.value||'').trim();
-    const email=(pmEmail.value||'').trim();
-    const iban=(pmIBAN.value||'').trim();
-    const stripe=(pmStripe.value||'').trim();
-    const active=(pmActive.value==='true');
+    const first = (pmFirst.value||'').trim();
+    const last  = (pmLast.value||'').trim();
+    const email = (pmEmail.value||'').trim();
+    const code  = (pmCode.value||'').trim().toUpperCase();
+    if (!first || !last || !email || !code){ pmErr.textContent='Compila Nome, Cognome, Email e Codice partner.'; return; }
+    // se nuovo, verifica unicità codice
+    if (!editingPartnerId && await codeExists(code)){ pmErr.textContent='Codice già esistente.'; return; }
 
-    if (!code || !name || !email){ pmErr.textContent='Compila Codice, Nome ed Email.'; return; }
-
-    const payload = { code,name,email,iban,stripe_account_id:stripe,active };
+    const payload:any = {
+      first_name:first, last_name:last, email,
+      phone:(pmPhone.value||'').trim(),
+      address:(pmAddr.value||'').trim(),
+      birth_date: pmBirth.value || null,
+      iban:(pmIBAN.value||'').trim(),
+      stripe_account_id:(pmStripe.value||'').trim(),
+      code, active:(pmActive.value==='true'),
+      name: `${first} ${last}`.trim()
+    };
     let q = sb.from('partners').upsert(editingPartnerId ? { id:editingPartnerId, ...payload } : payload).select('id').single();
     const { error } = await q;
     if (error){ pmErr.textContent='Errore: '+error.message; return; }
-    closePM();
-    loadPartners();
+    closePM(); loadPartners();
   };
 
-  // ====================== PAYOUTS: UI ======================
+  // Init partners
+  loadPartners();
+
+  // ====================== PAYOUTS (come nella tua versione) ======================
   const payMonth = $('#payMonth');
   const payoutsSummary = $('#payoutsSummary');
   const payoutsDetailBox = $('#payoutDetail');
   const payoutsDetailTitle = $('#payoutDetailTitle');
   const payoutsDetailTable = $('#payoutDetailTable');
   const payRef = $('#payRef');
-  let currentMonthISO = null;        // 'YYYY-MM-01'
-  let currentPartnerCode = null;     // per dettaglio
+  let currentPartnerCode = null;
 
-  function monthToRange(ym){ // '2024-09' -> {from:'2024-09-01', to:'2024-10-01'}
+  function monthToRange(ym){
     const [y,m] = ym.split('-').map(n=>parseInt(n,10));
     const from = new Date(Date.UTC(y,m-1,1));
     const to   = new Date(Date.UTC(m===12?y+1:y, m===12?1:m, 1));
-    const isod = d => d.toISOString().slice(0,10);
-    return { from: isod(from), to: isod(to) };
+    const d = x => x.toISOString().slice(0,10);
+    return { from: d(from), to: d(to) };
   }
-
   $('#btnLoadPayouts').onclick = async ()=>{
     payoutsDetailBox.style.display='none';
     payoutsSummary.textContent = 'Caricamento…';
-    const ym = payMonth.value;
-    if (!ym){ payoutsSummary.textContent='Seleziona un mese.'; return; }
-    const { from, to } = monthToRange(ym);
-    currentMonthISO = from;
-
-    // la view ha la colonna "month" (date), posso filtrarci sopra
+    const ym = payMonth.value; if (!ym){ payoutsSummary.textContent='Seleziona un mese.'; return; }
+    const { from } = monthToRange(ym);
     const { data, error } = await sb.from('v_partner_payouts_month').select('*').eq('month', from);
     if (error){ payoutsSummary.textContent = 'Errore: '+error.message; return; }
-    if (!data || !data.length){ payoutsSummary.textContent='Nessun pending per questo mese.'; return; }
-
+    if (!data?.length){ payoutsSummary.textContent='Nessun pending per questo mese.'; return; }
     const rows = data.map(r=>`
       <tr>
         <td>${r.partner_code}</td>
         <td>${r.month}</td>
-        <td style="text-align:right"><b>${Number(r.partner_share_eur).toFixed(2).replace('.',',')} €</b></td>
-        <td style="text-align:right">${r.items}</td>
-        <td><button class="btn small" data-open="${r.partner_code}">Apri dettaglio</button></td>
-      </tr>
-    `).join('');
+        <td class="right"><b>${Number(r.partner_share_eur).toFixed(2).replace('.',',')} €</b></td>
+        <td class="right">${r.items}</td>
+        <td><button class="btn small" data-open="${r.partner_code}">Dettaglio</button></td>
+      </tr>`).join('');
     payoutsSummary.innerHTML = `
       <table class="table" aria-label="Payout mensile">
-        <thead><tr><th>Partner</th><th>Mese</th><th>Totale (EUR)</th><th>Items</th><th>Dettaglio</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    `;
-
+        <thead><tr><th>Partner</th><th>Mese</th><th>Totale</th><th>Items</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
     payoutsSummary.querySelectorAll('[data-open]').forEach(b=>{
-      b.addEventListener('click', ()=> openPayoutDetail(b.getAttribute('data-open'), {from,to}));
+      b.addEventListener('click', ()=>{
+        const ym = payMonth.value; const range = monthToRange(ym);
+        openPayoutDetail(b.getAttribute('data-open'), range);
+      });
     });
   };
-
   async function openPayoutDetail(partnerCode, range){
     currentPartnerCode = partnerCode;
     payoutsDetailTitle.textContent = `Dettaglio ${partnerCode} — ${range.from} → ${range.to}`;
     payRef.value = '';
     payoutsDetailTable.textContent = 'Caricamento…';
     payoutsDetailBox.style.display='block';
-
-    const { data, error } = await sb
-      .from('partner_commissions')
-      .select('created_at, item_type, currency, unit_amount_cents, stripe_fee_cents, net_cents, partner_share_cents')
-      .eq('status','pending')
-      .eq('partner_code', partnerCode)
-      .gte('created_at', range.from)
-      .lt('created_at', range.to)
+    const { data, error } = await sb.from('partner_commissions')
+      .select('created_at,item_type,currency,unit_amount_cents,stripe_fee_cents,net_cents,partner_share_cents')
+      .eq('status','pending').eq('partner_code', partnerCode)
+      .gte('created_at', range.from).lt('created_at', range.to)
       .order('created_at');
-
     if (error){ payoutsDetailTable.textContent = 'Errore: '+error.message; return; }
-    if (!data || !data.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending per questo partner/mese.'; return; }
-
-    const total = data.reduce((s,r)=> s + (r.partner_share_cents||0), 0);
+    if (!data?.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending.'; return; }
+    const total = data.reduce((s,r)=> s+(r.partner_share_cents||0), 0);
     const rows = data.map(r=>`
       <tr>
-        <td>${r.created_at?.slice(0,10) || ''}</td>
+        <td>${r.created_at?.slice(0,10)||''}</td>
         <td>${r.item_type}</td>
-        <td style="text-align:right">${money(r.unit_amount_cents)} €</td>
-        <td style="text-align:right">${money(r.stripe_fee_cents)} €</td>
-        <td style="text-align:right">${money(r.net_cents)} €</td>
-        <td style="text-align:right"><b>${money(r.partner_share_cents)} €</b></td>
-      </tr>
-    `).join('');
+        <td class="right">${money(r.unit_amount_cents)} €</td>
+        <td class="right">${money(r.stripe_fee_cents)} €</td>
+        <td class="right">${money(r.net_cents)} €</td>
+        <td class="right"><b>${money(r.partner_share_cents)} €</b></td>
+      </tr>`).join('');
     payoutsDetailTable.innerHTML = `
       <table class="table" aria-label="Dettaglio partner">
-        <thead><tr>
-          <th>Data</th><th>Tipo</th><th>Lordo (post-sconto)</th><th>Fee Stripe</th><th>Netto</th><th>Quota partner (50%)</th>
-        </tr></thead>
+        <thead><tr><th>Data</th><th>Tipo</th><th>Lordo</th><th>Fee Stripe</th><th>Netto</th><th>Quota 50%</th></tr></thead>
         <tbody>${rows}</tbody>
-        <tfoot><tr><th colspan="5" style="text-align:right">Totale da pagare</th><th style="text-align:right">${money(total)} €</th></tr></tfoot>
-      </table>
-    `;
+        <tfoot><tr><th colspan="5" class="right">Totale</th><th class="right">${money(total)} €</th></tr></tfoot>
+      </table>`;
 
-    // CSV solo dettaglio corrente
     $('#btnCSVMonth').onclick = async ()=>{
-      // se sto su dettaglio, scarico CSV aggregato mese (tutti i partner)
-      // Per comodità, qui scarico il mese intero dal summary
-      const ym = payMonth.value;
-      if (!ym){ alert('Seleziona un mese.'); return; }
+      const ym = payMonth.value; if (!ym){ alert('Seleziona un mese.'); return; }
       const { from, to } = monthToRange(ym);
-      const { data: rowsAll, error: errAll } = await sb
-        .from('partner_commissions')
-        .select('*')
-        .eq('status','pending')
-        .gte('created_at', from).lt('created_at', to)
+      const { data: rowsAll, error: errAll } = await sb.from('partner_commissions')
+        .select('*').eq('status','pending').gte('created_at',from).lt('created_at',to)
         .order('partner_code').order('created_at');
       if (errAll){ alert('Errore: '+errAll.message); return; }
       if (!rowsAll?.length){ alert('Nessun dato.'); return; }
       const head = ['created_at','partner_code','item_type','currency','unit_amount','stripe_fee','net','partner_share'].join(',');
-      const body = rowsAll.map(r => [
+      const body = rowsAll.map(r=>[
         r.created_at, r.partner_code, r.item_type, r.currency,
-        (r.unit_amount_cents/100).toFixed(2),
-        (r.stripe_fee_cents/100).toFixed(2),
-        (r.net_cents/100).toFixed(2),
-        (r.partner_share_cents/100).toFixed(2)
+        (r.unit_amount_cents/100).toFixed(2),(r.stripe_fee_cents/100).toFixed(2),
+        (r.net_cents/100).toFixed(2),(r.partner_share_cents/100).toFixed(2)
       ].join(',')).join('\n');
       const blob = new Blob([head+'\n'+body], {type:'text/csv;charset=utf-8;'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `staseraqui_payout_${from}.csv`;
-      a.click();
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `staseraqui_payout_${from}.csv`; a.click();
     };
 
     $('#btnMarkPaid').onclick = async ()=>{
       const ref = (payRef.value||'').trim();
-      if (!ref){ alert('Inserisci un riferimento pagamento (es. SEPA 2024-09 batch #1).'); return; }
-      if (!confirm('Confermi di segnare TUTTI gli elementi pending del partner/mese come pagati?')) return;
-      const { from, to } = monthToRange(payMonth.value);
-      const { error } = await sb
-        .from('partner_commissions')
+      if (!ref){ alert('Inserisci un riferimento pagamento.'); return; }
+      if (!confirm('Segnare come pagato tutti gli elementi pending per questo partner e mese?')) return;
+      const ym = payMonth.value; const { from,to } = monthToRange(ym);
+      const { error } = await sb.from('partner_commissions')
         .update({ status:'paid', payment_ref: ref })
-        .eq('status','pending')
-        .eq('partner_code', currentPartnerCode)
-        .gte('created_at', from)
-        .lt('created_at', to);
+        .eq('status','pending').eq('partner_code', partnerCode).gte('created_at',from).lt('created_at',to);
       if (error){ alert('Errore: '+error.message); return; }
       alert('Aggiornato a paid.');
       $('#btnLoadPayouts').click();
@@ -512,8 +528,111 @@
     };
   }
 
-  // Init partner list subito
-  loadPartners();
+  // ====================== COUPON STRIPE (via Edge: stripe-admin) ======================
+  const cpCode = $('#cp_code');
+  const cpType = $('#cp_type');
+  const cpPercentWrap = $('#cp_percent_wrap');
+  const cpAmountWrap  = $('#cp_amount_wrap');
+  const cpPercent = $('#cp_percent');
+  const cpAmount  = $('#cp_amount');
+  const cpMax     = $('#cp_max');
+  const cpExp     = $('#cp_exp');
+  const cpCreate  = $('#cp_create');
+  const cpMsg     = $('#cp_msg');
+  const cpListBox = $('#cp_list');
+
+  cpType.addEventListener('change', ()=>{
+    const t = cpType.value;
+    if (t==='percent'){ cpPercentWrap.style.display='block'; cpAmountWrap.style.display='none'; }
+    else { cpPercentWrap.style.display='none'; cpAmountWrap.style.display='block'; }
+  });
+
+  async function getAccessToken(){
+    const { data:{ session } } = await sb.auth.getSession();
+    return session?.access_token || '';
+  }
+
+  async function loadPromoList(){
+    if (!URL_COUPON){ cpListBox.textContent = 'Function non disponibile.'; return; }
+    cpListBox.textContent = 'Caricamento…';
+    const token = await getAccessToken();
+    const res = await fetch(URL_COUPON + '?active=true&limit=50', { headers:{ 'Authorization':'Bearer '+token } });
+    const txt = await res.text();
+    if (!res.ok){ cpListBox.textContent = 'Errore: '+txt; return; }
+    const j = JSON.parse(txt);
+    if (!j?.data?.length){ cpListBox.textContent='Nessun codice attivo.'; return; }
+    const rows = j.data.map(p=>`
+      <tr>
+        <td>${p.code}</td>
+        <td>${p.coupon?.percent_off ? (p.coupon.percent_off+'%') : (p.coupon?.amount_off ? ( (p.coupon.amount_off/100).toFixed(2)+' €') : '—')}</td>
+        <td class="right">${p.max_redemptions ?? '—'}</td>
+        <td class="right">${p.times_redeemed ?? 0}</td>
+        <td>${p.expires_at ? new Date(p.expires_at*1000).toISOString().slice(0,16).replace('T',' ') : '—'}</td>
+        <td><button class="btn small" data-deact="${p.id}">Disattiva</button></td>
+      </tr>`).join('');
+    cpListBox.innerHTML = `
+      <table class="table" aria-label="Codici attivi">
+        <thead><tr><th>Codice</th><th>Sconto</th><th class="right">Max</th><th class="right">Usati</th><th>Scadenza</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    cpListBox.querySelectorAll('[data-deact]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        if (!confirm('Disattivare questo codice?')) return;
+        const id = b.getAttribute('data-deact');
+        const token = await getAccessToken();
+        const r = await fetch(URL_COUPON, {
+          method:'POST',
+          headers:{ 'content-type':'application/json', 'Authorization':'Bearer '+token },
+          body: JSON.stringify({ action:'deactivate_promo', id })
+        });
+        if (!r.ok){ alert('Errore: '+await r.text()); return; }
+        loadPromoList();
+      });
+    });
+  }
+
+  cpCreate.onclick = async ()=>{
+    try{
+      cpMsg.textContent = '';
+      if (!URL_COUPON){ cpMsg.textContent='Function non disponibile.'; return; }
+      const code = (cpCode.value||'').trim().toUpperCase();
+      if (!code){ cpMsg.textContent='Inserisci il codice.'; return; }
+      const type = cpType.value;
+      let payload:any = { action:'create_promo', data:{ code } };
+      if (type==='percent'){
+        const p = Math.max(1, Math.min(100, Math.floor(Number(cpPercent.value||0))));
+        if (!p) { cpMsg.textContent='Percentuale non valida.'; return; }
+        payload.data.percent_off = p;
+      } else {
+        const eur = Math.max(1, Math.floor(Number(cpAmount.value||0)));
+        if (!eur) { cpMsg.textContent='Importo non valido.'; return; }
+        payload.data.amount_off_cents = eur*100; payload.data.currency = 'eur';
+      }
+      const max = Number(cpMax.value||0);
+      if (max>0) payload.data.max_redemptions = max;
+
+      const expIso = cpExp.value; // yyyy-MM-ddTHH:mm
+      if (expIso){
+        const ts = Math.floor(new Date(expIso).getTime()/1000);
+        if (ts>0) payload.data.expires_at = ts;
+      }
+
+      const token = await getAccessToken();
+      const r = await fetch(URL_COUPON, {
+        method:'POST',
+        headers:{ 'content-type':'application/json', 'Authorization':'Bearer '+token },
+        body: JSON.stringify(payload)
+      });
+      const txt = await r.text();
+      if (!r.ok){ cpMsg.textContent = 'Errore: '+txt; return; }
+      cpMsg.textContent = 'Creato ✅';
+      cpCode.value=''; cpPercent.value=''; cpAmount.value=''; cpMax.value=''; cpExp.value='';
+      loadPromoList();
+    }catch(e){ cpMsg.textContent='Errore: '+(e?.message||String(e)); }
+  };
+
+  // inizializza lista
+  loadPromoList();
 
 })();
 </script>
