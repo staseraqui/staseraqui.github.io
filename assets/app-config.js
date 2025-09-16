@@ -7,9 +7,9 @@ window.SQ_CONFIG = {
   // Google Maps
   GOOGLE_MAPS_API_KEY: "AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg",
 
-  // 👇 Questi due valori fanno comparire i prezzi nella pagina “Prezzi & Condizioni”
-  PRICE_SINGLE_EUR: 9,   // Evento con 1 occorrenza
-  PRICE_MULTI_EUR: 14    // Evento con 2+ occorrenze
+  // Prezzi mostrati in “Prezzi & Condizioni”
+  PRICE_SINGLE_EUR: 9,
+  PRICE_MULTI_EUR: 14
 };
 
 // (opzionale) alias per eventuale codice vecchio
