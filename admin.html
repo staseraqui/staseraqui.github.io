@@ -13,9 +13,8 @@
     @media (max-width:720px){.grid{grid-template-columns:1fr}}
     .card h2{margin:0 0 8px}
     .table{width:100%;border-collapse:collapse;margin:10px 0}
-    .table th,.table td{border:1px solid rgba(255,255,255,.15);padding:8px;text-align:left}
+    .table th,.table td{border:1px solid rgba(255,255,255,.15);padding:8px;text-align:left;vertical-align:top}
     .table th{background:#0f1c2d}
-    .small{font-size:14px}
     .smallmuted{font-size:13px;color:#b8c2ce}
     .row-actions{display:flex;gap:6px;flex-wrap:wrap}
     .modal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.5);z-index:99999}
@@ -24,24 +23,34 @@
     .btn.small{padding:6px 8px;font-size:12px}
     .right{ text-align:right }
     .errorlog{background:#0b1623;border:1px dashed rgba(255,255,255,.25);padding:10px;border-radius:8px;font-size:12px;white-space:pre-wrap}
+    .muted{opacity:.85}
 
-    /* ===== Menu Partner (stesso look & font del select Mese) ===== */
-    #partnerBtn{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;
-      background:#0b1623;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 10px;
-      min-width:220px;height:36px;font-size:14px;line-height:22px;color:#fff}
-    #partnerBtn:after{content:"▾";opacity:.8}
-    .md-menu{position:absolute;z-index:9999;background:#0f1c2d;border:1px solid rgba(255,255,255,.2);
-      border-radius:10px;padding:10px;min-width:280px;max-width:420px;max-height:320px;overflow:auto;font-size:14px}
-    .md-head{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
-    .md-head .btn{height:30px}
-    .cklbl{display:flex;gap:8px;align-items:center;cursor:pointer}
-    .md-row{padding:6px 2px}
-    .md-menu *{font-size:14px !important;line-height:1.2}
-    .md-row span{font-weight:400}
-    .md-row b{font-weight:600;font-size:inherit}
-
-    /* Collassa elenco partner (CRUD) */
-    #partnersTableWrap.collapsed{display:none}
+    /* ===== Partner picker: font/altezza uguali al select "Mese" ===== */
+    .multidrop.selectlike{position:relative;display:inline-block;width:220px}
+    #partnerBtn{
+      width:100%;height:36px;
+      padding:6px 34px 6px 10px;
+      border:1px solid rgba(255,255,255,.25);border-radius:8px;
+      background:#0f1c2d;color:#fff;text-align:left;cursor:pointer;
+      font:inherit;font-size:14px;line-height:22px;
+    }
+    .multidrop.selectlike::after{
+      content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.85
+    }
+    .md-menu{
+      position:absolute;top:calc(100% + 4px);left:0;z-index:200;
+      width:100%;min-width:100%;
+      background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;
+      box-shadow:0 8px 22px rgba(0,0,0,.35);
+      max-height:260px;overflow:auto;display:none;padding:10px;
+      font-size:14px; /* stesso del select mese */
+    }
+    .md-row{display:flex;gap:8px;align-items:center;padding:6px 2px}
+    .md-row input{width:16px;height:16px}
+    .cklbl{display:flex;align-items:center;gap:8px;cursor:pointer}
+    .md-footer{display:flex;justify-content:space-between;gap:8px;margin-top:8px}
+    .md-note{font-size:12px;color:#b8c2ce;margin-top:4px}
+    .md-actions .btn.small{padding:6px 8px}
   </style>
 </head>
 <body>
@@ -100,46 +109,51 @@
     <h2>Partner</h2>
     <div class="flex" style="margin-bottom:8px">
       <button class="btn primary" id="btnAddPartner" type="button">➕ Nuovo partner</button>
-      <button class="btn" id="btnTogglePartners" type="button">Nascondi elenco</button>
+      <button class="btn" id="btnTogglePartners" type="button">Mostra elenco</button>
       <span class="smallmuted">Gestisci l’anagrafica e genera il codice partner univoco.</span>
     </div>
-    <div id="partnersTableWrap" class="smallmuted">Caricamento…</div>
+    <div id="partnersTableWrap" class="smallmuted" style="display:none">Caricamento…</div>
   </div>
 
   <!-- ================== PAYOUT PARTNER ================== -->
   <div class="card" id="payoutsCard">
     <h2>Payout partner</h2>
-    <div class="flex" style="margin-bottom:8px;position:relative">
+    <div class="flex" style="margin-bottom:8px;align-items:flex-end">
       <div>
         <label class="small">Mese (opzionale)</label><br>
         <select id="payMonth" style="min-width:220px;height:36px"></select>
       </div>
-
       <div>
         <label class="small">Partner (opzionale, multi)</label><br>
-        <button class="btn" id="partnerBtn" type="button">— Tutti i partner —</button>
-        <div id="partnerMenu" class="md-menu" style="display:none"></div>
+        <div class="multidrop selectlike" id="partnerPicker">
+          <button id="partnerBtn" type="button">Tutti i partner</button>
+          <div class="md-menu" id="partnerMenu">
+            <div id="partnerList">Caricamento…</div>
+            <div class="md-footer">
+              <div class="md-actions">
+                <button class="btn small" id="ppAll" type="button">Seleziona tutti</button>
+                <button class="btn small" id="ppClear" type="button">Azzera</button>
+              </div>
+              <div><button class="btn primary small" id="ppApply" type="button">Applica</button></div>
+            </div>
+            <div class="md-note">Se lasci vuoto, vedi tutti i partner.</div>
+          </div>
+        </div>
       </div>
-
-      <div style="flex:1;min-width:240px">
+      <div>
         <label class="small">Riferimento pagamento (per i selezionati)</label><br>
-        <input id="payRefTop" placeholder="Es. SEPA 2025-09 batch #1" style="width:100%;height:36px">
+        <input id="payRefSel" placeholder="Es. SEPA 2025-09 batch #1" style="min-width:260px;height:36px">
       </div>
-
-      <div style="align-self:flex-end">
-        <button class="btn" id="btnLoadPayouts" type="button" disabled>Carica</button>
-      </div>
-      <div style="align-self:flex-end">
-        <button class="btn" id="btnCSVMonth" type="button" disabled>Scarica CSV (mese)</button>
-      </div>
+      <div><button class="btn" id="btnLoadPayouts" type="button" disabled>Carica</button></div>
+      <div><button class="btn" id="btnCSVMonth" type="button" disabled>Scarica CSV (mese)</button></div>
     </div>
-    <div class="smallmuted">Se lasci vuoti “Mese” e “Partner” vedi tutto ciò che è in pending.</div>
+    <div class="smallmuted" style="margin-top:-4px">Se lasci vuoti “Mese” e “Partner” vedi <b>tutto ciò che è in pending</b>.</div>
 
-    <div id="payoutsSummary" class="smallmuted" style="margin-top:6px">Seleziona filtri (opzionali) e premi “Carica”.</div>
+    <div id="payoutsSummary" class="smallmuted" style="margin-top:8px">Seleziona filtri (opzionali) e premi “Carica”.</div>
 
-    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
-      <div class="smallmuted" id="selTotal">Selezionati: € 0,00</div>
-      <button class="btn primary" id="btnMarkSelected" type="button" disabled>Segna selezionati come pagato</button>
+    <div id="payoutsSelectionBar" class="smallmuted" style="display:none;margin-top:8px">
+      <span id="selInfo">Selezionati: € 0,00</span>
+      <button class="btn primary" id="btnMarkSelected" type="button" style="margin-left:8px">Segna selezionati come pagati</button>
     </div>
 
     <div id="payoutDetail" style="margin-top:12px; display:none">
@@ -148,6 +162,14 @@
         <input id="payRef" placeholder="Riferimento pagamento/bonifico (es. SEPA 2024-09 batch #1)" style="flex:1;min-width:260px">
         <button class="btn primary" id="btnMarkPaid" type="button">Segna tutto come pagato</button>
       </div>
+      <div class="smallmuted muted" style="margin-top:-2px">Il riferimento viene salvato nel campo <code>payment_ref</code> su ogni riga pagata.</div>
+
+      <!-- barra selezione nel DETTAGLIO -->
+      <div id="detailSelectionBar" class="smallmuted" style="display:none;margin-top:8px">
+        <span id="detailSelInfo">Selezionati: € 0,00</span>
+        <button class="btn primary" id="btnMarkDetailSelected" type="button" style="margin-left:8px">Segna selezionati come pagati</button>
+      </div>
+
       <div id="payoutDetailTable" class="smallmuted">—</div>
     </div>
   </div>
@@ -276,7 +298,7 @@
   function sep(){ line('—'.repeat(48)); }
   const money = c => ((c||0)/100).toFixed(2).replace('.',',');
 
-  // Errori globali a video
+  // Errori globali
   window.addEventListener('error', e => logErr('JS error: ' + (e?.message||e)));
   window.addEventListener('unhandledrejection', e => logErr('Promise rejection: ' + (e?.reason?.message||e?.reason||e)));
 
@@ -341,7 +363,6 @@
 
   // ====================== PARTNER: UI/CRUD ======================
   const partnersWrap = $('#partnersTableWrap');
-  const btnTogglePartners = $('#btnTogglePartners');
   const pm = $('#partnerModal');
   const pmClose = $('#pmClose');
   const pmTitle = $('#pmTitle');
@@ -360,11 +381,6 @@
   const pmSave  = $('#pmSave');
   const pmErr   = $('#pmErr');
   let editingPartnerId = null;
-
-  btnTogglePartners.addEventListener('click', ()=>{
-    partnersWrap.classList.toggle('collapsed');
-    btnTogglePartners.textContent = partnersWrap.classList.contains('collapsed') ? 'Mostra elenco' : 'Nascondi elenco';
-  });
 
   function openPM(title, partner){
     pmTitle.textContent = title;
@@ -393,6 +409,13 @@
   pm.addEventListener('click', e=>{ if(e.target===pm) closePM(); });
 
   $('#btnAddPartner').onclick = ()=> openPM('Nuovo partner');
+
+  // Mostra/Nascondi elenco partner
+  $('#btnTogglePartners').onclick = ()=>{
+    const vis = partnersWrap.style.display !== 'none';
+    partnersWrap.style.display = vis ? 'none' : 'block';
+    $('#btnTogglePartners').textContent = vis ? 'Mostra elenco' : 'Nascondi elenco';
+  };
 
   function genCode(){
     const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -424,18 +447,16 @@
     }catch(e){ logErr('pmCode blur: '+(e?.message||e)); }
   });
 
-  async function loadPartners(){
+  async function loadPartners(showTable=false){
     try{
       partnersWrap.textContent = 'Caricamento…';
       const { data, error } = await sb.from('partners').select('*').order('created_at',{ascending:false});
       if (error){ partnersWrap.textContent = 'Errore: '+error.message; logErr('loadPartners: '+error.message); return; }
       if (!data || !data.length){ partnersWrap.textContent='Nessun partner. Clicca “Nuovo partner”.'; return; }
-      const rows = data.map(p=>{
-        const name = ((p.first_name||'')+' '+(p.last_name||'')).trim();
-        return `
+      const rows = data.map(p=>`
         <tr>
           <td>${p.code||'—'}</td>
-          <td>${name||'—'}</td>
+          <td>${(p.first_name||'')+' '+(p.last_name||'')}</td>
           <td>${p.email||'—'}</td>
           <td>${p.phone||'—'}</td>
           <td>${p.iban||'—'}</td>
@@ -445,8 +466,8 @@
             <button class="btn small" data-edit="${p.id}">Modifica</button>
             <button class="btn small" data-toggle="${p.id}" data-on="${p.active?0:1}">${p.active?'Disattiva':'Attiva'}</button>
           </td>
-        </tr>`;
-      }).join('');
+        </tr>
+      `).join('');
       partnersWrap.innerHTML = `
         <table class="table" aria-label="Partner">
           <thead><tr>
@@ -468,10 +489,12 @@
             const on=b.getAttribute('data-on')==='1';
             const { error } = await sb.from('partners').update({active:on}).eq('id', id);
             if (error){ alert('Errore: '+error.message); logErr('toggle: '+error.message); return; }
-            loadPartners();
+            loadPartners(true);
           }catch(e){ logErr('toggle ex: '+(e?.message||e)); }
         });
       });
+
+      partnersWrap.style.display = showTable ? 'block' : partnersWrap.style.display;
     }catch(e){
       partnersWrap.textContent = 'Errore di caricamento partner.';
       logErr('loadPartners ex: '+(e?.message||e));
@@ -501,37 +524,37 @@
         editingPartnerId ? { id:editingPartnerId, ...payload } : payload
       ).select('id').single();
       if (error){ pmErr.textContent='Errore: '+error.message; logErr('pmSave: '+error.message); return; }
-      closePM(); loadPartners(); await loadPartnerFilter(); // aggiorna anche filtro
+      closePM(); loadPartners(true);
     }catch(e){ pmErr.textContent='Errore salvataggio.'; logErr('pmSave ex: '+(e?.message||e)); }
   };
 
-  // Init partners
-  await loadPartners();
+  // Init partners (nascosto di default)
+  await loadPartners(false);
 
   // ====================== PAYOUTS ======================
   const payMonth = $('#payMonth');
+  const partnerPicker = $('#partnerPicker');
+  const partnerBtn = $('#partnerBtn');
+  const partnerMenu = $('#partnerMenu');
+  const partnerList = $('#partnerList');
   const payoutsSummary = $('#payoutsSummary');
   const payoutsDetailBox = $('#payoutDetail');
   const payoutsDetailTitle = $('#payoutDetailTitle');
   const payoutsDetailTable = $('#payoutDetailTable');
   const payRef = $('#payRef');
-  const payRefTop = $('#payRefTop');
-  const selTotal = $('#selTotal');
-  const btnMarkSelected = $('#btnMarkSelected');
+  const payRefSel = $('#payRefSel');
+  const selBar = $('#payoutsSelectionBar');
+  const selInfo = $('#selInfo');
+  const detailSelBar = $('#detailSelectionBar');
+  const detailSelInfo = $('#detailSelInfo');
 
-  let selectedRows = new Set(); // chiavi "partner_code|monthISO"
-  function updateSelTotal(){
-    let totalCents = 0;
-    document.querySelectorAll('#payoutsSummary tbody tr').forEach(tr=>{
-      const key = tr.getAttribute('data-key');
-      const chk = tr.querySelector('input[type="checkbox"]');
-      if (chk && chk.checked){
-        const cents = +tr.getAttribute('data-cents') || 0;
-        totalCents += cents;
-      }
-    });
-    selTotal.textContent = 'Selezionati: € ' + ((totalCents/100).toFixed(2)).replace('.',',');
-    btnMarkSelected.disabled = totalCents<=0;
+  const selectedPartners = new Set(); // codici selezionati nel picker
+
+  function syncPickerWidth(){
+    try{
+      const w = payMonth.getBoundingClientRect().width;
+      partnerPicker.style.width = Math.max(220, Math.round(w)) + 'px';
+    }catch(_){}
   }
 
   function prettyMonthLabel(ymd){
@@ -553,12 +576,12 @@
     try{
       payMonth.innerHTML = '<option value="">— Tutti i mesi —</option>';
       $('#btnLoadPayouts').disabled = true;
-      $('#btnCSVMonth').disabled = false; // CSV solo se scegli un mese, al click lo controlliamo
+      $('#btnCSVMonth').disabled = true;
 
       const { data, error } = await sb.from('v_partner_payouts_month')
         .select('month').order('month', { ascending:false });
-      if (error){ logErr('loadMonths: '+error.message); return; }
-      if (!data || !data.length){ return; }
+      if (error){ payMonth.innerHTML = `<option disabled>Errore: ${error.message}</option>`; logErr('loadMonths: '+error.message); return; }
+      if (!data || !data.length){ payMonth.innerHTML = '<option value="">Nessun mese con pending</option>'; syncPickerWidth(); return; }
 
       const seen = new Set();
       const opts = [];
@@ -571,227 +594,205 @@
       }
       payMonth.innerHTML = `<option value="">— Tutti i mesi —</option>` + opts.join('');
       $('#btnLoadPayouts').disabled = false;
+      $('#btnCSVMonth').disabled = false;
+
+      syncPickerWidth();
     }catch(e){ logErr('loadMonths ex: '+(e?.message||e)); }
   }
+  window.addEventListener('resize', syncPickerWidth);
 
-  // ===== Filtro Partner (popup) =====
-  const partnerBtn = $('#partnerBtn');
-  const partnerMenu = $('#partnerMenu');
-  let partnerChoices = []; // [{code,name}]
-  let selectedPartnerCodes = new Set();
-
-  function closePartnerMenu(){ partnerMenu.style.display='none'; }
-  function openPartnerMenu(){
-    const r = partnerBtn.getBoundingClientRect();
-    partnerMenu.style.left = r.left+'px';
-    partnerMenu.style.top  = (r.bottom + window.scrollY + 6) + 'px';
-    partnerMenu.style.display='block';
-  }
-  function labelForPartnerBtn(){
-    if (selectedPartnerCodes.size===0) return '— Tutti i partner —';
-    if (selectedPartnerCodes.size===1) return Array.from(selectedPartnerCodes)[0];
-    return selectedPartnerCodes.size + ' selezionati';
-  }
-  partnerBtn.addEventListener('click', ()=>{
-    if (partnerMenu.style.display==='block') closePartnerMenu(); else openPartnerMenu();
-  });
-  document.addEventListener('click', (e)=>{
-    if (!partnerMenu.contains(e.target) && e.target!==partnerBtn){ closePartnerMenu(); }
-  });
-
+  // --- Partner picker
   async function loadPartnerFilter(){
     try{
-      partnerMenu.innerHTML = '<div class="smallmuted" style="padding:6px 2px">Caricamento…</div>';
+      partnerList.textContent = 'Caricamento…';
       const { data, error } = await sb.from('partners')
-        .select('code,first_name,last_name,active').order('code');
-      if (error){ partnerMenu.innerHTML = 'Errore: '+error.message; return; }
-
-      partnerChoices = (data||[]).filter(p=>p.active!==false).map(p=>{
-        const name = ((p.first_name||'')+' '+(p.last_name||'')).trim();
-        return { code: p.code, name };
-      });
-
-      const rows = partnerChoices.map(p=>{
-        const checked = selectedPartnerCodes.has(p.code) ? ' checked' : '';
-        return `<div class="md-row"><label class="cklbl">
-          <input type="checkbox" value="${p.code}"${checked}>
-          <span>${p.code} — ${p.name||'—'}</span>
-        </label></div>`;
-      }).join('');
-
-      partnerMenu.innerHTML = `
-        <div class="md-head">
-          <div class="smallmuted">Se lasci vuoto, vedi tutti i partner.</div>
-          <div class="flex">
-            <button class="btn small" id="selAllP" type="button">Seleziona tutti</button>
-            <button class="btn small" id="clearP" type="button">Azzera</button>
-            <button class="btn small primary" id="applyP" type="button">Applica</button>
-          </div>
-        </div>
-        ${rows || '<div class="smallmuted">Nessun partner.</div>'}
-      `;
-
-      partnerMenu.querySelector('#selAllP')?.addEventListener('click', ()=>{
-        selectedPartnerCodes = new Set(partnerChoices.map(p=>p.code));
-        loadPartnerFilter();
-      });
-      partnerMenu.querySelector('#clearP')?.addEventListener('click', ()=>{
-        selectedPartnerCodes.clear(); loadPartnerFilter();
-      });
-      partnerMenu.querySelector('#applyP')?.addEventListener('click', ()=>{
-        partnerBtn.textContent = labelForPartnerBtn();
-        closePartnerMenu();
-      });
-      partnerMenu.querySelectorAll('input[type="checkbox"]').forEach(ch=>{
-        ch.addEventListener('change', ()=>{
-          const v = ch.value;
-          if (ch.checked) selectedPartnerCodes.add(v); else selectedPartnerCodes.delete(v);
-        });
-      });
-
-      partnerBtn.textContent = labelForPartnerBtn();
-    }catch(e){ partnerMenu.innerHTML = 'Errore filtro partner.'; logErr('loadPartnerFilter ex: '+(e?.message||e)); }
+        .select('code,first_name,last_name,active').order('first_name');
+      if (error){ partnerList.textContent = 'Errore caricamento partner'; logErr('loadPartnerFilter: '+error.message); return; }
+      const rows = (data||[]).filter(p=>p.active!==false).map(p=>{
+        const name = `${p.first_name||''} ${p.last_name||''}`.trim();
+        return `<div class="md-row"><label class="cklbl"><input type="checkbox" value="${p.code}"><span><b>${p.code}</b> — ${name||'—'}</span></label></div>`;
+      }).join('') || '<div class="md-row smallmuted">Nessun partner attivo.</div>';
+      partnerList.innerHTML = rows;
+    }catch(e){ partnerList.textContent='Errore'; logErr('loadPartnerFilter ex: '+(e?.message||e)); }
   }
 
-  // ===== Carica riepilogo =====
+  function updatePartnerBtnLabel(){
+    const arr = Array.from(selectedPartners);
+    if (arr.length === 0){ partnerBtn.textContent = 'Tutti i partner'; return; }
+    if (arr.length <= 2){ partnerBtn.textContent = arr.join(', '); return; }
+    partnerBtn.textContent = `${arr.length} selezionati`;
+  }
+
+  partnerBtn.addEventListener('click', ()=>{
+    partnerMenu.style.display = partnerMenu.style.display==='block' ? 'none' : 'block';
+  });
+  document.addEventListener('click', (e)=>{
+    if (!partnerMenu.contains(e.target) && e.target !== partnerBtn){
+      partnerMenu.style.display = 'none';
+    }
+  });
+
+  $('#ppAll').addEventListener('click', ()=>{
+    partnerList.querySelectorAll('input[type="checkbox"]').forEach(ch=>{ ch.checked=true; selectedPartners.add(ch.value); });
+    updatePartnerBtnLabel();
+  });
+  $('#ppClear').addEventListener('click', ()=>{
+    selectedPartners.clear();
+    partnerList.querySelectorAll('input[type="checkbox"]').forEach(ch=> ch.checked=false);
+    updatePartnerBtnLabel();
+  });
+  $('#ppApply').addEventListener('click', ()=>{
+    selectedPartners.clear();
+    partnerList.querySelectorAll('input[type="checkbox"]').forEach(ch=>{ if(ch.checked) selectedPartners.add(ch.value); });
+    updatePartnerBtnLabel();
+    partnerMenu.style.display='none';
+  });
+
+  const getSelectedPartnerCodes = ()=> Array.from(selectedPartners);
+
+  // === RIEPILOGO: carica righe pending (filtri mese/partner) con checkbox per “pagati”
   $('#btnLoadPayouts').onclick = async ()=>{
     try{
       payoutsDetailBox.style.display='none';
+      $('#payoutsSelectionBar').style.display='none';
       payoutsSummary.textContent = 'Caricamento…';
-      selectedRows.clear(); updateSelTotal();
 
-      // mappa partner -> info (nome/iban)
-      const { data: partners, error: errP } = await sb.from('partners')
-        .select('code,first_name,last_name,iban');
-      if (errP){ payoutsSummary.textContent = 'Errore: '+errP.message; return; }
-      const pMap = new Map();
-      (partners||[]).forEach(p=>{ pMap.set(p.code, { name: ((p.first_name||'')+' '+(p.last_name||'')).trim(), iban: p.iban||'' }); });
-
-      // query base
-      let q = sb.from('v_partner_payouts_month').select('*').order('month', {ascending:false}).order('partner_code');
-      const ym = payMonth.value;
+      const ym = payMonth.value; // '' => tutti
+      let query = sb.from('v_partner_payouts_month').select('*');
       if (ym){
         const { from } = monthToRange(ym);
-        q = q.eq('month', from);
+        query = query.eq('month', from);
       }
-      if (selectedPartnerCodes.size>0){
-        q = q.in('partner_code', Array.from(selectedPartnerCodes));
-      }
-      const { data, error } = await q;
-      if (error){ payoutsSummary.textContent = 'Errore: '+error.message; return; }
+      const codes = getSelectedPartnerCodes();
+      if (codes.length) query = query.in('partner_code', codes);
+
+      const { data, error } = await query.order('month',{ascending:false}).order('partner_code',{ascending:true});
+      if (error){ payoutsSummary.textContent = 'Errore: '+error.message; logErr('loadPayouts: '+error.message); return; }
       if (!data?.length){ payoutsSummary.textContent='Nessun pending per questi filtri.'; return; }
 
-      const rows = data.map(r=>{
-        const p = pMap.get(r.partner_code)||{};
-        const name = p.name||'—';
-        const iban = p.iban||'—';
-        const cents = Math.round((+r.partner_share_eur||0)*100);
-        const key = r.partner_code+'|'+r.month;
+      const uniqCodes = Array.from(new Set(data.map(r=>r.partner_code).filter(Boolean)));
+      const { data: partnersInfo } = await sb.from('partners')
+        .select('code,first_name,last_name,iban').in('code', uniqCodes);
+      const pmap = new Map((partnersInfo||[]).map(p=>[p.code,p]));
+
+      const rows = data.map((r,idx)=>{
+        const p = pmap.get(r.partner_code)||{};
+        const eur = Number(r.partner_share_eur||0);
+        const cents = Math.round(eur*100);
         return `
-          <tr data-key="${key}" data-cents="${cents}">
-            <td class="right"><input type="checkbox" class="rowchk"></td>
-            <td>${r.partner_code}</td>
-            <td>${name}</td>
-            <td>${iban}</td>
+          <tr>
+            <td class="right"><input type="checkbox" data-check="${idx}" data-code="${r.partner_code}" data-month="${r.month}" data-amount="${cents}"></td>
+            <td><b>${r.partner_code}</b></td>
+            <td>${p.first_name||'—'}</td>
+            <td>${p.last_name||'—'}</td>
+            <td>${p.iban||'—'}</td>
             <td>${prettyMonthLabel(r.month)}</td>
-            <td class="right"><b>${Number(r.partner_share_eur).toFixed(2).replace('.',',')} €</b></td>
+            <td class="right"><b>${eur.toFixed(2).replace('.',',')} €</b></td>
             <td class="right">${r.items}</td>
             <td><button class="btn small" data-open="${r.partner_code}" data-month="${r.month}">Dettaglio</button></td>
           </tr>`;
       }).join('');
 
       payoutsSummary.innerHTML = `
-        <table class="table" aria-label="Payout mensile">
-          <thead><tr>
-            <th></th><th>Partner</th><th>Nome</th><th>IBAN</th><th>Mese</th><th class="right">Totale</th><th class="right">Items</th><th></th>
-          </tr></thead>
+        <table class="table" aria-label="Payout pendenti">
+          <thead>
+            <tr>
+              <th class="right">✓</th>
+              <th>Partner</th>
+              <th>Nome</th>
+              <th>Cognome</th>
+              <th>IBAN</th>
+              <th>Mese</th>
+              <th class="right">Totale</th>
+              <th class="right">Items</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>${rows}</tbody>
+          <tfoot>
+            <tr><th colspan="6" class="right">Selezionati</th><th class="right" id="selTotal">0,00 €</th><th colspan="2"></th></tr>
+          </tfoot>
         </table>`;
 
-      payoutsSummary.querySelectorAll('.rowchk').forEach(ch=>{
-        ch.addEventListener('change', updateSelTotal);
+      function refreshSelTotal(){
+        const checks = payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]:checked');
+        let tot=0; checks.forEach(c=> tot += Number(c.getAttribute('data-amount')||0));
+        const euro = (tot/100).toFixed(2).replace('.',',')+' €';
+        $('#selTotal').textContent = euro;
+        selInfo.textContent = 'Selezionati: € ' + (tot/100).toFixed(2).replace('.',',');
+        $('#payoutsSelectionBar').style.display = checks.length ? 'block' : 'none';
+      }
+      payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]').forEach(ch=>{
+        ch.addEventListener('change', refreshSelTotal);
       });
+      refreshSelTotal();
 
       payoutsSummary.querySelectorAll('[data-open]').forEach(b=>{
         b.addEventListener('click', ()=>{
-          const partnerCode = b.getAttribute('data-open');
-          const monthIso = b.getAttribute('data-month').slice(0,7);
-          const range = monthToRange(monthIso);
-          openPayoutDetail(partnerCode, range);
+          const ymv = payMonth.value;
+          const range = ymv ? monthToRange(ymv) : { from: b.getAttribute('data-month'), to: null };
+          openPayoutDetail(b.getAttribute('data-open'), range);
         });
       });
+
     }catch(e){ payoutsSummary.textContent='Errore di caricamento.'; logErr('btnLoad ex: '+(e?.message||e)); }
   };
 
-  // CSV mese
-  $('#btnCSVMonth').onclick = async ()=>{
-    const ym = payMonth.value; if (!ym){ alert('Seleziona un mese.'); return; }
-    try{
-      const { from, to } = monthToRange(ym);
-      const { data: rowsAll, error: errAll } = await sb.from('partner_commissions')
-        .select('*').eq('status','pending').gte('created_at',from).lt('created_at',to)
-        .order('partner_code').order('created_at');
-      if (errAll){ alert('Errore: '+errAll.message); logErr('csv: '+errAll.message); return; }
-      if (!rowsAll?.length){ alert('Nessun dato.'); return; }
-      const head = ['created_at','partner_code','item_type','currency','unit_amount','stripe_fee','net','partner_share'].join(',');
-      const body = rowsAll.map(r=>[
-        r.created_at, r.partner_code, r.item_type, r.currency,
-        (r.unit_amount_cents/100).toFixed(2),(r.stripe_fee_cents/100).toFixed(2),
-        (r.net_cents/100).toFixed(2),(r.partner_share_cents/100).toFixed(2)
-      ].join(',')).join('\n');
-      const blob = new Blob([head+'\n'+body], {type:'text/csv;charset=utf-8;'});
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `staseraqui_payout_${from}.csv`; a.click();
-    }catch(e){ logErr('csv ex: '+(e?.message||e)); }
-  };
-
-  // Marca selezionati come pagati (riepilogo)
+  // RIEPILOGO: segna selezionati come pagati
   $('#btnMarkSelected').onclick = async ()=>{
     try{
-      const ref = (payRefTop.value||'').trim();
-      if (!ref){ alert('Inserisci un riferimento pagamento.'); return; }
+      const checks = payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]:checked');
+      if (!checks.length){ alert('Seleziona almeno una riga.'); return; }
+      const ref = (payRefSel.value||'').trim();
+      if (!ref){ alert('Inserisci un riferimento pagamento (es. SEPA 2025-09 batch #1).'); return; }
+      if (!confirm('Segnare come pagato le righe selezionate?')) return;
 
-      // prepara gruppi partner+mese
-      const tasks = [];
-      document.querySelectorAll('#payoutsSummary tbody tr').forEach(tr=>{
-        const chk = tr.querySelector('.rowchk');
-        if (chk && chk.checked){
-          const [code, monthIsoFull] = tr.getAttribute('data-key').split('|');
-          const ym = monthIsoFull.slice(0,7);
-          const { from, to } = monthToRange(ym);
-          tasks.push({ code, from, to });
-        }
+      const groups = {};
+      checks.forEach(ch=>{
+        const code = ch.getAttribute('data-code');
+        const month = ch.getAttribute('data-month');
+        groups[code+'|'+month] = { code, month };
       });
-      if (!tasks.length){ alert('Seleziona almeno una riga.'); return; }
 
-      if (!confirm('Segnare come pagato tutte le righe selezionate?')) return;
-
-      for (const t of tasks){
+      for (const k of Object.keys(groups)){
+        const { code, month } = groups[k];
+        const { from, to } = monthToRange(month.slice(0,7));
         const { error } = await sb.from('partner_commissions')
           .update({ status:'paid', payment_ref: ref })
-          .eq('status','pending').eq('partner_code', t.code).gte('created_at', t.from).lt('created_at', t.to);
-        if (error){ alert('Errore: '+error.message); return; }
+          .eq('status','pending').eq('partner_code', code).gte('created_at',from).lt('created_at',to);
+        if (error){ alert('Errore su '+code+' '+month+': '+error.message); logErr('markSelected '+code+': '+error.message); return; }
       }
-      alert('Aggiornato a paid.');
+
+      alert('Righe selezionate segnate come pagate.');
       $('#btnLoadPayouts').click();
-    }catch(e){ logErr('mark selected ex: '+(e?.message||e)); }
+      $('#payoutsSelectionBar').style.display='none';
+    }catch(e){ logErr('btnMarkSelected ex: '+(e?.message||e)); }
   };
 
+  // === DETTAGLIO: righe con checkbox singole
   async function openPayoutDetail(partnerCode, range){
     try{
-      payoutsDetailTitle.textContent = `Dettaglio ${partnerCode} — ${range.from} → ${range.to}`;
+      const r = range?.from ? range : { from: new Date().toISOString().slice(0,10), to: null };
+      const rng = r.from.includes('-') && r.to ? r : ( r.from ? monthToRange(r.from.slice(0,7)) : null );
+      const rf = rng?.from || r.from, rt = rng?.to || r.to;
+
+      payoutsDetailTitle.textContent = `Dettaglio ${partnerCode} — ${rf} → ${rt||'...'}`
       payRef.value = '';
       payoutsDetailTable.textContent = 'Caricamento…';
       payoutsDetailBox.style.display='block';
-      const { data, error } = await sb.from('partner_commissions')
+
+      const q = sb.from('partner_commissions')
         .select('id,created_at,item_type,currency,unit_amount_cents,stripe_fee_cents,net_cents,partner_share_cents')
         .eq('status','pending').eq('partner_code', partnerCode)
-        .gte('created_at', range.from).lt('created_at', range.to)
-        .order('created_at');
+        .gte('created_at', rf);
+      const { data, error } = rt ? await q.lt('created_at', rt) : await q;
       if (error){ payoutsDetailTable.textContent = 'Errore: '+error.message; logErr('detail: '+error.message); return; }
-      if (!data?.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending.'; return; }
+      if (!data?.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending.'; detailSelBar.style.display='none'; return; }
+
       const total = data.reduce((s,r)=> s+(r.partner_share_cents||0), 0);
       const rows = data.map(r=>`
         <tr>
+          <td class="right"><input type="checkbox" data-detail-id="${r.id}" data-amount="${r.partner_share_cents||0}"></td>
           <td>${r.created_at?.slice(0,10)||''}</td>
           <td>${r.item_type}</td>
           <td class="right">${money(r.unit_amount_cents)} €</td>
@@ -799,43 +800,93 @@
           <td class="right">${money(r.net_cents)} €</td>
           <td class="right"><b>${money(r.partner_share_cents)} €</b></td>
         </tr>`).join('');
+
       payoutsDetailTable.innerHTML = `
         <table class="table" aria-label="Dettaglio partner">
-          <thead><tr><th>Data</th><th>Tipo</th><th>Lordo</th><th>Fee Stripe</th><th>Netto</th><th>Quota 50%</th></tr></thead>
+          <thead><tr><th class="right">✓</th><th>Data</th><th>Tipo</th><th>Lordo</th><th>Fee Stripe</th><th>Netto</th><th>Quota 50%</th></tr></thead>
           <tbody>${rows}</tbody>
-          <tfoot><tr><th colspan="5" class="right">Totale</th><th class="right">${money(total)} €</th></tr></tfoot>
+          <tfoot><tr><th colspan="6" class="right">Totale</th><th class="right">${money(total)} €</th></tr></tfoot>
         </table>`;
 
+      function refreshDetailSelTotal(){
+        const checks = payoutsDetailTable.querySelectorAll('input[type="checkbox"][data-detail-id]:checked');
+        let tot=0; checks.forEach(c=> tot += Number(c.getAttribute('data-amount')||0));
+        detailSelInfo.textContent = 'Selezionati: € ' + (tot/100).toFixed(2).replace('.',',');
+        detailSelBar.style.display = checks.length ? 'block' : 'none';
+      }
+      payoutsDetailTable.querySelectorAll('input[type="checkbox"][data-detail-id]').forEach(ch=>{
+        ch.addEventListener('change', refreshDetailSelTotal);
+      });
+      refreshDetailSelTotal();
+
+      // CSV del mese mostrato
+      $('#btnCSVMonth').onclick = async ()=>{
+        try{
+          const ym = (rf||'').slice(0,7);
+          const { from, to } = monthToRange(ym);
+          const { data: rowsAll, error: errAll } = await sb.from('partner_commissions')
+            .select('*').eq('status','pending').gte('created_at',from).lt('created_at',to)
+            .order('partner_code').order('created_at');
+          if (errAll){ alert('Errore: '+errAll.message); logErr('csv: '+errAll.message); return; }
+          if (!rowsAll?.length){ alert('Nessun dato.'); return; }
+          const head = ['created_at','partner_code','item_type','currency','unit_amount','stripe_fee','net','partner_share'].join(',');
+          const body = rowsAll.map(r=>[
+            r.created_at, r.partner_code, r.item_type, r.currency,
+            (r.unit_amount_cents/100).toFixed(2),(r.stripe_fee_cents/100).toFixed(2),
+            (r.net_cents/100).toFixed(2),(r.partner_share_cents/100).toFixed(2)
+          ].join(',')).join('\n');
+          const blob = new Blob([head+'\n'+body], {type:'text/csv;charset=utf-8;'});
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `staseraqui_payout_${from}.csv`; a.click();
+        }catch(e){ logErr('csv ex: '+(e?.message||e)); }
+      };
+
+      // Segna TUTTO il dettaglio come pagato
       $('#btnMarkPaid').onclick = async ()=>{
         try{
           const ref = (payRef.value||'').trim();
           if (!ref){ alert('Inserisci un riferimento pagamento.'); return; }
-          if (!confirm('Segnare come pagato tutti gli elementi pending per questo partner e mese?')) return;
+          if (!confirm('Segnare come pagato TUTTI gli elementi in elenco?')) return;
           const { error } = await sb.from('partner_commissions')
             .update({ status:'paid', payment_ref: ref })
-            .eq('status','pending').eq('partner_code', partnerCode).gte('created_at',range.from).lt('created_at',range.to);
+            .eq('status','pending').eq('partner_code', partnerCode)
+            .gte('created_at', rf).lt('created_at', rt || '9999-12-31');
           if (error){ alert('Errore: '+error.message); logErr('markPaid: '+error.message); return; }
           alert('Aggiornato a paid.');
           $('#btnLoadPayouts').click();
           payoutsDetailBox.style.display='none';
         }catch(e){ logErr('markPaid ex: '+(e?.message||e)); }
       };
+
+      // Segna SOLO i selezionati nel dettaglio
+      $('#btnMarkDetailSelected').onclick = async ()=>{
+        try{
+          const ref = (payRef.value||'').trim();
+          if (!ref){ alert('Inserisci un riferimento pagamento.'); return; }
+          const checks = payoutsDetailTable.querySelectorAll('input[type="checkbox"][data-detail-id]:checked');
+          if (!checks.length){ alert('Seleziona almeno una riga.'); return; }
+          if (!confirm('Segnare come pagato le righe selezionate?')) return;
+
+          const ids = Array.from(checks).map(ch=> ch.getAttribute('data-detail-id'));
+          const { error } = await sb.from('partner_commissions')
+            .update({ status:'paid', payment_ref: ref })
+            .in('id', ids);
+          if (error){ alert('Errore: '+error.message); logErr('markDetailSelected: '+error.message); return; }
+
+          alert('Righe selezionate segnate come pagate.');
+          $('#btnLoadPayouts').click();
+          payoutsDetailBox.style.display='none';
+        }catch(e){ logErr('btnMarkDetailSelected ex: '+(e?.message||e)); }
+      };
+
     }catch(e){ payoutsDetailTable.textContent='Errore apertura dettaglio.'; logErr('openDetail ex: '+(e?.message||e)); }
   }
 
-  // ====================== COUPON STRIPE (via Edge: stripe-admin) ======================
-  const cpCode = $('#cp_code');
+  // ====================== COUPON STRIPE ======================
   const cpType = $('#cp_type');
   const cpPercentWrap = $('#cp_percent_wrap');
   const cpAmountWrap  = $('#cp_amount_wrap');
-  const cpPercent = $('#cp_percent');
-  const cpAmount  = $('#cp_amount');
-  const cpMax     = $('#cp_max');
-  const cpExp     = $('#cp_exp');
   const cpCreate  = $('#cp_create');
   const cpMsg     = $('#cp_msg');
-  const cpListBox = $('#cp_list');
-  const cpGenBtn  = $('#cp_gen');
 
   cpType.addEventListener('change', ()=>{
     const t = cpType.value;
@@ -843,203 +894,74 @@
     else { cpPercentWrap.style.display='none'; cpAmountWrap.style.display='block'; }
   });
 
-  cpGenBtn.addEventListener('click', ()=>{
-    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let c=''; for(let i=0;i<6;i++) c+=s[Math.floor(Math.random()*s.length)];
-    cpCode.value = 'ADMIN-' + c;
-  });
-
   async function getAccessToken(){
     const { data:{ session } } = await sb.auth.getSession();
     return session?.access_token || '';
   }
 
-  // >>> COLLEGAMENTO BOTTONE "CREA CODICE SCONTO"
   cpCreate.addEventListener('click', async () => {
     try {
       cpMsg.textContent = 'Creazione in corso…';
-
-      const code = (cpCode.value || '').trim().toUpperCase();
-      const type = cpType.value; // 'percent' o 'amount'
-      const percent = Number(cpPercent.value);
-      const amount  = Number(cpAmount.value);
-      const maxRed  = cpMax.value ? Number(cpMax.value) : null;
-      const expUnix = cpExp.value ? Math.floor(new Date(cpExp.value).getTime() / 1000) : null;
-
-      if (!code) { cpMsg.textContent = 'Inserisci un codice (es. ADMIN100).'; return; }
-      if (type === 'percent') {
-        if (!percent || percent < 1 || percent > 100) {
-          cpMsg.textContent = 'Inserisci una percentuale tra 1 e 100.'; return;
-        }
-      } else {
-        if (!amount || amount < 1) {
-          cpMsg.textContent = 'Inserisci un importo in euro (≥ 1).'; return;
-        }
-      }
-
-      if (!URL_COUPON) { cpMsg.textContent = 'Funzione non disponibile (URL_COUPON non configurato).'; return; }
-
-      const token = await getAccessToken();
-      if (!token) { cpMsg.textContent = 'Devi essere loggato per creare un codice.'; return; }
-
-      const payload = {
-        action: 'create_promo',
-        code,
-        type,
-        value: type === 'percent' ? percent : Math.round(amount * 100),
-        max_redemptions: maxRed,
-        expires_at: expUnix
-      };
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-
-      let res, text;
-      try {
-        res = await fetch(URL_COUPON, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify(payload),
-          signal: controller.signal
-        });
-        text = await res.text();
-      } catch (e) {
-        if (e?.name === 'AbortError') {
-          cpMsg.textContent = 'Errore: timeout (nessuna risposta dal server).';
-          return;
-        }
-        cpMsg.textContent = 'Errore di rete: ' + (e?.message || e);
-        return;
-      } finally {
-        clearTimeout(timer);
-      }
-
-      if (!res.ok) { cpMsg.textContent = 'Errore: ' + (text || ('HTTP ' + res.status)); return; }
-
-      let data = {};
-      try { data = JSON.parse(text); } catch (_) {}
-      cpMsg.textContent = '✅ Creato: ' + (data?.code || code);
-
-      // pulizia campi
-      cpCode.value = ''; cpPercent.value = ''; cpAmount.value = '';
-      cpMax.value = ''; cpExp.value = '';
-
-      // aggiorna elenco
+      const code = (document.querySelector('#cp_code').value || '').trim().toUpperCase();
+      const type = cpType.value;
+      const percent = Number(document.querySelector('#cp_percent').value);
+      const amount  = Number(document.querySelector('#cp_amount').value);
+      const maxRed  = document.querySelector('#cp_max').value ? Number(document.querySelector('#cp_max').value) : null;
+      const expUnix = document.querySelector('#cp_exp').value ? Math.floor(new Date(document.querySelector('#cp_exp').value).getTime() / 1000) : null;
+      if (!code){ cpMsg.textContent='Inserisci un codice.'; return; }
+      if (type==='percent' && (!percent || percent<1 || percent>100)){ cpMsg.textContent='Percentuale 1–100.'; return; }
+      if (type==='amount'  && (!amount || amount<1)){ cpMsg.textContent='Importo in euro (≥1).'; return; }
+      const FN_BASE = (function(u){ try{ const host=new URL(u).host; return 'https://'+host.replace('.supabase.co','.functions.supabase.co'); }catch(_){ return null; } })(SUPABASE_URL);
+      const URL_COUPON = FN_BASE ? (FN_BASE + '/stripe-admin') : null;
+      if (!URL_COUPON){ cpMsg.textContent='Funzione non disponibile.'; return; }
+      const token = await getAccessToken(); if(!token){ cpMsg.textContent='Non sei loggato.'; return; }
+      const payload = { action:'create_promo', code, type, value: type==='percent'?percent:Math.round(amount*100), max_redemptions:maxRed, expires_at:expUnix };
+      const r = await fetch(URL_COUPON, { method:'POST', headers:{'content-type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify(payload) });
+      const t = await r.text();
+      if(!r.ok){ cpMsg.textContent='Errore: '+t; return; }
+      cpMsg.textContent='✅ Creato: '+(JSON.parse(t)?.code||code);
+      document.querySelector('#cp_code').value=''; document.querySelector('#cp_percent').value=''; document.querySelector('#cp_amount').value=''; document.querySelector('#cp_max').value=''; document.querySelector('#cp_exp').value='';
       loadPromoList();
-    } catch (e) {
-      cpMsg.textContent = 'Errore imprevisto: ' + (e?.message || e);
-    }
+    }catch(e){ cpMsg.textContent='Errore: '+(e?.message||e); }
   });
 
-  // >>> LISTA CODICI
   async function loadPromoList(){
-    const renderTable = (rowsHtml) => `
-      <table class="table" aria-label="Codici attivi">
-        <thead>
-          <tr>
-            <th>Codice</th>
-            <th>Sconto</th>
-            <th class="right">Max</th>
-            <th class="right">Usati</th>
-            <th>Scadenza</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>`;
-
+    const cpListBox = document.querySelector('#cp_list');
     try{
-      if (!URL_COUPON){
-        cpListBox.textContent = 'Function non disponibile (URL_COUPON non configurato).';
-        return;
-      }
-      cpListBox.textContent = 'Caricamento…';
-
-      const token = await getAccessToken();
-      if (!token){
-        cpListBox.textContent = 'Non sei loggato: inserisci la tua email quando la pagina lo chiede, poi riapri questa pagina.';
-        return;
-      }
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10000);
-
-      let res, txt;
-      try{
-        res = await fetch(URL_COUPON + '?active=true&limit=50', {
-          headers: { 'Authorization': 'Bearer ' + token },
-          signal: controller.signal
-        });
-        txt = await res.text();
-      } finally {
-        clearTimeout(timer);
-      }
-
-      if (!res.ok){
-        cpListBox.textContent = `Errore (${res.status}): ${txt || 'impossibile caricare'}`;
-        logErr('promo list HTTP ' + res.status + ': ' + txt);
-        return;
-      }
-
-      let j = null;
-      try { j = JSON.parse(txt); }
-      catch(e){
-        cpListBox.textContent = 'Errore: risposta non valida dal server.';
-        logErr('promo list JSON: ' + (e?.message || e));
-        return;
-      }
-
-      if (!j?.data?.length){
-        cpListBox.textContent = 'Nessun codice attivo.';
-        return;
-      }
-
-      const rows = j.data.map(p => `
+      const FN_BASE = (function(u){ try{ const host=new URL(u).host; return 'https://'+host.replace('.supabase.co','.functions.supabase.co'); }catch(_){ return null; } })(SUPABASE_URL);
+      const URL_COUPON = FN_BASE ? (FN_BASE + '/stripe-admin') : null;
+      if (!URL_COUPON){ cpListBox.textContent='Function non disponibile.'; return; }
+      cpListBox.textContent='Caricamento…';
+      const token = await getAccessToken(); if(!token){ cpListBox.textContent='Non sei loggato.'; return; }
+      const r = await fetch(URL_COUPON+'?active=true&limit=50', { headers:{'Authorization':'Bearer '+token} });
+      const t = await r.text(); if(!r.ok){ cpListBox.textContent='Errore: '+t; return; }
+      const j = JSON.parse(t); if(!j?.data?.length){ cpListBox.textContent='Nessun codice attivo.'; return; }
+      const rows = j.data.map(p=>`
         <tr>
           <td>${p.code}</td>
-          <td>${
-            p.coupon?.percent_off
-              ? (p.coupon.percent_off + '%')
-              : (p.coupon?.amount_off ? ((p.coupon.amount_off/100).toFixed(2) + ' €') : '—')
-          }</td>
+          <td>${ p.coupon?.percent_off ? (p.coupon.percent_off+'%') : (p.coupon?.amount_off ? ((p.coupon.amount_off/100).toFixed(2)+' €') : '—') }</td>
           <td class="right">${p.max_redemptions ?? '—'}</td>
           <td class="right">${p.times_redeemed ?? 0}</td>
           <td>${p.expires_at ? new Date(p.expires_at*1000).toISOString().slice(0,16).replace('T',' ') : '—'}</td>
           <td><button class="btn small" data-deact="${p.id}">Disattiva</button></td>
-        </tr>
-      `).join('');
-
-      cpListBox.innerHTML = renderTable(rows);
-
-      // Bottoni "Disattiva"
+        </tr>`).join('');
+      cpListBox.innerHTML = `<table class="table"><thead><tr><th>Codice</th><th>Sconto</th><th class="right">Max</th><th class="right">Usati</th><th>Scadenza</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
       cpListBox.querySelectorAll('[data-deact]').forEach(b=>{
         b.addEventListener('click', async ()=>{
-          try{
-            if (!confirm('Disattivare questo codice?')) return;
-            const id = b.getAttribute('data-deact');
-            const tkn = await getAccessToken();
-            const r = await fetch(URL_COUPON, {
-              method:'POST',
-              headers:{ 'content-type':'application/json', 'Authorization': 'Bearer ' + tkn },
-              body: JSON.stringify({ action:'deactivate_promo', id })
-            });
-            if (!r.ok){ alert('Errore: ' + await r.text()); return; }
-            loadPromoList();
-          }catch(e){ logErr('deactivate ex: ' + (e?.message||e)); }
+          if(!confirm('Disattivare questo codice?')) return;
+          const token2 = await getAccessToken();
+          const rr = await fetch(URL_COUPON, { method:'POST', headers:{'content-type':'application/json','Authorization':'Bearer '+token2}, body: JSON.stringify({ action:'deactivate_promo', id: b.getAttribute('data-deact') })});
+          if(!rr.ok){ alert('Errore: '+await rr.text()); return; }
+          loadPromoList();
         });
       });
-
-    }catch(e){
-      cpListBox.textContent = (e?.name === 'AbortError')
-        ? 'Errore: timeout (nessuna risposta dal server).'
-        : ('Errore caricamento codici: ' + (e?.message || e));
-      logErr('loadPromoList ex: ' + (e?.message || e));
-    }
+    }catch(e){ document.querySelector('#cp_list').textContent='Errore: '+(e?.message||e); }
   }
 
   // inizializza viste
   await loadAvailableMonths();
   await loadPartnerFilter();
+  syncPickerWidth();
   loadPromoList();
 
 })();
