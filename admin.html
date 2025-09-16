@@ -25,14 +25,32 @@
     .errorlog{background:#0b1623;border:1px dashed rgba(255,255,255,.25);padding:10px;border-radius:8px;font-size:12px;white-space:pre-wrap}
     .muted{opacity:.85}
 
-    /* ===== Multi-dropdown partner ===== */
-    .multidrop{position:relative;display:inline-block}
-    #partnerBtn{height:36px;line-height:22px;padding:6px 10px;min-width:260px}
-    .md-menu{position:absolute;top:100%;left:0;z-index:50;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;min-width:320px;max-height:260px;overflow:auto;display:none;box-shadow:0 8px 22px rgba(0,0,0,.35)}
-    .md-row{display:flex;gap:8px;align-items:center;padding:4px 2px}
+    /* ===== Partner picker con lo STESSO layout del select "Mese" ===== */
+    .multidrop.selectlike{position:relative;display:inline-block;width:220px} /* la larghezza viene poi sincronizzata via JS */
+    #partnerBtn{
+      width:100%;height:36px;line-height:22px;
+      padding:6px 34px 6px 10px;
+      border:1px solid rgba(255,255,255,.25);border-radius:8px;
+      background:#0f1c2d;color:#fff;text-align:left;cursor:pointer;
+      font:inherit;
+    }
+    /* caret come il select */
+    .multidrop.selectlike::after{
+      content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.85
+    }
+    /* il menu appare sotto, stessa larghezza del campo */
+    .md-menu{
+      position:absolute;top:calc(100% + 4px);left:0;z-index:200;
+      width:100%;min-width:100%;
+      background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;
+      box-shadow:0 8px 22px rgba(0,0,0,.35);
+      max-height:260px;overflow:auto;display:none;padding:10px
+    }
+    .md-row{display:flex;gap:8px;align-items:center;padding:6px 2px}
+    .md-row input{width:16px;height:16px}
+    .cklbl{display:flex;align-items:center;gap:8px;cursor:pointer}
     .md-footer{display:flex;justify-content:space-between;gap:8px;margin-top:8px}
     .md-note{font-size:12px;color:#b8c2ce;margin-top:4px}
-    .cklbl{display:flex;align-items:center;gap:8px;cursor:pointer}
     .md-actions .btn.small{padding:6px 8px}
   </style>
 </head>
@@ -108,8 +126,9 @@
       </div>
       <div>
         <label class="small">Partner (opzionale, multi)</label><br>
-        <div class="multidrop" id="partnerPicker">
-          <button id="partnerBtn" class="btn" type="button">Tutti i partner</button>
+        <!-- wrapper con stessa larghezza/altezza del select mese -->
+        <div class="multidrop selectlike" id="partnerPicker">
+          <button id="partnerBtn" type="button">Tutti i partner</button>
           <div class="md-menu" id="partnerMenu">
             <div id="partnerList">Caricamento…</div>
             <div class="md-footer">
@@ -129,12 +148,8 @@
         <label class="small">Riferimento pagamento (per i selezionati)</label><br>
         <input id="payRefSel" placeholder="Es. SEPA 2025-09 batch #1" style="min-width:260px;height:36px">
       </div>
-      <div>
-        <button class="btn" id="btnLoadPayouts" type="button" disabled>Carica</button>
-      </div>
-      <div>
-        <button class="btn" id="btnCSVMonth" type="button" disabled>Scarica CSV (mese)</button>
-      </div>
+      <div><button class="btn" id="btnLoadPayouts" type="button" disabled>Carica</button></div>
+      <div><button class="btn" id="btnCSVMonth" type="button" disabled>Scarica CSV (mese)</button></div>
     </div>
     <div class="smallmuted" style="margin-top:-4px">Se lasci vuoti “Mese” e “Partner” vedi <b>tutto ciò che è in pending</b>.</div>
 
@@ -515,6 +530,7 @@
 
   // ====================== PAYOUTS ======================
   const payMonth = $('#payMonth');
+  const partnerPicker = $('#partnerPicker');
   const partnerBtn = $('#partnerBtn');
   const partnerMenu = $('#partnerMenu');
   const partnerList = $('#partnerList');
@@ -528,6 +544,14 @@
   const selInfo = $('#selInfo');
 
   const selectedPartners = new Set(); // codici selezionati nel picker
+
+  // allinea VISIVAMENTE il picker alla larghezza del select Mese
+  function syncPickerWidth(){
+    try{
+      const w = payMonth.getBoundingClientRect().width;
+      partnerPicker.style.width = Math.max(220, Math.round(w)) + 'px';
+    }catch(_){}
+  }
 
   function prettyMonthLabel(ymd){
     try{
@@ -553,7 +577,7 @@
       const { data, error } = await sb.from('v_partner_payouts_month')
         .select('month').order('month', { ascending:false });
       if (error){ payMonth.innerHTML = `<option disabled>Errore: ${error.message}</option>`; logErr('loadMonths: '+error.message); return; }
-      if (!data || !data.length){ payMonth.innerHTML = '<option value="">Nessun mese con pending</option>'; return; }
+      if (!data || !data.length){ payMonth.innerHTML = '<option value="">Nessun mese con pending</option>'; syncPickerWidth(); return; }
 
       const seen = new Set();
       const opts = [];
@@ -567,8 +591,11 @@
       payMonth.innerHTML = `<option value="">— Tutti i mesi —</option>` + opts.join('');
       $('#btnLoadPayouts').disabled = false;
       $('#btnCSVMonth').disabled = false;
+
+      syncPickerWidth();
     }catch(e){ logErr('loadMonths ex: '+(e?.message||e)); }
   }
+  window.addEventListener('resize', syncPickerWidth);
 
   // --- Partner picker (tendina con checkbox)
   async function loadPartnerFilter(){
@@ -611,16 +638,13 @@
     updatePartnerBtnLabel();
   });
   $('#ppApply').addEventListener('click', ()=>{
-    // aggiorna set in base ai check correnti
     selectedPartners.clear();
     partnerList.querySelectorAll('input[type="checkbox"]').forEach(ch=>{ if(ch.checked) selectedPartners.add(ch.value); });
     updatePartnerBtnLabel();
     partnerMenu.style.display='none';
   });
 
-  function getSelectedPartnerCodes(){
-    return Array.from(selectedPartners);
-  }
+  function getSelectedPartnerCodes(){ return Array.from(selectedPartners); }
 
   $('#btnLoadPayouts').onclick = async ()=>{
     try{
@@ -686,7 +710,6 @@
           </tfoot>
         </table>`;
 
-      // Totale selezionati
       function refreshSelTotal(){
         const checks = payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]:checked');
         let tot=0; checks.forEach(c=> tot += Number(c.getAttribute('data-amount')||0));
@@ -700,7 +723,6 @@
       });
       refreshSelTotal();
 
-      // Apri dettaglio
       payoutsSummary.querySelectorAll('[data-open]').forEach(b=>{
         b.addEventListener('click', ()=>{
           const ymv = payMonth.value;
@@ -712,7 +734,7 @@
     }catch(e){ payoutsSummary.textContent='Errore di caricamento.'; logErr('btnLoad ex: '+(e?.message||e)); }
   };
 
-  // Segna selezionati come pagati (per partner+mese)
+  // Segna selezionati come pagati
   $('#btnMarkSelected').onclick = async ()=>{
     try{
       const checks = payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]:checked');
@@ -721,13 +743,11 @@
       if (!ref){ alert('Inserisci un riferimento pagamento (es. SEPA 2025-09 batch #1).'); return; }
       if (!confirm('Segnare come pagato le righe selezionate?')) return;
 
-      // Aggrega per (partner_code, month)
       const groups = {};
       checks.forEach(ch=>{
         const code = ch.getAttribute('data-code');
         const month = ch.getAttribute('data-month');
-        const key = code+'|'+month;
-        groups[key] = { code, month };
+        groups[code+'|'+month] = { code, month };
       });
 
       for (const k of Object.keys(groups)){
@@ -816,7 +836,7 @@
     }catch(e){ payoutsDetailTable.textContent='Errore apertura dettaglio.'; logErr('openDetail ex: '+(e?.message||e)); }
   }
 
-  // ====================== COUPON STRIPE (via Edge: stripe-admin) ======================
+  // ====================== COUPON STRIPE ======================
   const cpType = $('#cp_type');
   const cpPercentWrap = $('#cp_percent_wrap');
   const cpAmountWrap  = $('#cp_amount_wrap');
@@ -834,7 +854,6 @@
     return session?.access_token || '';
   }
 
-  // Creazione codice sconto (come tua versione attuale)
   cpCreate.addEventListener('click', async () => {
     try {
       cpMsg.textContent = 'Creazione in corso…';
@@ -897,6 +916,7 @@
   // inizializza viste
   await loadAvailableMonths();
   await loadPartnerFilter();
+  syncPickerWidth();
   loadPromoList();
 
 })();
