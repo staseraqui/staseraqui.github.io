@@ -25,26 +25,25 @@
     .errorlog{background:#0b1623;border:1px dashed rgba(255,255,255,.25);padding:10px;border-radius:8px;font-size:12px;white-space:pre-wrap}
     .muted{opacity:.85}
 
-    /* ===== Partner picker con lo STESSO layout del select "Mese" ===== */
-    .multidrop.selectlike{position:relative;display:inline-block;width:220px} /* la larghezza viene poi sincronizzata via JS */
+    /* ===== Partner picker: font/altezza uguali al select "Mese" ===== */
+    .multidrop.selectlike{position:relative;display:inline-block;width:220px}
     #partnerBtn{
-      width:100%;height:36px;line-height:22px;
+      width:100%;height:36px;
       padding:6px 34px 6px 10px;
       border:1px solid rgba(255,255,255,.25);border-radius:8px;
       background:#0f1c2d;color:#fff;text-align:left;cursor:pointer;
-      font:inherit;
+      font:inherit;font-size:14px;line-height:22px;
     }
-    /* caret come il select */
     .multidrop.selectlike::after{
       content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.85
     }
-    /* il menu appare sotto, stessa larghezza del campo */
     .md-menu{
       position:absolute;top:calc(100% + 4px);left:0;z-index:200;
       width:100%;min-width:100%;
       background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;
       box-shadow:0 8px 22px rgba(0,0,0,.35);
-      max-height:260px;overflow:auto;display:none;padding:10px
+      max-height:260px;overflow:auto;display:none;padding:10px;
+      font-size:14px; /* stesso del select mese */
     }
     .md-row{display:flex;gap:8px;align-items:center;padding:6px 2px}
     .md-row input{width:16px;height:16px}
@@ -126,7 +125,6 @@
       </div>
       <div>
         <label class="small">Partner (opzionale, multi)</label><br>
-        <!-- wrapper con stessa larghezza/altezza del select mese -->
         <div class="multidrop selectlike" id="partnerPicker">
           <button id="partnerBtn" type="button">Tutti i partner</button>
           <div class="md-menu" id="partnerMenu">
@@ -136,9 +134,7 @@
                 <button class="btn small" id="ppAll" type="button">Seleziona tutti</button>
                 <button class="btn small" id="ppClear" type="button">Azzera</button>
               </div>
-              <div>
-                <button class="btn primary small" id="ppApply" type="button">Applica</button>
-              </div>
+              <div><button class="btn primary small" id="ppApply" type="button">Applica</button></div>
             </div>
             <div class="md-note">Se lasci vuoto, vedi tutti i partner.</div>
           </div>
@@ -167,6 +163,13 @@
         <button class="btn primary" id="btnMarkPaid" type="button">Segna tutto come pagato</button>
       </div>
       <div class="smallmuted muted" style="margin-top:-2px">Il riferimento viene salvato nel campo <code>payment_ref</code> su ogni riga pagata.</div>
+
+      <!-- barra selezione nel DETTAGLIO -->
+      <div id="detailSelectionBar" class="smallmuted" style="display:none;margin-top:8px">
+        <span id="detailSelInfo">Selezionati: € 0,00</span>
+        <button class="btn primary" id="btnMarkDetailSelected" type="button" style="margin-left:8px">Segna selezionati come pagati</button>
+      </div>
+
       <div id="payoutDetailTable" class="smallmuted">—</div>
     </div>
   </div>
@@ -542,10 +545,11 @@
   const payRefSel = $('#payRefSel');
   const selBar = $('#payoutsSelectionBar');
   const selInfo = $('#selInfo');
+  const detailSelBar = $('#detailSelectionBar');
+  const detailSelInfo = $('#detailSelInfo');
 
   const selectedPartners = new Set(); // codici selezionati nel picker
 
-  // allinea VISIVAMENTE il picker alla larghezza del select Mese
   function syncPickerWidth(){
     try{
       const w = payMonth.getBoundingClientRect().width;
@@ -597,7 +601,7 @@
   }
   window.addEventListener('resize', syncPickerWidth);
 
-  // --- Partner picker (tendina con checkbox)
+  // --- Partner picker
   async function loadPartnerFilter(){
     try{
       partnerList.textContent = 'Caricamento…';
@@ -644,8 +648,9 @@
     partnerMenu.style.display='none';
   });
 
-  function getSelectedPartnerCodes(){ return Array.from(selectedPartners); }
+  const getSelectedPartnerCodes = ()=> Array.from(selectedPartners);
 
+  // === RIEPILOGO: carica righe pending (filtri mese/partner) con checkbox per “pagati”
   $('#btnLoadPayouts').onclick = async ()=>{
     try{
       payoutsDetailBox.style.display='none';
@@ -665,7 +670,6 @@
       if (error){ payoutsSummary.textContent = 'Errore: '+error.message; logErr('loadPayouts: '+error.message); return; }
       if (!data?.length){ payoutsSummary.textContent='Nessun pending per questi filtri.'; return; }
 
-      // mappa partner -> info
       const uniqCodes = Array.from(new Set(data.map(r=>r.partner_code).filter(Boolean)));
       const { data: partnersInfo } = await sb.from('partners')
         .select('code,first_name,last_name,iban').in('code', uniqCodes);
@@ -734,7 +738,7 @@
     }catch(e){ payoutsSummary.textContent='Errore di caricamento.'; logErr('btnLoad ex: '+(e?.message||e)); }
   };
 
-  // Segna selezionati come pagati
+  // RIEPILOGO: segna selezionati come pagati
   $('#btnMarkSelected').onclick = async ()=>{
     try{
       const checks = payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]:checked');
@@ -765,25 +769,30 @@
     }catch(e){ logErr('btnMarkSelected ex: '+(e?.message||e)); }
   };
 
+  // === DETTAGLIO: righe con checkbox singole
   async function openPayoutDetail(partnerCode, range){
     try{
       const r = range?.from ? range : { from: new Date().toISOString().slice(0,10), to: null };
       const rng = r.from.includes('-') && r.to ? r : ( r.from ? monthToRange(r.from.slice(0,7)) : null );
       const rf = rng?.from || r.from, rt = rng?.to || r.to;
+
       payoutsDetailTitle.textContent = `Dettaglio ${partnerCode} — ${rf} → ${rt||'...'}`
       payRef.value = '';
       payoutsDetailTable.textContent = 'Caricamento…';
       payoutsDetailBox.style.display='block';
+
       const q = sb.from('partner_commissions')
-        .select('created_at,item_type,currency,unit_amount_cents,stripe_fee_cents,net_cents,partner_share_cents')
+        .select('id,created_at,item_type,currency,unit_amount_cents,stripe_fee_cents,net_cents,partner_share_cents')
         .eq('status','pending').eq('partner_code', partnerCode)
         .gte('created_at', rf);
       const { data, error } = rt ? await q.lt('created_at', rt) : await q;
       if (error){ payoutsDetailTable.textContent = 'Errore: '+error.message; logErr('detail: '+error.message); return; }
-      if (!data?.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending.'; return; }
+      if (!data?.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending.'; detailSelBar.style.display='none'; return; }
+
       const total = data.reduce((s,r)=> s+(r.partner_share_cents||0), 0);
       const rows = data.map(r=>`
         <tr>
+          <td class="right"><input type="checkbox" data-detail-id="${r.id}" data-amount="${r.partner_share_cents||0}"></td>
           <td>${r.created_at?.slice(0,10)||''}</td>
           <td>${r.item_type}</td>
           <td class="right">${money(r.unit_amount_cents)} €</td>
@@ -791,16 +800,29 @@
           <td class="right">${money(r.net_cents)} €</td>
           <td class="right"><b>${money(r.partner_share_cents)} €</b></td>
         </tr>`).join('');
+
       payoutsDetailTable.innerHTML = `
         <table class="table" aria-label="Dettaglio partner">
-          <thead><tr><th>Data</th><th>Tipo</th><th>Lordo</th><th>Fee Stripe</th><th>Netto</th><th>Quota 50%</th></tr></thead>
+          <thead><tr><th class="right">✓</th><th>Data</th><th>Tipo</th><th>Lordo</th><th>Fee Stripe</th><th>Netto</th><th>Quota 50%</th></tr></thead>
           <tbody>${rows}</tbody>
-          <tfoot><tr><th colspan="5" class="right">Totale</th><th class="right">${money(total)} €</th></tr></tfoot>
+          <tfoot><tr><th colspan="6" class="right">Totale</th><th class="right">${money(total)} €</th></tr></tfoot>
         </table>`;
 
+      function refreshDetailSelTotal(){
+        const checks = payoutsDetailTable.querySelectorAll('input[type="checkbox"][data-detail-id]:checked');
+        let tot=0; checks.forEach(c=> tot += Number(c.getAttribute('data-amount')||0));
+        detailSelInfo.textContent = 'Selezionati: € ' + (tot/100).toFixed(2).replace('.',',');
+        detailSelBar.style.display = checks.length ? 'block' : 'none';
+      }
+      payoutsDetailTable.querySelectorAll('input[type="checkbox"][data-detail-id]').forEach(ch=>{
+        ch.addEventListener('change', refreshDetailSelTotal);
+      });
+      refreshDetailSelTotal();
+
+      // CSV del mese mostrato
       $('#btnCSVMonth').onclick = async ()=>{
         try{
-          const ym = payMonth.value || rf.slice(0,7);
+          const ym = (rf||'').slice(0,7);
           const { from, to } = monthToRange(ym);
           const { data: rowsAll, error: errAll } = await sb.from('partner_commissions')
             .select('*').eq('status','pending').gte('created_at',from).lt('created_at',to)
@@ -818,11 +840,12 @@
         }catch(e){ logErr('csv ex: '+(e?.message||e)); }
       };
 
+      // Segna TUTTO il dettaglio come pagato
       $('#btnMarkPaid').onclick = async ()=>{
         try{
           const ref = (payRef.value||'').trim();
           if (!ref){ alert('Inserisci un riferimento pagamento.'); return; }
-          if (!confirm('Segnare come pagato tutti gli elementi pending per questo partner e periodo?')) return;
+          if (!confirm('Segnare come pagato TUTTI gli elementi in elenco?')) return;
           const { error } = await sb.from('partner_commissions')
             .update({ status:'paid', payment_ref: ref })
             .eq('status','pending').eq('partner_code', partnerCode)
@@ -833,6 +856,28 @@
           payoutsDetailBox.style.display='none';
         }catch(e){ logErr('markPaid ex: '+(e?.message||e)); }
       };
+
+      // Segna SOLO i selezionati nel dettaglio
+      $('#btnMarkDetailSelected').onclick = async ()=>{
+        try{
+          const ref = (payRef.value||'').trim();
+          if (!ref){ alert('Inserisci un riferimento pagamento.'); return; }
+          const checks = payoutsDetailTable.querySelectorAll('input[type="checkbox"][data-detail-id]:checked');
+          if (!checks.length){ alert('Seleziona almeno una riga.'); return; }
+          if (!confirm('Segnare come pagato le righe selezionate?')) return;
+
+          const ids = Array.from(checks).map(ch=> ch.getAttribute('data-detail-id'));
+          const { error } = await sb.from('partner_commissions')
+            .update({ status:'paid', payment_ref: ref })
+            .in('id', ids);
+          if (error){ alert('Errore: '+error.message); logErr('markDetailSelected: '+error.message); return; }
+
+          alert('Righe selezionate segnate come pagate.');
+          $('#btnLoadPayouts').click();
+          payoutsDetailBox.style.display='none';
+        }catch(e){ logErr('btnMarkDetailSelected ex: '+(e?.message||e)); }
+      };
+
     }catch(e){ payoutsDetailTable.textContent='Errore apertura dettaglio.'; logErr('openDetail ex: '+(e?.message||e)); }
   }
 
