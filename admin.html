@@ -23,10 +23,17 @@
     .btn.small{padding:6px 8px;font-size:12px}
     .right{ text-align:right }
     .errorlog{background:#0b1623;border:1px dashed rgba(255,255,255,.25);padding:10px;border-radius:8px;font-size:12px;white-space:pre-wrap}
-    /* Nuovi controlli payout */
-    #payPartners{min-width:260px;max-width:420px}
-    #payPartners[multiple]{height:88px}
     .muted{opacity:.85}
+
+    /* ===== Multi-dropdown partner ===== */
+    .multidrop{position:relative;display:inline-block}
+    #partnerBtn{height:36px;line-height:22px;padding:6px 10px;min-width:260px}
+    .md-menu{position:absolute;top:100%;left:0;z-index:50;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;min-width:320px;max-height:260px;overflow:auto;display:none;box-shadow:0 8px 22px rgba(0,0,0,.35)}
+    .md-row{display:flex;gap:8px;align-items:center;padding:4px 2px}
+    .md-footer{display:flex;justify-content:space-between;gap:8px;margin-top:8px}
+    .md-note{font-size:12px;color:#b8c2ce;margin-top:4px}
+    .cklbl{display:flex;align-items:center;gap:8px;cursor:pointer}
+    .md-actions .btn.small{padding:6px 8px}
   </style>
 </head>
 <body>
@@ -97,15 +104,30 @@
     <div class="flex" style="margin-bottom:8px;align-items:flex-end">
       <div>
         <label class="small">Mese (opzionale)</label><br>
-        <select id="payMonth" style="min-width:220px"></select>
+        <select id="payMonth" style="min-width:220px;height:36px"></select>
       </div>
       <div>
-        <label class="small">Partner (opzionale, multiselezione)</label><br>
-        <select id="payPartners" multiple></select>
+        <label class="small">Partner (opzionale, multi)</label><br>
+        <div class="multidrop" id="partnerPicker">
+          <button id="partnerBtn" class="btn" type="button">Tutti i partner</button>
+          <div class="md-menu" id="partnerMenu">
+            <div id="partnerList">Caricamento…</div>
+            <div class="md-footer">
+              <div class="md-actions">
+                <button class="btn small" id="ppAll" type="button">Seleziona tutti</button>
+                <button class="btn small" id="ppClear" type="button">Azzera</button>
+              </div>
+              <div>
+                <button class="btn primary small" id="ppApply" type="button">Applica</button>
+              </div>
+            </div>
+            <div class="md-note">Se lasci vuoto, vedi tutti i partner.</div>
+          </div>
+        </div>
       </div>
       <div>
         <label class="small">Riferimento pagamento (per i selezionati)</label><br>
-        <input id="payRefSel" placeholder="Es. SEPA 2025-09 batch #1" style="min-width:260px">
+        <input id="payRefSel" placeholder="Es. SEPA 2025-09 batch #1" style="min-width:260px;height:36px">
       </div>
       <div>
         <button class="btn" id="btnLoadPayouts" type="button" disabled>Carica</button>
@@ -258,7 +280,7 @@
   function sep(){ line('—'.repeat(48)); }
   const money = c => ((c||0)/100).toFixed(2).replace('.',',');
 
-  // Errori globali a video
+  // Errori globali
   window.addEventListener('error', e => logErr('JS error: ' + (e?.message||e)));
   window.addEventListener('unhandledrejection', e => logErr('Promise rejection: ' + (e?.reason?.message||e?.reason||e)));
 
@@ -488,12 +510,14 @@
     }catch(e){ pmErr.textContent='Errore salvataggio.'; logErr('pmSave ex: '+(e?.message||e)); }
   };
 
-  // Init partners (carico ma tengo nascosto)
+  // Init partners (nascosto di default)
   await loadPartners(false);
 
   // ====================== PAYOUTS ======================
   const payMonth = $('#payMonth');
-  const payPartners = $('#payPartners');
+  const partnerBtn = $('#partnerBtn');
+  const partnerMenu = $('#partnerMenu');
+  const partnerList = $('#partnerList');
   const payoutsSummary = $('#payoutsSummary');
   const payoutsDetailBox = $('#payoutDetail');
   const payoutsDetailTitle = $('#payoutDetailTitle');
@@ -502,6 +526,8 @@
   const payRefSel = $('#payRefSel');
   const selBar = $('#payoutsSelectionBar');
   const selInfo = $('#selInfo');
+
+  const selectedPartners = new Set(); // codici selezionati nel picker
 
   function prettyMonthLabel(ymd){
     try{
@@ -544,31 +570,64 @@
     }catch(e){ logErr('loadMonths ex: '+(e?.message||e)); }
   }
 
+  // --- Partner picker (tendina con checkbox)
   async function loadPartnerFilter(){
     try{
-      payPartners.innerHTML = '<option disabled>Caricamento…</option>';
+      partnerList.textContent = 'Caricamento…';
       const { data, error } = await sb.from('partners')
         .select('code,first_name,last_name,active').order('first_name');
-      if (error){ payPartners.innerHTML = '<option disabled>Errore caricamento</option>'; logErr('loadPartnerFilter: '+error.message); return; }
-      const opts = (data||[])
-        .filter(p=>p.active!==false)
-        .map(p=>`<option value="${p.code}">${p.code} — ${(p.first_name||'')+' '+(p.last_name||'')}</option>`)
-        .join('');
-      payPartners.innerHTML = opts || '';
-    }catch(e){ logErr('loadPartnerFilter ex: '+(e?.message||e)); }
+      if (error){ partnerList.textContent = 'Errore caricamento partner'; logErr('loadPartnerFilter: '+error.message); return; }
+      const rows = (data||[]).filter(p=>p.active!==false).map(p=>{
+        const name = `${p.first_name||''} ${p.last_name||''}`.trim();
+        return `<div class="md-row"><label class="cklbl"><input type="checkbox" value="${p.code}"><span><b>${p.code}</b> — ${name||'—'}</span></label></div>`;
+      }).join('') || '<div class="md-row smallmuted">Nessun partner attivo.</div>';
+      partnerList.innerHTML = rows;
+    }catch(e){ partnerList.textContent='Errore'; logErr('loadPartnerFilter ex: '+(e?.message||e)); }
   }
 
+  function updatePartnerBtnLabel(){
+    const arr = Array.from(selectedPartners);
+    if (arr.length === 0){ partnerBtn.textContent = 'Tutti i partner'; return; }
+    if (arr.length <= 2){ partnerBtn.textContent = arr.join(', '); return; }
+    partnerBtn.textContent = `${arr.length} selezionati`;
+  }
+
+  partnerBtn.addEventListener('click', ()=>{
+    partnerMenu.style.display = partnerMenu.style.display==='block' ? 'none' : 'block';
+  });
+  document.addEventListener('click', (e)=>{
+    if (!partnerMenu.contains(e.target) && e.target !== partnerBtn){
+      partnerMenu.style.display = 'none';
+    }
+  });
+
+  $('#ppAll').addEventListener('click', ()=>{
+    partnerList.querySelectorAll('input[type="checkbox"]').forEach(ch=>{ ch.checked=true; selectedPartners.add(ch.value); });
+    updatePartnerBtnLabel();
+  });
+  $('#ppClear').addEventListener('click', ()=>{
+    selectedPartners.clear();
+    partnerList.querySelectorAll('input[type="checkbox"]').forEach(ch=> ch.checked=false);
+    updatePartnerBtnLabel();
+  });
+  $('#ppApply').addEventListener('click', ()=>{
+    // aggiorna set in base ai check correnti
+    selectedPartners.clear();
+    partnerList.querySelectorAll('input[type="checkbox"]').forEach(ch=>{ if(ch.checked) selectedPartners.add(ch.value); });
+    updatePartnerBtnLabel();
+    partnerMenu.style.display='none';
+  });
+
   function getSelectedPartnerCodes(){
-    return Array.from(payPartners.selectedOptions||[]).map(o=>o.value).filter(Boolean);
+    return Array.from(selectedPartners);
   }
 
   $('#btnLoadPayouts').onclick = async ()=>{
     try{
       payoutsDetailBox.style.display='none';
-      selBar.style.display='none';
+      $('#payoutsSelectionBar').style.display='none';
       payoutsSummary.textContent = 'Caricamento…';
 
-      // Filtri opzionali
       const ym = payMonth.value; // '' => tutti
       let query = sb.from('v_partner_payouts_month').select('*');
       if (ym){
@@ -627,14 +686,14 @@
           </tfoot>
         </table>`;
 
-      // Gestione selezioni e totale
+      // Totale selezionati
       function refreshSelTotal(){
         const checks = payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]:checked');
         let tot=0; checks.forEach(c=> tot += Number(c.getAttribute('data-amount')||0));
         const euro = (tot/100).toFixed(2).replace('.',',')+' €';
         $('#selTotal').textContent = euro;
         selInfo.textContent = 'Selezionati: € ' + (tot/100).toFixed(2).replace('.',',');
-        selBar.style.display = checks.length ? 'block' : 'none';
+        $('#payoutsSelectionBar').style.display = checks.length ? 'block' : 'none';
       }
       payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]').forEach(ch=>{
         ch.addEventListener('change', refreshSelTotal);
@@ -644,10 +703,9 @@
       // Apri dettaglio
       payoutsSummary.querySelectorAll('[data-open]').forEach(b=>{
         b.addEventListener('click', ()=>{
-          const range = { from: b.getAttribute('data-month'), to: null };
-          const ym = payMonth.value;
-          const r = ym ? monthToRange(ym) : { from: b.getAttribute('data-month'), to: null };
-          openPayoutDetail(b.getAttribute('data-open'), r);
+          const ymv = payMonth.value;
+          const range = ymv ? monthToRange(ymv) : { from: b.getAttribute('data-month'), to: null };
+          openPayoutDetail(b.getAttribute('data-open'), range);
         });
       });
 
@@ -667,12 +725,11 @@
       const groups = {};
       checks.forEach(ch=>{
         const code = ch.getAttribute('data-code');
-        const month = ch.getAttribute('data-month'); // es. 2025-09-01
+        const month = ch.getAttribute('data-month');
         const key = code+'|'+month;
         groups[key] = { code, month };
       });
 
-      // Esegui update per ogni gruppo
       for (const k of Object.keys(groups)){
         const { code, month } = groups[k];
         const { from, to } = monthToRange(month.slice(0,7));
@@ -683,8 +740,8 @@
       }
 
       alert('Righe selezionate segnate come pagate.');
-      $('#btnLoadPayouts').click(); // refresh
-      selBar.style.display='none';
+      $('#btnLoadPayouts').click();
+      $('#payoutsSelectionBar').style.display='none';
     }catch(e){ logErr('btnMarkSelected ex: '+(e?.message||e)); }
   };
 
@@ -723,9 +780,8 @@
 
       $('#btnCSVMonth').onclick = async ()=>{
         try{
-          const ym = payMonth.value; // se vuoto, usa il mese di rf
-          const baseYm = ym || rf.slice(0,7);
-          const { from, to } = monthToRange(baseYm);
+          const ym = payMonth.value || rf.slice(0,7);
+          const { from, to } = monthToRange(ym);
           const { data: rowsAll, error: errAll } = await sb.from('partner_commissions')
             .select('*').eq('status','pending').gte('created_at',from).lt('created_at',to)
             .order('partner_code').order('created_at');
@@ -761,18 +817,11 @@
   }
 
   // ====================== COUPON STRIPE (via Edge: stripe-admin) ======================
-  const cpCode = $('#cp_code');
   const cpType = $('#cp_type');
   const cpPercentWrap = $('#cp_percent_wrap');
   const cpAmountWrap  = $('#cp_amount_wrap');
-  const cpPercent = $('#cp_percent');
-  const cpAmount  = $('#cp_amount');
-  const cpMax     = $('#cp_max');
-  const cpExp     = $('#cp_exp');
   const cpCreate  = $('#cp_create');
   const cpMsg     = $('#cp_msg');
-  const cpListBox = $('#cp_list');
-  const cpGenBtn  = $('#cp_gen');
 
   cpType.addEventListener('change', ()=>{
     const t = cpType.value;
@@ -780,187 +829,69 @@
     else { cpPercentWrap.style.display='none'; cpAmountWrap.style.display='block'; }
   });
 
-  cpGenBtn.addEventListener('click', ()=>{
-    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let c=''; for(let i=0;i<6;i++) c+=s[Math.floor(Math.random()*s.length)];
-    cpCode.value = 'ADMIN-' + c;
-  });
-
   async function getAccessToken(){
     const { data:{ session } } = await sb.auth.getSession();
     return session?.access_token || '';
   }
 
-  // >>> CREAZIONE CODICE SCONTO
+  // Creazione codice sconto (come tua versione attuale)
   cpCreate.addEventListener('click', async () => {
     try {
       cpMsg.textContent = 'Creazione in corso…';
-
-      const code = (cpCode.value || '').trim().toUpperCase();
-      const type = cpType.value; // 'percent' o 'amount'
-      const percent = Number(cpPercent.value);
-      const amount  = Number(cpAmount.value);
-      const maxRed  = cpMax.value ? Number(cpMax.value) : null;
-      const expUnix = cpExp.value ? Math.floor(new Date(cpExp.value).getTime() / 1000) : null;
-
-      if (!code) { cpMsg.textContent = 'Inserisci un codice (es. ADMIN100).'; return; }
-      if (type === 'percent') {
-        if (!percent || percent < 1 || percent > 100) {
-          cpMsg.textContent = 'Inserisci una percentuale tra 1 e 100.'; return;
-        }
-      } else {
-        if (!amount || amount < 1) {
-          cpMsg.textContent = 'Inserisci un importo in euro (≥ 1).'; return;
-        }
-      }
-
-      if (!URL_COUPON) { cpMsg.textContent = 'Funzione non disponibile (URL_COUPON non configurato).'; return; }
-
-      const token = await getAccessToken();
-      if (!token) { cpMsg.textContent = 'Devi essere loggato per creare un codice.'; return; }
-
-      const payload = {
-        action: 'create_promo',
-        code,
-        type,
-        value: type === 'percent' ? percent : Math.round(amount * 100),
-        max_redemptions: maxRed,
-        expires_at: expUnix
-      };
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-
-      let res, text;
-      try {
-        res = await fetch(URL_COUPON, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify(payload),
-          signal: controller.signal
-        });
-        text = await res.text();
-      } catch (e) {
-        if (e?.name === 'AbortError') { cpMsg.textContent = 'Errore: timeout.'; return; }
-        cpMsg.textContent = 'Errore di rete: ' + (e?.message || e); return;
-      } finally { clearTimeout(timer); }
-
-      if (!res.ok) { cpMsg.textContent = 'Errore: ' + (text || ('HTTP ' + res.status)); return; }
-
-      let data = {};
-      try { data = JSON.parse(text); } catch (_) {}
-      cpMsg.textContent = '✅ Creato: ' + (data?.code || code);
-
-      cpCode.value = ''; cpPercent.value = ''; cpAmount.value = '';
-      cpMax.value = ''; cpExp.value = '';
-
+      const code = (document.querySelector('#cp_code').value || '').trim().toUpperCase();
+      const type = cpType.value;
+      const percent = Number(document.querySelector('#cp_percent').value);
+      const amount  = Number(document.querySelector('#cp_amount').value);
+      const maxRed  = document.querySelector('#cp_max').value ? Number(document.querySelector('#cp_max').value) : null;
+      const expUnix = document.querySelector('#cp_exp').value ? Math.floor(new Date(document.querySelector('#cp_exp').value).getTime() / 1000) : null;
+      if (!code){ cpMsg.textContent='Inserisci un codice.'; return; }
+      if (type==='percent' && (!percent || percent<1 || percent>100)){ cpMsg.textContent='Percentuale 1–100.'; return; }
+      if (type==='amount'  && (!amount || amount<1)){ cpMsg.textContent='Importo in euro (≥1).'; return; }
+      const FN_BASE = (function(u){ try{ const host=new URL(u).host; return 'https://'+host.replace('.supabase.co','.functions.supabase.co'); }catch(_){ return null; } })(SUPABASE_URL);
+      const URL_COUPON = FN_BASE ? (FN_BASE + '/stripe-admin') : null;
+      if (!URL_COUPON){ cpMsg.textContent='Funzione non disponibile.'; return; }
+      const token = await getAccessToken(); if(!token){ cpMsg.textContent='Non sei loggato.'; return; }
+      const payload = { action:'create_promo', code, type, value: type==='percent'?percent:Math.round(amount*100), max_redemptions:maxRed, expires_at:expUnix };
+      const r = await fetch(URL_COUPON, { method:'POST', headers:{'content-type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify(payload) });
+      const t = await r.text();
+      if(!r.ok){ cpMsg.textContent='Errore: '+t; return; }
+      cpMsg.textContent='✅ Creato: '+(JSON.parse(t)?.code||code);
+      document.querySelector('#cp_code').value=''; document.querySelector('#cp_percent').value=''; document.querySelector('#cp_amount').value=''; document.querySelector('#cp_max').value=''; document.querySelector('#cp_exp').value='';
       loadPromoList();
-    } catch (e) {
-      cpMsg.textContent = 'Errore imprevisto: ' + (e?.message || e);
-    }
+    }catch(e){ cpMsg.textContent='Errore: '+(e?.message||e); }
   });
 
-  // >>> LISTA CODICI
   async function loadPromoList(){
-    const renderTable = (rowsHtml) => `
-      <table class="table" aria-label="Codici attivi">
-        <thead>
-          <tr>
-            <th>Codice</th>
-            <th>Sconto</th>
-            <th class="right">Max</th>
-            <th class="right">Usati</th>
-            <th>Scadenza</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>`;
-
+    const cpListBox = document.querySelector('#cp_list');
     try{
-      if (!URL_COUPON){
-        cpListBox.textContent = 'Function non disponibile (URL_COUPON non configurato).';
-        return;
-      }
-      cpListBox.textContent = 'Caricamento…';
-
-      const token = await getAccessToken();
-      if (!token){
-        cpListBox.textContent = 'Non sei loggato: inserisci la tua email quando la pagina lo chiede, poi riapri questa pagina.';
-        return;
-      }
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10000);
-
-      let res, txt;
-      try{
-        res = await fetch(URL_COUPON + '?active=true&limit=50', {
-          headers: { 'Authorization': 'Bearer ' + token },
-          signal: controller.signal
-        });
-        txt = await res.text();
-      } finally { clearTimeout(timer); }
-
-      if (!res.ok){
-        cpListBox.textContent = `Errore (${res.status}): ${txt || 'impossibile caricare'}`;
-        logErr('promo list HTTP ' + res.status + ': ' + txt);
-        return;
-      }
-
-      let j = null;
-      try { j = JSON.parse(txt); }
-      catch(e){
-        cpListBox.textContent = 'Errore: risposta non valida dal server.';
-        logErr('promo list JSON: ' + (e?.message || e));
-        return;
-      }
-
-      if (!j?.data?.length){
-        cpListBox.textContent = 'Nessun codice attivo.';
-        return;
-      }
-
-      const rows = j.data.map(p => `
+      const FN_BASE = (function(u){ try{ const host=new URL(u).host; return 'https://'+host.replace('.supabase.co','.functions.supabase.co'); }catch(_){ return null; } })(SUPABASE_URL);
+      const URL_COUPON = FN_BASE ? (FN_BASE + '/stripe-admin') : null;
+      if (!URL_COUPON){ cpListBox.textContent='Function non disponibile.'; return; }
+      cpListBox.textContent='Caricamento…';
+      const token = await getAccessToken(); if(!token){ cpListBox.textContent='Non sei loggato.'; return; }
+      const r = await fetch(URL_COUPON+'?active=true&limit=50', { headers:{'Authorization':'Bearer '+token} });
+      const t = await r.text(); if(!r.ok){ cpListBox.textContent='Errore: '+t; return; }
+      const j = JSON.parse(t); if(!j?.data?.length){ cpListBox.textContent='Nessun codice attivo.'; return; }
+      const rows = j.data.map(p=>`
         <tr>
           <td>${p.code}</td>
-          <td>${
-            p.coupon?.percent_off
-              ? (p.coupon.percent_off + '%')
-              : (p.coupon?.amount_off ? ((p.coupon.amount_off/100).toFixed(2) + ' €') : '—')
-          }</td>
+          <td>${ p.coupon?.percent_off ? (p.coupon.percent_off+'%') : (p.coupon?.amount_off ? ((p.coupon.amount_off/100).toFixed(2)+' €') : '—') }</td>
           <td class="right">${p.max_redemptions ?? '—'}</td>
           <td class="right">${p.times_redeemed ?? 0}</td>
           <td>${p.expires_at ? new Date(p.expires_at*1000).toISOString().slice(0,16).replace('T',' ') : '—'}</td>
           <td><button class="btn small" data-deact="${p.id}">Disattiva</button></td>
-        </tr>
-      `).join('');
-
-      cpListBox.innerHTML = renderTable(rows);
-
+        </tr>`).join('');
+      cpListBox.innerHTML = `<table class="table"><thead><tr><th>Codice</th><th>Sconto</th><th class="right">Max</th><th class="right">Usati</th><th>Scadenza</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
       cpListBox.querySelectorAll('[data-deact]').forEach(b=>{
         b.addEventListener('click', async ()=>{
-          try{
-            if (!confirm('Disattivare questo codice?')) return;
-            const id = b.getAttribute('data-deact');
-            const tkn = await getAccessToken();
-            const r = await fetch(URL_COUPON, {
-              method:'POST',
-              headers:{ 'content-type':'application/json', 'Authorization': 'Bearer ' + tkn },
-              body: JSON.stringify({ action:'deactivate_promo', id })
-            });
-            if (!r.ok){ alert('Errore: ' + await r.text()); return; }
-            loadPromoList();
-          }catch(e){ logErr('deactivate ex: ' + (e?.message||e)); }
+          if(!confirm('Disattivare questo codice?')) return;
+          const token2 = await getAccessToken();
+          const rr = await fetch(URL_COUPON, { method:'POST', headers:{'content-type':'application/json','Authorization':'Bearer '+token2}, body: JSON.stringify({ action:'deactivate_promo', id: b.getAttribute('data-deact') })});
+          if(!rr.ok){ alert('Errore: '+await rr.text()); return; }
+          loadPromoList();
         });
       });
-
-    }catch(e){
-      cpListBox.textContent = (e?.name === 'AbortError')
-        ? 'Errore: timeout (nessuna risposta dal server).'
-        : ('Errore caricamento codici: ' + (e?.message || e));
-      logErr('loadPromoList ex: ' + (e?.message || e));
-    }
+    }catch(e){ document.querySelector('#cp_list').textContent='Errore: '+(e?.message||e); }
   }
 
   // inizializza viste
