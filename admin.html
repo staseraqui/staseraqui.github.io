@@ -13,7 +13,7 @@
     @media (max-width:720px){.grid{grid-template-columns:1fr}}
     .card h2{margin:0 0 8px}
     .table{width:100%;border-collapse:collapse;margin:10px 0}
-    .table th,.table td{border:1px solid rgba(255,255,255,.15);padding:8px;text-align:left}
+    .table th,.table td{border:1px solid rgba(255,255,255,.15);padding:8px;text-align:left;vertical-align:top}
     .table th{background:#0f1c2d}
     .smallmuted{font-size:13px;color:#b8c2ce}
     .row-actions{display:flex;gap:6px;flex-wrap:wrap}
@@ -23,6 +23,10 @@
     .btn.small{padding:6px 8px;font-size:12px}
     .right{ text-align:right }
     .errorlog{background:#0b1623;border:1px dashed rgba(255,255,255,.25);padding:10px;border-radius:8px;font-size:12px;white-space:pre-wrap}
+    /* Nuovi controlli payout */
+    #payPartners{min-width:260px;max-width:420px}
+    #payPartners[multiple]{height:88px}
+    .muted{opacity:.85}
   </style>
 </head>
 <body>
@@ -81,28 +85,51 @@
     <h2>Partner</h2>
     <div class="flex" style="margin-bottom:8px">
       <button class="btn primary" id="btnAddPartner" type="button">➕ Nuovo partner</button>
+      <button class="btn" id="btnTogglePartners" type="button">Mostra elenco</button>
       <span class="smallmuted">Gestisci l’anagrafica e genera il codice partner univoco.</span>
     </div>
-    <div id="partnersTableWrap" class="smallmuted">Caricamento…</div>
+    <div id="partnersTableWrap" class="smallmuted" style="display:none">Caricamento…</div>
   </div>
 
   <!-- ================== PAYOUT PARTNER ================== -->
   <div class="card" id="payoutsCard">
     <h2>Payout partner</h2>
-    <div class="flex" style="margin-bottom:8px">
-      <label class="small">Mese:</label>
-      <select id="payMonth" style="min-width:220px"></select>
-      <button class="btn" id="btnLoadPayouts" type="button" disabled>Carica</button>
-      <button class="btn" id="btnCSVMonth" type="button" disabled>Scarica CSV (mese)</button>
-      <span class="smallmuted">Totali “pending” da pagare; apri il dettaglio e marca come pagato.</span>
+    <div class="flex" style="margin-bottom:8px;align-items:flex-end">
+      <div>
+        <label class="small">Mese (opzionale)</label><br>
+        <select id="payMonth" style="min-width:220px"></select>
+      </div>
+      <div>
+        <label class="small">Partner (opzionale, multiselezione)</label><br>
+        <select id="payPartners" multiple></select>
+      </div>
+      <div>
+        <label class="small">Riferimento pagamento (per i selezionati)</label><br>
+        <input id="payRefSel" placeholder="Es. SEPA 2025-09 batch #1" style="min-width:260px">
+      </div>
+      <div>
+        <button class="btn" id="btnLoadPayouts" type="button" disabled>Carica</button>
+      </div>
+      <div>
+        <button class="btn" id="btnCSVMonth" type="button" disabled>Scarica CSV (mese)</button>
+      </div>
     </div>
-    <div id="payoutsSummary" class="smallmuted">Seleziona un mese con dati “pending”.</div>
+    <div class="smallmuted" style="margin-top:-4px">Se lasci vuoti “Mese” e “Partner” vedi <b>tutto ciò che è in pending</b>.</div>
+
+    <div id="payoutsSummary" class="smallmuted" style="margin-top:8px">Seleziona filtri (opzionali) e premi “Carica”.</div>
+
+    <div id="payoutsSelectionBar" class="smallmuted" style="display:none;margin-top:8px">
+      <span id="selInfo">Selezionati: € 0,00</span>
+      <button class="btn primary" id="btnMarkSelected" type="button" style="margin-left:8px">Segna selezionati come pagati</button>
+    </div>
+
     <div id="payoutDetail" style="margin-top:12px; display:none">
       <h3 style="margin:0 0 8px" id="payoutDetailTitle">Dettaglio</h3>
       <div class="flex" style="margin-bottom:6px">
         <input id="payRef" placeholder="Riferimento pagamento/bonifico (es. SEPA 2024-09 batch #1)" style="flex:1;min-width:260px">
         <button class="btn primary" id="btnMarkPaid" type="button">Segna tutto come pagato</button>
       </div>
+      <div class="smallmuted muted" style="margin-top:-2px">Il riferimento viene salvato nel campo <code>payment_ref</code> su ogni riga pagata.</div>
       <div id="payoutDetailTable" class="smallmuted">—</div>
     </div>
   </div>
@@ -343,6 +370,13 @@
 
   $('#btnAddPartner').onclick = ()=> openPM('Nuovo partner');
 
+  // Mostra/Nascondi elenco partner
+  $('#btnTogglePartners').onclick = ()=>{
+    const vis = partnersWrap.style.display !== 'none';
+    partnersWrap.style.display = vis ? 'none' : 'block';
+    $('#btnTogglePartners').textContent = vis ? 'Mostra elenco' : 'Nascondi elenco';
+  };
+
   function genCode(){
     const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let c=''; for(let i=0;i<6;i++) c+=s[Math.floor(Math.random()*s.length)];
@@ -373,7 +407,7 @@
     }catch(e){ logErr('pmCode blur: '+(e?.message||e)); }
   });
 
-  async function loadPartners(){
+  async function loadPartners(showTable=false){
     try{
       partnersWrap.textContent = 'Caricamento…';
       const { data, error } = await sb.from('partners').select('*').order('created_at',{ascending:false});
@@ -415,10 +449,12 @@
             const on=b.getAttribute('data-on')==='1';
             const { error } = await sb.from('partners').update({active:on}).eq('id', id);
             if (error){ alert('Errore: '+error.message); logErr('toggle: '+error.message); return; }
-            loadPartners();
+            loadPartners(true);
           }catch(e){ logErr('toggle ex: '+(e?.message||e)); }
         });
       });
+
+      partnersWrap.style.display = showTable ? 'block' : partnersWrap.style.display;
     }catch(e){
       partnersWrap.textContent = 'Errore di caricamento partner.';
       logErr('loadPartners ex: '+(e?.message||e));
@@ -448,20 +484,24 @@
         editingPartnerId ? { id:editingPartnerId, ...payload } : payload
       ).select('id').single();
       if (error){ pmErr.textContent='Errore: '+error.message; logErr('pmSave: '+error.message); return; }
-      closePM(); loadPartners();
+      closePM(); loadPartners(true);
     }catch(e){ pmErr.textContent='Errore salvataggio.'; logErr('pmSave ex: '+(e?.message||e)); }
   };
 
-  // Init partners
-  await loadPartners();
+  // Init partners (carico ma tengo nascosto)
+  await loadPartners(false);
 
   // ====================== PAYOUTS ======================
   const payMonth = $('#payMonth');
+  const payPartners = $('#payPartners');
   const payoutsSummary = $('#payoutsSummary');
   const payoutsDetailBox = $('#payoutDetail');
   const payoutsDetailTitle = $('#payoutDetailTitle');
   const payoutsDetailTable = $('#payoutDetailTable');
   const payRef = $('#payRef');
+  const payRefSel = $('#payRefSel');
+  const selBar = $('#payoutsSelectionBar');
+  const selInfo = $('#selInfo');
 
   function prettyMonthLabel(ymd){
     try{
@@ -480,14 +520,14 @@
 
   async function loadAvailableMonths(){
     try{
-      payMonth.innerHTML = '<option disabled selected>Caricamento mesi…</option>';
+      payMonth.innerHTML = '<option value="">— Tutti i mesi —</option>';
       $('#btnLoadPayouts').disabled = true;
       $('#btnCSVMonth').disabled = true;
 
       const { data, error } = await sb.from('v_partner_payouts_month')
         .select('month').order('month', { ascending:false });
-      if (error){ payMonth.innerHTML = `<option disabled selected>Errore: ${error.message}</option>`; logErr('loadMonths: '+error.message); return; }
-      if (!data || !data.length){ payMonth.innerHTML = '<option disabled selected>Nessun mese con pending</option>'; return; }
+      if (error){ payMonth.innerHTML = `<option disabled>Errore: ${error.message}</option>`; logErr('loadMonths: '+error.message); return; }
+      if (!data || !data.length){ payMonth.innerHTML = '<option value="">Nessun mese con pending</option>'; return; }
 
       const seen = new Set();
       const opts = [];
@@ -498,54 +538,170 @@
         const label = prettyMonthLabel(r.month);
         opts.push(`<option value="${val}">${label}</option>`);
       }
-      payMonth.innerHTML = `<option disabled selected>— Scegli un mese —</option>` + opts.join('');
+      payMonth.innerHTML = `<option value="">— Tutti i mesi —</option>` + opts.join('');
       $('#btnLoadPayouts').disabled = false;
       $('#btnCSVMonth').disabled = false;
     }catch(e){ logErr('loadMonths ex: '+(e?.message||e)); }
   }
 
+  async function loadPartnerFilter(){
+    try{
+      payPartners.innerHTML = '<option disabled>Caricamento…</option>';
+      const { data, error } = await sb.from('partners')
+        .select('code,first_name,last_name,active').order('first_name');
+      if (error){ payPartners.innerHTML = '<option disabled>Errore caricamento</option>'; logErr('loadPartnerFilter: '+error.message); return; }
+      const opts = (data||[])
+        .filter(p=>p.active!==false)
+        .map(p=>`<option value="${p.code}">${p.code} — ${(p.first_name||'')+' '+(p.last_name||'')}</option>`)
+        .join('');
+      payPartners.innerHTML = opts || '';
+    }catch(e){ logErr('loadPartnerFilter ex: '+(e?.message||e)); }
+  }
+
+  function getSelectedPartnerCodes(){
+    return Array.from(payPartners.selectedOptions||[]).map(o=>o.value).filter(Boolean);
+  }
+
   $('#btnLoadPayouts').onclick = async ()=>{
     try{
       payoutsDetailBox.style.display='none';
+      selBar.style.display='none';
       payoutsSummary.textContent = 'Caricamento…';
-      const ym = payMonth.value;
-      if (!ym || ym.startsWith('—')){ payoutsSummary.textContent='Seleziona un mese.'; return; }
-      const { from } = monthToRange(ym);
-      const { data, error } = await sb.from('v_partner_payouts_month').select('*').eq('month', from);
+
+      // Filtri opzionali
+      const ym = payMonth.value; // '' => tutti
+      let query = sb.from('v_partner_payouts_month').select('*');
+      if (ym){
+        const { from } = monthToRange(ym);
+        query = query.eq('month', from);
+      }
+      const codes = getSelectedPartnerCodes();
+      if (codes.length) query = query.in('partner_code', codes);
+
+      const { data, error } = await query.order('month',{ascending:false}).order('partner_code',{ascending:true});
       if (error){ payoutsSummary.textContent = 'Errore: '+error.message; logErr('loadPayouts: '+error.message); return; }
-      if (!data?.length){ payoutsSummary.textContent='Nessun pending per questo mese.'; return; }
-      const rows = data.map(r=>`
-        <tr>
-          <td>${r.partner_code}</td>
-          <td>${prettyMonthLabel(r.month)}</td>
-          <td class="right"><b>${Number(r.partner_share_eur).toFixed(2).replace('.',',')} €</b></td>
-          <td class="right">${r.items}</td>
-          <td><button class="btn small" data-open="${r.partner_code}">Dettaglio</button></td>
-        </tr>`).join('');
+      if (!data?.length){ payoutsSummary.textContent='Nessun pending per questi filtri.'; return; }
+
+      // mappa partner -> info
+      const uniqCodes = Array.from(new Set(data.map(r=>r.partner_code).filter(Boolean)));
+      const { data: partnersInfo } = await sb.from('partners')
+        .select('code,first_name,last_name,iban').in('code', uniqCodes);
+      const pmap = new Map((partnersInfo||[]).map(p=>[p.code,p]));
+
+      const rows = data.map((r,idx)=>{
+        const p = pmap.get(r.partner_code)||{};
+        const eur = Number(r.partner_share_eur||0);
+        const cents = Math.round(eur*100);
+        return `
+          <tr>
+            <td class="right"><input type="checkbox" data-check="${idx}" data-code="${r.partner_code}" data-month="${r.month}" data-amount="${cents}"></td>
+            <td><b>${r.partner_code}</b></td>
+            <td>${p.first_name||'—'}</td>
+            <td>${p.last_name||'—'}</td>
+            <td>${p.iban||'—'}</td>
+            <td>${prettyMonthLabel(r.month)}</td>
+            <td class="right"><b>${eur.toFixed(2).replace('.',',')} €</b></td>
+            <td class="right">${r.items}</td>
+            <td><button class="btn small" data-open="${r.partner_code}" data-month="${r.month}">Dettaglio</button></td>
+          </tr>`;
+      }).join('');
+
       payoutsSummary.innerHTML = `
-        <table class="table" aria-label="Payout mensile">
-          <thead><tr><th>Partner</th><th>Mese</th><th>Totale</th><th>Items</th><th></th></tr></thead>
-          <tbody>${rows}</tbody></table>`;
+        <table class="table" aria-label="Payout pendenti">
+          <thead>
+            <tr>
+              <th class="right">✓</th>
+              <th>Partner</th>
+              <th>Nome</th>
+              <th>Cognome</th>
+              <th>IBAN</th>
+              <th>Mese</th>
+              <th class="right">Totale</th>
+              <th class="right">Items</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr><th colspan="6" class="right">Selezionati</th><th class="right" id="selTotal">0,00 €</th><th colspan="2"></th></tr>
+          </tfoot>
+        </table>`;
+
+      // Gestione selezioni e totale
+      function refreshSelTotal(){
+        const checks = payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]:checked');
+        let tot=0; checks.forEach(c=> tot += Number(c.getAttribute('data-amount')||0));
+        const euro = (tot/100).toFixed(2).replace('.',',')+' €';
+        $('#selTotal').textContent = euro;
+        selInfo.textContent = 'Selezionati: € ' + (tot/100).toFixed(2).replace('.',',');
+        selBar.style.display = checks.length ? 'block' : 'none';
+      }
+      payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]').forEach(ch=>{
+        ch.addEventListener('change', refreshSelTotal);
+      });
+      refreshSelTotal();
+
+      // Apri dettaglio
       payoutsSummary.querySelectorAll('[data-open]').forEach(b=>{
         b.addEventListener('click', ()=>{
-          const ym = payMonth.value; const range = monthToRange(ym);
-          openPayoutDetail(b.getAttribute('data-open'), range);
+          const range = { from: b.getAttribute('data-month'), to: null };
+          const ym = payMonth.value;
+          const r = ym ? monthToRange(ym) : { from: b.getAttribute('data-month'), to: null };
+          openPayoutDetail(b.getAttribute('data-open'), r);
         });
       });
+
     }catch(e){ payoutsSummary.textContent='Errore di caricamento.'; logErr('btnLoad ex: '+(e?.message||e)); }
+  };
+
+  // Segna selezionati come pagati (per partner+mese)
+  $('#btnMarkSelected').onclick = async ()=>{
+    try{
+      const checks = payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]:checked');
+      if (!checks.length){ alert('Seleziona almeno una riga.'); return; }
+      const ref = (payRefSel.value||'').trim();
+      if (!ref){ alert('Inserisci un riferimento pagamento (es. SEPA 2025-09 batch #1).'); return; }
+      if (!confirm('Segnare come pagato le righe selezionate?')) return;
+
+      // Aggrega per (partner_code, month)
+      const groups = {};
+      checks.forEach(ch=>{
+        const code = ch.getAttribute('data-code');
+        const month = ch.getAttribute('data-month'); // es. 2025-09-01
+        const key = code+'|'+month;
+        groups[key] = { code, month };
+      });
+
+      // Esegui update per ogni gruppo
+      for (const k of Object.keys(groups)){
+        const { code, month } = groups[k];
+        const { from, to } = monthToRange(month.slice(0,7));
+        const { error } = await sb.from('partner_commissions')
+          .update({ status:'paid', payment_ref: ref })
+          .eq('status','pending').eq('partner_code', code).gte('created_at',from).lt('created_at',to);
+        if (error){ alert('Errore su '+code+' '+month+': '+error.message); logErr('markSelected '+code+': '+error.message); return; }
+      }
+
+      alert('Righe selezionate segnate come pagate.');
+      $('#btnLoadPayouts').click(); // refresh
+      selBar.style.display='none';
+    }catch(e){ logErr('btnMarkSelected ex: '+(e?.message||e)); }
   };
 
   async function openPayoutDetail(partnerCode, range){
     try{
-      payoutsDetailTitle.textContent = `Dettaglio ${partnerCode} — ${range.from} → ${range.to}`;
+      const r = range?.from ? range : { from: new Date().toISOString().slice(0,10), to: null };
+      const rng = r.from.includes('-') && r.to ? r : ( r.from ? monthToRange(r.from.slice(0,7)) : null );
+      const rf = rng?.from || r.from, rt = rng?.to || r.to;
+      payoutsDetailTitle.textContent = `Dettaglio ${partnerCode} — ${rf} → ${rt||'...'}`
       payRef.value = '';
       payoutsDetailTable.textContent = 'Caricamento…';
       payoutsDetailBox.style.display='block';
-      const { data, error } = await sb.from('partner_commissions')
+      const q = sb.from('partner_commissions')
         .select('created_at,item_type,currency,unit_amount_cents,stripe_fee_cents,net_cents,partner_share_cents')
         .eq('status','pending').eq('partner_code', partnerCode)
-        .gte('created_at', range.from).lt('created_at', range.to)
-        .order('created_at');
+        .gte('created_at', rf);
+      const { data, error } = rt ? await q.lt('created_at', rt) : await q;
       if (error){ payoutsDetailTable.textContent = 'Errore: '+error.message; logErr('detail: '+error.message); return; }
       if (!data?.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending.'; return; }
       const total = data.reduce((s,r)=> s+(r.partner_share_cents||0), 0);
@@ -567,8 +723,9 @@
 
       $('#btnCSVMonth').onclick = async ()=>{
         try{
-          const ym = payMonth.value; if (!ym){ alert('Seleziona un mese.'); return; }
-          const { from, to } = monthToRange(ym);
+          const ym = payMonth.value; // se vuoto, usa il mese di rf
+          const baseYm = ym || rf.slice(0,7);
+          const { from, to } = monthToRange(baseYm);
           const { data: rowsAll, error: errAll } = await sb.from('partner_commissions')
             .select('*').eq('status','pending').gte('created_at',from).lt('created_at',to)
             .order('partner_code').order('created_at');
@@ -589,11 +746,11 @@
         try{
           const ref = (payRef.value||'').trim();
           if (!ref){ alert('Inserisci un riferimento pagamento.'); return; }
-          if (!confirm('Segnare come pagato tutti gli elementi pending per questo partner e mese?')) return;
-          const ym = payMonth.value; const { from,to } = monthToRange(ym);
+          if (!confirm('Segnare come pagato tutti gli elementi pending per questo partner e periodo?')) return;
           const { error } = await sb.from('partner_commissions')
             .update({ status:'paid', payment_ref: ref })
-            .eq('status','pending').eq('partner_code', partnerCode).gte('created_at',from).lt('created_at',to);
+            .eq('status','pending').eq('partner_code', partnerCode)
+            .gte('created_at', rf).lt('created_at', rt || '9999-12-31');
           if (error){ alert('Errore: '+error.message); logErr('markPaid: '+error.message); return; }
           alert('Aggiornato a paid.');
           $('#btnLoadPayouts').click();
@@ -634,7 +791,7 @@
     return session?.access_token || '';
   }
 
-  // >>> COLLEGAMENTO BOTTONE "CREA CODICE SCONTO"
+  // >>> CREAZIONE CODICE SCONTO
   cpCreate.addEventListener('click', async () => {
     try {
       cpMsg.textContent = 'Creazione in corso…';
@@ -665,14 +822,14 @@
       const payload = {
         action: 'create_promo',
         code,
-        type,                                  // 'percent' | 'amount'
-        value: type === 'percent' ? percent : Math.round(amount * 100), // importo in centesimi
+        type,
+        value: type === 'percent' ? percent : Math.round(amount * 100),
         max_redemptions: maxRed,
-        expires_at: expUnix                    // unix timestamp (secondi) oppure null
+        expires_at: expUnix
       };
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000); // 15s di sicurezza
+      const timer = setTimeout(() => controller.abort(), 15000);
 
       let res, text;
       try {
@@ -684,15 +841,9 @@
         });
         text = await res.text();
       } catch (e) {
-        if (e?.name === 'AbortError') {
-          cpMsg.textContent = 'Errore: timeout (nessuna risposta dal server).';
-          return;
-        }
-        cpMsg.textContent = 'Errore di rete: ' + (e?.message || e);
-        return;
-      } finally {
-        clearTimeout(timer);
-      }
+        if (e?.name === 'AbortError') { cpMsg.textContent = 'Errore: timeout.'; return; }
+        cpMsg.textContent = 'Errore di rete: ' + (e?.message || e); return;
+      } finally { clearTimeout(timer); }
 
       if (!res.ok) { cpMsg.textContent = 'Errore: ' + (text || ('HTTP ' + res.status)); return; }
 
@@ -700,18 +851,16 @@
       try { data = JSON.parse(text); } catch (_) {}
       cpMsg.textContent = '✅ Creato: ' + (data?.code || code);
 
-      // pulizia campi
       cpCode.value = ''; cpPercent.value = ''; cpAmount.value = '';
       cpMax.value = ''; cpExp.value = '';
 
-      // aggiorna elenco
       loadPromoList();
     } catch (e) {
       cpMsg.textContent = 'Errore imprevisto: ' + (e?.message || e);
     }
   });
 
-  // >>> LISTA CODICI: versione che non resta mai su "Caricamento…"
+  // >>> LISTA CODICI
   async function loadPromoList(){
     const renderTable = (rowsHtml) => `
       <table class="table" aria-label="Codici attivi">
@@ -742,7 +891,7 @@
       }
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10000); // 10s
+      const timer = setTimeout(() => controller.abort(), 10000);
 
       let res, txt;
       try{
@@ -751,9 +900,7 @@
           signal: controller.signal
         });
         txt = await res.text();
-      } finally {
-        clearTimeout(timer);
-      }
+      } finally { clearTimeout(timer); }
 
       if (!res.ok){
         cpListBox.textContent = `Errore (${res.status}): ${txt || 'impossibile caricare'}`;
@@ -791,7 +938,6 @@
 
       cpListBox.innerHTML = renderTable(rows);
 
-      // Bottoni "Disattiva"
       cpListBox.querySelectorAll('[data-deact]').forEach(b=>{
         b.addEventListener('click', async ()=>{
           try{
@@ -819,6 +965,7 @@
 
   // inizializza viste
   await loadAvailableMonths();
+  await loadPartnerFilter();
   loadPromoList();
 
 })();
