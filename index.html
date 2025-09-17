@@ -200,7 +200,7 @@
   // ====== CONFIG ======
   const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';
   const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';
-  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg';
+  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // tua chiave
 
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
@@ -211,8 +211,7 @@
   let LEAF = { map:null, pinIcon:null, routeLayer:null, myPosMarker:null };
 
   let EVENTS=[], OCCS=[], EVENTS_BY_ID=new Map(), markers=[];
-  // Aggiunta: range weekend
-  let state = { day:null, customDate:null, cats:new Set(), query:'', weekendFrom:null, weekendTo:null };
+  let state = { day:null, customDate:null, cats:new Set(), query:'' };
   let ORIGIN = null;
 
   // Auto-fit: consentito solo prima di geoloc o ricerca
@@ -233,7 +232,12 @@
     if (Array.isArray(c)) return c.filter(Boolean).map(String);
     if (c == null) return [];
     if (typeof c === 'string'){
-      try{ const j = JSON.parse(c); if (Array.isArray(j)) return j.filter(Boolean).map(String); }catch(_){}
+      // prova JSON
+      try{
+        const j = JSON.parse(c);
+        if (Array.isArray(j)) return j.filter(Boolean).map(String);
+      }catch(_){}
+      // prova CSV
       if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
       return c.trim() ? [c.trim()] : [];
     }
@@ -302,7 +306,7 @@
 
     const html = `
       <div style="color:#081421;max-width:300px">
-        <b>${ev.title||ev.titolo||'(evento)')}</b><br>
+        <b>${ev.title||ev.titolo||'(evento)'}</b><br>
         <small>${cats||''}</small><br>
         ${when}<br>${where}
         ${descr? `<br><br>${descr}`:''}
@@ -487,7 +491,7 @@
 
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:300px">
-      <b>${ev.title||ev.titolo||'(evento)')}</b><br>
+      <b>${ev.title||ev.titolo||'(evento)'}</b><br>
       <small>${cats||''}</small><br>
       ${when}<br>${where}
       ${descr? `<br><br>${descr}`:''}
@@ -574,9 +578,6 @@
   $$('#dayPills .pill').forEach(p => p.addEventListener('click', ()=>{
     const k = p.getAttribute('data-day'); if(!k) return;
     state.day = k; state.customDate=null;
-    // pulisco sempre il range weekend
-    state.weekendFrom = null; state.weekendTo = null;
-
     _refitTried = false;
     const t = todayISO();
     if (k==='oggi')   setDateBadgeISO(t);
@@ -584,9 +585,6 @@
     if (k==='weekend'){
       const now=new Date(), d=now.getDay();
       const sat=addDays(t, (6-d+7)%7), sun=addDays(t, (7-d+7)%7);
-      // salvo il weekend corrente per il filtro
-      state.weekendFrom = sat;
-      state.weekendTo   = sun;
       setDateBadgeISO(sat, sun);
     }
     renderMarkers();
@@ -729,11 +727,7 @@
     if (occ.data && occ.data < todayISO()) return false;
     if (state.day==='oggi'   && occ.data!==todayISO()) return false;
     if (state.day==='domani' && occ.data!==addDays(todayISO(),1)) return false;
-    // Weekend: solo tra sabato e domenica calcolati ora
-    if (state.day==='weekend'){
-      if (!state.weekendFrom || !state.weekendTo) return false;
-      if (occ.data < state.weekendFrom || occ.data > state.weekendTo) return false;
-    }
+    if (state.day==='weekend'){ const w=weekday(occ.data); if (![6,0].includes(w)) return false; } <!-- QUI la sola modifica -->
     if (state.customDate && occ.data!==state.customDate) return false;
 
     if (state.cats.size>0){
@@ -818,6 +812,7 @@
     if (evErr) { console.error('ERR events:', evErr); return; }
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
+    // Filtra: se c’è la colonna published, accetta ogni valore “truthy”
     EVENTS = EVENTS_ALL.filter(e => !('published' in e) || isTruthyPub(e.published))
                        .map(e => ({ ...e, _cats: normCats(e) }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
@@ -842,6 +837,7 @@
         citta: o.citta || o.city || ''
       }));
 
+    // 3) Solo occorrenze con coordinate valide
     OCCS = norm.filter(o => o.lat != null && o.lng != null);
 
     console.info('Loaded EVENTS:', EVENTS.length, 'OCCS:', OCCS.length);
