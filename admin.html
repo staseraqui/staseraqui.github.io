@@ -2,8 +2,8 @@
 <html lang="it">
 <head>
   <script src="assets/app-config.js?v=6"></script>
-  <!-- Libreria ufficiale Supabase v2 (una sola volta) -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <!-- Libreria Supabase v2: una sola volta, nel <head> -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Admin — Stasera Qui</title>
@@ -27,7 +27,7 @@
     .errorlog{background:#0b1623;border:1px dashed rgba(255,255,255,.25);padding:10px;border-radius:8px;font-size:12px;white-space:pre-wrap}
     .muted{opacity:.85}
 
-    /* ===== Partner picker: font/altezza uguali al select "Mese" ===== */
+    /* ===== Partner picker ===== */
     .multidrop.selectlike{position:relative;display:inline-block;width:220px}
     #partnerBtn{
       width:100%;height:36px;
@@ -45,7 +45,7 @@
       background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;
       box-shadow:0 8px 22px rgba(0,0,0,.35);
       max-height:260px;overflow:auto;display:none;padding:10px;
-      font-size:14px; /* stesso del select mese */
+      font-size:14px;
     }
     .md-row{display:flex;gap:8px;align-items:center;padding:6px 2px}
     .md-row input{width:16px;height:16px}
@@ -66,19 +66,19 @@
   </style>
 
   <script>
-    // Inizializzazione sicura Supabase + guard di accesso con overlay login (email+password)
+    // Inizializzazione sicura Supabase + guard di accesso (overlay login)
     (function(){
       const CFG = window.SQ_CONFIG || {};
       const SUPABASE_URL  = CFG.SUPABASE_URL  || "https://rubdzlnolxcgpjklfggk.supabase.co";
       const SUPABASE_ANON = CFG.SUPABASE_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8";
 
-      if (!window.supabase) {
+      if (!window.supabase) { // libreria non caricata
         console.error('Libreria Supabase non caricata');
         document.body.style.visibility = 'visible';
         return;
       }
 
-      // Unico client globale
+      // Crea/riusa un solo client globale
       window.sb = window.sb || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
         auth: { persistSession: true, autoRefreshToken: true }
       });
@@ -93,7 +93,7 @@
         }catch(e){
           console.error('Errore getSession:', e);
         }
-        // Nessuna sessione: mostra overlay login inline (niente login.html)
+        // Nessuna sessione: mostra overlay login inline
         const box = document.createElement('div');
         box.id = 'sq-login';
         box.innerHTML = `
@@ -117,15 +117,13 @@
           try{
             const { error } = await window.sb.auth.signInWithPassword({ email, password });
             if (error){ err.textContent = error.message || 'Accesso non riuscito'; return; }
-            // ok
-            box.remove();
+            box.remove(); // ok
           }catch(e){
             err.textContent = e?.message || String(e);
           }
         });
       }
 
-      // Avvia guard
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', ensureAuth);
       } else {
@@ -389,7 +387,7 @@
   const SUPABASE_ANON = CFG.SUPABASE_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8";
   const sb = window.sb || (window.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession: true, autoRefreshToken: true }}));
 
-  // (Facoltativo) ricontrollo: se non autenticato, interrompo inizializzazioni che richiedono token
+  // Se non autenticato, fermo l'init che richiede token (l'overlay in <head> gestisce il login)
   try {
     const { data:{ session } } = await sb.auth.getSession();
     if (!session){ return; }
@@ -648,7 +646,7 @@
 
       const { data, error } = await sb.from('v_partner_payouts_month')
         .select('month').order('month', { ascending:false });
-      if (error){ payMonth.innerHTML = `<option disabled>Errore: ${error.message}</option>`; logErr('loadMonths: '+error.message); return; }
+      if (error){ payMonth.innerHTML = `<option disabled>Errore: ${error.message}</option>`; return; }
       if (!data || !data.length){ payMonth.innerHTML = '<option value="">Nessun mese con pending</option>'; syncPickerWidth(); return; }
 
       const seen = new Set();
@@ -665,7 +663,7 @@
       $('#btnCSVMonth').disabled = false;
 
       syncPickerWidth();
-    }catch(e){ logErr('loadMonths ex: '+(e?.message||e)); }
+    }catch(e){ /* log già gestiti altrove */ }
   }
   window.addEventListener('resize', syncPickerWidth);
 
@@ -675,13 +673,13 @@
       partnerList.textContent = 'Caricamento…';
       const { data, error } = await sb.from('partners')
         .select('code,first_name,last_name,active').order('first_name');
-      if (error){ partnerList.textContent = 'Errore caricamento partner'; logErr('loadPartnerFilter: '+error.message); return; }
+      if (error){ partnerList.textContent = 'Errore caricamento partner'; return; }
       const rows = (data||[]).filter(p=>p.active!==false).map(p=>{
         const name = `${p.first_name||''} ${p.last_name||''}`.trim();
         return `<div class="md-row"><label class="cklbl"><input type="checkbox" value="${p.code}"><span><b>${p.code}</b> — ${name||'—'}</span></label></div>`;
       }).join('') || '<div class="md-row smallmuted">Nessun partner attivo.</div>';
       partnerList.innerHTML = rows;
-    }catch(e){ partnerList.textContent='Errore'; logErr('loadPartnerFilter ex: '+(e?.message||e)); }
+    }catch(e){ partnerList.textContent='Errore'; }
   }
 
   function updatePartnerBtnLabel(){
@@ -718,7 +716,7 @@
 
   const getSelectedPartnerCodes = ()=> Array.from(selectedPartners);
 
-  // === RIEPILOGO: carica righe pending (filtri mese/partner) con checkbox per “pagati”
+  // === RIEPILOGO payout
   $('#btnLoadPayouts').onclick = async ()=>{
     try{
       payoutsDetailBox.style.display='none';
@@ -735,7 +733,7 @@
       if (codes.length) query = query.in('partner_code', codes);
 
       const { data, error } = await query.order('month',{ascending:false}).order('partner_code',{ascending:true});
-      if (error){ payoutsSummary.textContent = 'Errore: '+error.message; logErr('loadPayouts: '+error.message); return; }
+      if (error){ payoutsSummary.textContent = 'Errore: '+error.message; return; }
       if (!data?.length){ payoutsSummary.textContent='Nessun pending per questi filtri.'; return; }
 
       const uniqCodes = Array.from(new Set(data.map(r=>r.partner_code).filter(Boolean)));
@@ -803,7 +801,7 @@
         });
       });
 
-    }catch(e){ payoutsSummary.textContent='Errore di caricamento.'; logErr('btnLoad ex: '+(e?.message||e)); }
+    }catch(e){ payoutsSummary.textContent='Errore di caricamento.'; }
   };
 
   // RIEPILOGO: segna selezionati come pagati
@@ -812,14 +810,14 @@
       const checks = payoutsSummary.querySelectorAll('input[type="checkbox"][data-check]:checked');
       if (!checks.length){ alert('Seleziona almeno una riga.'); return; }
       const ref = (payRefSel.value||'').trim();
-      if (!ref){ alert('Inserisci un riferimento pagamento (es. SEPA 2025-09 batch #1).'); return; }
+      if (!ref){ alert('Inserisci un riferimento pagamento.'); return; }
       if (!confirm('Segnare come pagato le righe selezionate?')) return;
 
       const groups = {};
       checks.forEach(ch=>{
         const code = ch.getAttribute('data-code');
-        const month = ch.getAttribute('data-month');
-        groups[code+'|'+month] = { code, month };
+        theMonth = ch.getAttribute('data-month');
+        groups[code+'|'+theMonth] = { code, month: theMonth };
       });
 
       for (const k of Object.keys(groups)){
@@ -828,16 +826,16 @@
         const { error } = await sb.from('partner_commissions')
           .update({ status:'paid', payment_ref: ref })
           .eq('status','pending').eq('partner_code', code).gte('created_at',from).lt('created_at',to);
-        if (error){ alert('Errore su '+code+' '+month+': '+error.message); logErr('markSelected '+code+': '+error.message); return; }
+        if (error){ alert('Errore su '+code+' '+month+': '+error.message); return; }
       }
 
       alert('Righe selezionate segnate come pagate.');
       $('#btnLoadPayouts').click();
       $('#payoutsSelectionBar').style.display='none';
-    }catch(e){ logErr('btnMarkSelected ex: '+(e?.message||e)); }
+    }catch(e){ /* noop */ }
   };
 
-  // === DETTAGLIO: righe con checkbox singole
+  // === DETTAGLIO
   async function openPayoutDetail(partnerCode, range){
     try{
       const r = range?.from ? range : { from: new Date().toISOString().slice(0,10), to: null };
@@ -854,7 +852,7 @@
         .eq('status','pending').eq('partner_code', partnerCode)
         .gte('created_at', rf);
       const { data, error } = rt ? await q.lt('created_at', rt) : await q;
-      if (error){ payoutsDetailTable.textContent = 'Errore: '+error.message; logErr('detail: '+error.message); return; }
+      if (error){ payoutsDetailTable.textContent = 'Errore: '+error.message; return; }
       if (!data?.length){ payoutsDetailTable.textContent = 'Nessun elemento in pending.'; detailSelBar.style.display='none'; return; }
 
       const total = data.reduce((s,r)=> s+(r.partner_share_cents||0), 0);
@@ -882,7 +880,7 @@
         detailSelInfo.textContent = 'Selezionati: € ' + (tot/100).toFixed(2).replace('.',',');
         detailSelBar.style.display = checks.length ? 'block' : 'none';
       }
-      payoutsDetailTable.querySelectorAll('input[type="checkbox"][data-detail-id]').forEach(ch=>{
+      payoutsDetailTable.querySelectorAll('input[type="checkbox'][data-detail-id]').forEach(ch=>{
         ch.addEventListener('change', refreshDetailSelTotal);
       });
       refreshDetailSelTotal();
@@ -895,7 +893,7 @@
           const { data: rowsAll, error: errAll } = await sb.from('partner_commissions')
             .select('*').eq('status','pending').gte('created_at',from).lt('created_at',to)
             .order('partner_code').order('created_at');
-          if (errAll){ alert('Errore: '+errAll.message); logErr('csv: '+errAll.message); return; }
+          if (errAll){ alert('Errore: '+errAll.message); return; }
           if (!rowsAll?.length){ alert('Nessun dato.'); return; }
           const head = ['created_at','partner_code','item_type','currency','unit_amount','stripe_fee','net','partner_share'].join(',');
           const body = rowsAll.map(r=>[
@@ -905,7 +903,7 @@
           ].join(',')).join('\n');
           const blob = new Blob([head+'\n'+body], {type:'text/csv;charset=utf-8;'});
           const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `staseraqui_payout_${from}.csv`; a.click();
-        }catch(e){ logErr('csv ex: '+(e?.message||e)); }
+        }catch(e){ /* noop */ }
       };
 
       // Segna TUTTO il dettaglio come pagato
@@ -918,11 +916,11 @@
             .update({ status:'paid', payment_ref: ref })
             .eq('status','pending').eq('partner_code', partnerCode)
             .gte('created_at', rf).lt('created_at', rt || '9999-12-31');
-          if (error){ alert('Errore: '+error.message); logErr('markPaid: '+error.message); return; }
+          if (error){ alert('Errore: '+error.message); return; }
           alert('Aggiornato a paid.');
           $('#btnLoadPayouts').click();
           payoutsDetailBox.style.display='none';
-        }catch(e){ logErr('markPaid ex: '+(e?.message||e)); }
+        }catch(e){ /* noop */ }
       };
 
       // Segna SOLO i selezionati nel dettaglio
@@ -938,15 +936,15 @@
           const { error } = await sb.from('partner_commissions')
             .update({ status:'paid', payment_ref: ref })
             .in('id', ids);
-          if (error){ alert('Errore: '+error.message); logErr('markDetailSelected: '+error.message); return; }
+          if (error){ alert('Errore: '+error.message); return; }
 
           alert('Righe selezionate segnate come pagate.');
           $('#btnLoadPayouts').click();
           payoutsDetailBox.style.display='none';
-        }catch(e){ logErr('btnMarkDetailSelected ex: '+(e?.message||e)); }
+        }catch(e){ /* noop */ }
       };
 
-    }catch(e){ payoutsDetailTable.textContent='Errore apertura dettaglio.'; logErr('openDetail ex: '+(e?.message||e)); }
+    }catch(e){ payoutsDetailTable.textContent='Errore apertura dettaglio.'; }
   }
 
   // ====================== COUPON STRIPE ======================
@@ -965,7 +963,7 @@
   async function getAccessToken(){
     const { data:{ session } } = await sb.auth.getSession();
     return session?.access_token || '';
-    }
+  }
 
   cpCreate.addEventListener('click', async () => {
     try {
