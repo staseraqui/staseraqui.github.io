@@ -211,8 +211,7 @@
   let LEAF = { map:null, pinIcon:null, routeLayer:null, myPosMarker:null };
 
   let EVENTS=[], OCCS=[], EVENTS_BY_ID=new Map(), markers=[];
-  // <<< NOVITÀ: salvo il range del weekend calcolato >>>
-  let state = { day:null, customDate:null, cats:new Set(), query:'', weekendFrom:null, weekendTo:null };
+  let state = { day:null, customDate:null, cats:new Set(), query:'' };
   let ORIGIN = null;
 
   // Auto-fit: consentito solo prima di geoloc o ricerca
@@ -243,16 +242,6 @@
       return c.trim() ? [c.trim()] : [];
     }
     return [];
-  }
-
-  // === Calcola sabato e domenica del (prossimo) weekend rispetto a "base" ===
-  function getUpcomingWeekendRange(baseDate = new Date()) {
-    const d = new Date(baseDate);
-    const day = d.getDay(); // 0=Dom, 6=Sab
-    const t = d.toISOString().slice(0,10);
-    const sat = addDays(t, (6 - day + 7) % 7);
-    const sun = addDays(t, (7 - day + 7) % 7);
-    return { fromISO: sat, toISO: sun };
   }
 
   // ===== MAPPA: bootstrap =====
@@ -502,7 +491,7 @@
 
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:300px">
-      <b>${ev.title||ev.titolo||'(evento)')}</b><br>
+      <b>${ev.title||ev.titolo||'(evento)'}</b><br>
       <small>${cats||''}</small><br>
       ${when}<br>${where}
       ${descr? `<br><br>${descr}`:''}
@@ -572,8 +561,6 @@
     if (dpInput.value){
       state.customDate = dpInput.value;
       state.day = null;
-      state.weekendFrom = null;  // reset weekend
-      state.weekendTo   = null;
       _refitTried = false;
       setDateBadgeISO(state.customDate);
       renderMarkers();
@@ -591,16 +578,14 @@
   $$('#dayPills .pill').forEach(p => p.addEventListener('click', ()=>{
     const k = p.getAttribute('data-day'); if(!k) return;
     state.day = k; state.customDate=null;
-    state.weekendFrom = null; state.weekendTo = null;
     _refitTried = false;
     const t = todayISO();
     if (k==='oggi')   setDateBadgeISO(t);
     if (k==='domani') setDateBadgeISO(addDays(t,1));
     if (k==='weekend'){
-      const { fromISO, toISO } = getUpcomingWeekendRange(new Date());
-      state.weekendFrom = fromISO;
-      state.weekendTo   = toISO;
-      setDateBadgeISO(fromISO, toISO);
+      const now=new Date(), d=now.getDay();
+      const sat=addDays(t, (6-d+7)%7), sun=addDays(t, (7-d+7)%7);
+      setDateBadgeISO(sat, sun);
     }
     renderMarkers();
   }));
@@ -739,18 +724,9 @@
   // ===== FILTRI LOGICA =====
   function occPassesFilters(occ){
     // nascondi automaticamente occorrenze scadute
-    if (occ.data && occ.data < todayISO()) return false;
-
-    if (state.day==='oggi'   && occ.data!==todayISO()) return false;
+    if (occ.data && occ.data < todayISO()) return false;    if (state.day==='oggi'   && occ.data!==todayISO()) return false;
     if (state.day==='domani' && occ.data!==addDays(todayISO(),1)) return false;
-
-    // <<< NOVITÀ: weekend = range inclusivo Sab-Dom calcolato sopra >>>
-    if (state.day==='weekend'){
-      const from = state.weekendFrom, to = state.weekendTo;
-      if (!from || !to) return false;
-      if (occ.data < from || occ.data > to) return false;
-    }
-
+    if (state.day==='weekend'){ const w=weekday(occ.data); if (![5,6,0].includes(w)) return false; }
     if (state.customDate && occ.data!==state.customDate) return false;
 
     if (state.cats.size>0){
