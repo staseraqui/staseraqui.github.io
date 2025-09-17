@@ -54,7 +54,17 @@
   </style>
 </head>
 <body>
-<header class="header">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  const supabase = window.supabase.createClient("https://rubdzlnolxcgpjklfggk.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8"); // ← stessi valori del login
+  (async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      // Nessuna sessione: manda alla pagina di login
+      window.location.href = 'login.html';
+    }
+  })();
+</script><header class="header">
   <a href="index.html" class="logo">
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
