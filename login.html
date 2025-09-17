@@ -11,7 +11,7 @@
     button{width:100%;padding:12px;border:0;border-radius:10px;background:#1E88E5;color:#fff;font-size:16px;margin-top:8px}
     .err{color:#ffb4b4;font-size:14px;min-height:18px;margin-top:6px}
   </style>
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="card">
@@ -24,27 +24,28 @@
   </div>
 
   <script>
-    const supabase = window.supabase.createClient(
-      "https://rubdzlnolxcgpjklfggk.supabase.co",          // ← sostituisci
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8"   // ← sostituisci (chiave pubblica)
-    );
+    const SUPABASE_URL = "https://rubdzlnolxcgpjklfggk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8";
+
+    // Carico il client dalla libreria globale
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
       document.getElementById('err').textContent = '';
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) {
         document.getElementById('err').textContent = error.message || 'Accesso non riuscito';
         return;
       }
-      // ok: vai all'admin
+      // ok → vai all'admin
       window.location.href = 'admin.html';
     });
 
-    // se c'è già una sessione, entra direttamente
+    // Se c'è già una sessione, entra direttamente
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await sb.auth.getSession();
       if (session) window.location.href = 'admin.html';
     })();
   </script>
