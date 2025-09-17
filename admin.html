@@ -2,7 +2,9 @@
 <html lang="it">
 <head>
   <script src="assets/app-config.js?v=6"></script>
+  <!-- Libreria ufficiale Supabase v2 (una sola volta) -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Admin — Stasera Qui</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
@@ -51,20 +53,89 @@
     .md-footer{display:flex;justify-content:space-between;gap:8px;margin-top:8px}
     .md-note{font-size:12px;color:#b8c2ce;margin-top:4px}
     .md-actions .btn.small{padding:6px 8px}
+
+    /* ===== Overlay login ===== */
+    body{visibility:hidden}
+    #sq-login{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.65);z-index:999999}
+    #sq-login .card{background:#141419;border:1px solid #24242c;border-radius:12px;padding:20px;max-width:360px;width:92%}
+    #sq-login h2{margin:0 0 8px}
+    #sq-login p{margin:0 0 12px;opacity:.85}
+    #sq-login input{width:100%;padding:12px;border-radius:10px;border:1px solid #2a2a33;background:#0f0f14;color:#f7f7fb;margin:8px 0}
+    #sq-login button{width:100%;padding:12px;border:0;border-radius:10px;background:#1E88E5;color:#fff;font-size:16px;margin-top:8px}
+    #sq-login .err{color:#ffb4b4;font-size:14px;min-height:18px;margin-top:6px}
   </style>
+
+  <script>
+    // Inizializzazione sicura Supabase + guard di accesso con overlay login (email+password)
+    (function(){
+      const CFG = window.SQ_CONFIG || {};
+      const SUPABASE_URL  = CFG.SUPABASE_URL  || "https://rubdzlnolxcgpjklfggk.supabase.co";
+      const SUPABASE_ANON = CFG.SUPABASE_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8";
+
+      if (!window.supabase) {
+        console.error('Libreria Supabase non caricata');
+        document.body.style.visibility = 'visible';
+        return;
+      }
+
+      // Unico client globale
+      window.sb = window.sb || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+        auth: { persistSession: true, autoRefreshToken: true }
+      });
+
+      async function ensureAuth(){
+        try{
+          const { data:{ session } } = await window.sb.auth.getSession();
+          if (session){
+            document.body.style.visibility = 'visible';
+            return;
+          }
+        }catch(e){
+          console.error('Errore getSession:', e);
+        }
+        // Nessuna sessione: mostra overlay login inline (niente login.html)
+        const box = document.createElement('div');
+        box.id = 'sq-login';
+        box.innerHTML = `
+          <div class="card">
+            <h2>Accesso Admin</h2>
+            <p>Inserisci email e password</p>
+            <input id="sq-email" type="email" placeholder="Email" autocomplete="username">
+            <input id="sq-pass" type="password" placeholder="Password" autocomplete="current-password">
+            <div class="err" id="sq-err"></div>
+            <button id="sq-go">Entra</button>
+          </div>`;
+        document.body.appendChild(box);
+        box.style.display = 'flex';
+        document.body.style.visibility = 'visible';
+
+        document.getElementById('sq-go').addEventListener('click', async ()=>{
+          const email = (document.getElementById('sq-email').value||'').trim();
+          const password = document.getElementById('sq-pass').value;
+          const err = document.getElementById('sq-err');
+          err.textContent = '';
+          try{
+            const { error } = await window.sb.auth.signInWithPassword({ email, password });
+            if (error){ err.textContent = error.message || 'Accesso non riuscito'; return; }
+            // ok
+            box.remove();
+          }catch(e){
+            err.textContent = e?.message || String(e);
+          }
+        });
+      }
+
+      // Avvia guard
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ensureAuth);
+      } else {
+        ensureAuth();
+      }
+    })();
+  </script>
 </head>
 <body>
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script>
-  const supabase = window.supabase.createClient("https://rubdzlnolxcgpjklfggk.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8"); // ← stessi valori del login
-  (async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      // Nessuna sessione: manda alla pagina di login
-      window.location.href = 'login.html';
-    }
-  })();
-</script><header class="header">
+<header class="header">
   <a href="index.html" class="logo">
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
@@ -312,30 +383,17 @@
   window.addEventListener('error', e => logErr('JS error: ' + (e?.message||e)));
   window.addEventListener('unhandledrejection', e => logErr('Promise rejection: ' + (e?.reason?.message||e?.reason||e)));
 
+  // Config + client (riuso quello globale creato in <head>)
   const CFG = window.SQ_CONFIG || {};
-  const SUPABASE_URL  = CFG.SUPABASE_URL;
-  const SUPABASE_ANON = CFG.SUPABASE_ANON;
+  const SUPABASE_URL  = CFG.SUPABASE_URL  || "https://rubdzlnolxcgpjklfggk.supabase.co";
+  const SUPABASE_ANON = CFG.SUPABASE_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8";
+  const sb = window.sb || (window.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession: true, autoRefreshToken: true }}));
 
-  let sb = null;
-  if (window.supabase && SUPABASE_URL && SUPABASE_ANON){
-    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession: true, autoRefreshToken: true }});
-  } else {
-    logErr('Supabase non inizializzato: controlla assets/app-config.js');
-  }
-
-  // ===== Guard admin login =====
-  async function requireAdmin(){
-    if (!sb) throw new Error('Supabase non inizializzato');
+  // (Facoltativo) ricontrollo: se non autenticato, interrompo inizializzazioni che richiedono token
+  try {
     const { data:{ session } } = await sb.auth.getSession();
-    if (session) return;
-    const email = prompt('Email admin per accedere:');
-    if (!email) { alert('Accesso annullato'); throw new Error('no-login'); }
-    const { error } = await sb.auth.signInWithOtp({ email });
-    if (error) { alert('Errore login: ' + error.message); throw error; }
-    alert('Ti ho inviato un link di accesso via email. Aprilo, poi ricarica questa pagina.');
-    throw new Error('pending-login');
-  }
-  try { await requireAdmin(); } catch(e){ if (String(e).includes('pending-login')) return; logErr('Auth: '+(e?.message||e)); throw e; }
+    if (!session){ return; }
+  } catch(e){ logErr('Auth check (post-head): '+(e?.message||e)); return; }
 
   // ===== Helper: funzione base URL =====
   function fnBaseFromSupabaseUrl(u){
@@ -907,7 +965,7 @@
   async function getAccessToken(){
     const { data:{ session } } = await sb.auth.getSession();
     return session?.access_token || '';
-  }
+    }
 
   cpCreate.addEventListener('click', async () => {
     try {
