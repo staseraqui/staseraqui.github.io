@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login admin | Stasera Qui</title>
+  <style>
+    body{font-family:system-ui,Arial;background:#0b0b0d;color:#f7f7fb;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center}
+    .card{background:#141419;border:1px solid #24242c;border-radius:12px;padding:20px;max-width:360px;width:100%}
+    input{width:100%;padding:12px;border-radius:10px;border:1px solid #2a2a33;background:#0f0f14;color:#f7f7fb;margin:8px 0}
+    button{width:100%;padding:12px;border:0;border-radius:10px;background:#1E88E5;color:#fff;font-size:16px;margin-top:8px}
+    .err{color:#ffb4b4;font-size:14px;min-height:18px;margin-top:6px}
+  </style>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin:0 0 8px;">Accesso Admin</h2>
+    <p style="opacity:.8;margin:0 0 12px;">Inserisci le tue credenziali</p>
+    <input id="email" type="email" placeholder="Email" autocomplete="username" />
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+    <div class="err" id="err"></div>
+    <button id="loginBtn">Entra</button>
+  </div>
+
+  <script>
+    const supabase = window.supabase.createClient(
+      "https://rubdzlnolxcgpjklfggk.supabase.co",          // ← sostituisci
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8"   // ← sostituisci (chiave pubblica)
+    );
+
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      document.getElementById('err').textContent = '';
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        document.getElementById('err').textContent = error.message || 'Accesso non riuscito';
+        return;
+      }
+      // ok: vai all'admin
+      window.location.href = 'admin.html';
+    });
+
+    // se c'è già una sessione, entra direttamente
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) window.location.href = 'admin.html';
+    })();
+  </script>
+</body>
+</html>
