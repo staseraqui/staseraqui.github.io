@@ -117,7 +117,8 @@
           try{
             const { error } = await window.sb.auth.signInWithPassword({ email, password });
             if (error){ err.textContent = error.message || 'Accesso non riuscito'; return; }
-            box.remove(); // ok
+            // 🔁 Ricarico la pagina così l'init principale parte con sessione valida
+            window.location.reload();
           }catch(e){
             err.textContent = e?.message || String(e);
           }
@@ -303,7 +304,10 @@
 
     <div class="smallmuted" id="cp_msg" style="margin-top:6px"></div>
 
-    <h3 style="margin:14px 0 6px">Codici attivi</h3>
+    <h3 style="margin:14px 0 6px">
+      Codici attivi
+      <button class="btn small" id="cp_reload" type="button" style="margin-left:6px">Ricarica</button>
+    </h3>
     <div id="cp_list" class="smallmuted">Caricamento…</div>
   </div>
 
@@ -387,7 +391,7 @@
   const SUPABASE_ANON = CFG.SUPABASE_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8";
   const sb = window.sb || (window.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession: true, autoRefreshToken: true }}));
 
-  // Se non autenticato, fermo l'init che richiede token (l'overlay in <head> gestisce il login)
+  // Se non autenticato, fermo l'init che richiede token (l'overlay in <head> gestisce il login + reload)
   try {
     const { data:{ session } } = await sb.auth.getSession();
     if (!session){ return; }
@@ -880,7 +884,7 @@
         detailSelInfo.textContent = 'Selezionati: € ' + (tot/100).toFixed(2).replace('.',',');
         detailSelBar.style.display = checks.length ? 'block' : 'none';
       }
-      payoutsDetailTable.querySelectorAll('input[type="checkbox'][data-detail-id]').forEach(ch=>{
+      payoutsDetailTable.querySelectorAll('input[type="checkbox"][data-detail-id]').forEach(ch=>{
         ch.addEventListener('change', refreshDetailSelTotal);
       });
       refreshDetailSelTotal();
@@ -965,6 +969,13 @@
     return session?.access_token || '';
   }
 
+  // piccolo helper per il tasto "Genera"
+  document.getElementById('cp_gen')?.addEventListener('click', ()=>{
+    const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let c=''; for(let i=0;i<8;i++) c+=s[Math.floor(Math.random()*s.length)];
+    document.getElementById('cp_code').value = c;
+  });
+
   cpCreate.addEventListener('click', async () => {
     try {
       cpMsg.textContent = 'Creazione in corso…';
@@ -1029,6 +1040,7 @@
   await loadPartnerFilter();
   syncPickerWidth();
   loadPromoList();
+  document.getElementById('cp_reload')?.addEventListener('click', loadPromoList);
 
 })();
 </script>
