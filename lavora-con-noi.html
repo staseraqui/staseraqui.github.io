@@ -30,7 +30,7 @@
 <main class="container">
   <h1>Lavora con noi</h1>
   <div class="card">
-    <p>Entra nel progetto e diventa <b>partner ufficiale</b> sul tuo territorio. Guadagni una <b>percentuale del 50%</b> su ogni evento che un cliente pubblica usando il tuo codice. Aiutaci a contattare locali e Pro Loco, a far crescere la community e a portare vita nelle piazze.</p>
+    <p>Entra nel progetto e diventa <b>partner ufficiale</b> sul tuo territorio. Guadagni una <b>percentuale del 50%</b> su ogni evento che un cliente pubblica usando il tuo codice. Aiutaci a contattare Pro Loco, Comuni, Associazioni e chiunque voglia una vetrina per il suo evento.</p>
     <p class="small">Nessun rischio, solo opportunità: formazione veloce, materiali pronti, supporto continuo.</p>
   </div>
 
@@ -76,29 +76,40 @@
 </footer>
 
 <script>
-(function(){
-  document.getElementById('w_submit').addEventListener('click', function(){
-    var nome = w_nome.value.trim();
-    var cognome = w_cognome.value.trim();
-    var email = w_email.value.trim();
-    var tel = w_tel.value.trim();
-    var citta = w_citta.value.trim();
-    var ruolo = w_ruolo.value;
-    var note = w_note.value.trim();
+document.addEventListener('DOMContentLoaded', function(){
+  var btn = document.getElementById('w_submit');
+  if (!btn) return;
 
-    if(!nome||!cognome||!email||!tel||!citta){
+  btn.addEventListener('click', function(){
+    var nomeEl   = document.getElementById('w_nome');
+    var cognEl   = document.getElementById('w_cognome');
+    var emailEl  = document.getElementById('w_email');
+    var telEl    = document.getElementById('w_tel');
+    var cittaEl  = document.getElementById('w_citta');
+    var ruoloEl  = document.getElementById('w_ruolo');
+    var noteEl   = document.getElementById('w_note');
+    var resultEl = document.getElementById('w_result');
+
+    var nome    = (nomeEl.value   || '').trim();
+    var cognome = (cognEl.value   || '').trim();
+    var email   = (emailEl.value  || '').trim();
+    var tel     = (telEl.value    || '').trim();
+    var citta   = (cittaEl.value  || '').trim();
+    var ruolo   = (ruoloEl.value  || '').trim();
+    var note    = (noteEl.value   || '').trim();
+
+    if (!nome || !cognome || !email || !tel || !citta) {
       alert('Compila tutti i campi obbligatori.');
+      ( !nome ? nomeEl : !cognome ? cognEl : !email ? emailEl : !tel ? telEl : cittaEl ).focus();
       return;
     }
 
-    // Subject chiaro e utile
     var subject = 'Candidatura Team Partner — ' + ruolo + ' — ' + nome + ' ' + cognome;
 
-    // Corpo email nel formato richiesto
     var bodyLines = [
       'Ciao,',
       '',
-      'Sono interessato a candidarmi per il ruolo di "' + ruolo + '", all\\'interno del Team Partner di Stasera Qui.',
+      'Sono interessato a candidarmi per il ruolo di "' + ruolo + '", all\'interno del Team Partner di Stasera Qui.',
       'Questi sono i miei dati:',
       'Nome: ' + nome,
       'Cognome: ' + cognome,
@@ -110,20 +121,25 @@
       'Grazie per ricontattarmi appena possibile.',
       '',
       nome + ' ' + cognome
-    ].join('\\n');
+    ];
+
+    // Usa \r\n per compatibilità massima coi client email
+    var body = bodyLines.join('\r\n');
 
     var mailto = 'mailto:lavoraconnoi@staseraqui.it'
                + '?subject=' + encodeURIComponent(subject)
-               + '&body=' + encodeURIComponent(bodyLines);
+               + '&body=' + encodeURIComponent(body);
 
+    // Apri il client email
     window.location.href = mailto;
 
-    var r = document.getElementById('w_result');
-    r.style.display = 'block';
-    r.innerHTML = '<h3>Grazie!</h3><p class="small">Ti abbiamo aperto l’email con il riepilogo: inviala per completare la candidatura. Riceverai il tuo <b>codice partner</b> dopo la verifica da parte del nostro team.</p>';
+    // Messaggio di conferma in pagina
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<h3>Grazie!</h3><p class="small">Ti abbiamo aperto l’email con il riepilogo: inviala per completare la candidatura. Riceverai il tuo <b>codice partner</b> dopo la verifica da parte del nostro team.</p>';
   });
-})();
+});
 </script>
+
 <noscript><p style="padding:12px;text-align:center">Per visualizzare il contenuto attiva JavaScript.</p></noscript>
 </body>
 </html>
