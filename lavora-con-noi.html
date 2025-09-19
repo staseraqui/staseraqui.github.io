@@ -30,7 +30,7 @@
 <main class="container">
   <h1>Lavora con noi</h1>
   <div class="card">
-    <p>Entra nel progetto e diventa <b>partner ufficiale</b> sul tuo territorio. Guadagni una <b>percentuale del 50%</b> su ogni evento che un cliente pubblica usando il tuo codice. Aiutaci a contattare Pro Loco, Comuni, Associazioni e chiunque voglia una vetrina per il suo evento.</p>
+    <p>Entra nel progetto e diventa <b>partner ufficiale</b> sul tuo territorio. Guadagni una <b>percentuale del 50%</b> su ogni evento che un cliente pubblica usando il tuo codice. Aiutaci a contattare locali e Pro Loco, a far crescere la community e a portare vita nelle piazze.</p>
     <p class="small">Nessun rischio, solo opportunità: formazione veloce, materiali pronti, supporto continuo.</p>
   </div>
 
@@ -76,70 +76,72 @@
 </footer>
 
 <script>
-document.addEventListener('DOMContentLoaded', function(){
-  var btn = document.getElementById('w_submit');
-  if (!btn) return;
+(function(){
+  // === Config funzione Edge ===
+  const SUPABASE_URL = "https://rubdzlnolxcgpjklfggk.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8";
+  function fnBase(u){ try{ const host=new URL(u).host; return "https://" + host.replace(".supabase.co", ".functions.supabase.co"); }catch(_){ return ""; } }
+  const FN_URL = fnBase(SUPABASE_URL) + "/partner-apply";
 
-  btn.addEventListener('click', function(){
-    var nomeEl   = document.getElementById('w_nome');
-    var cognEl   = document.getElementById('w_cognome');
-    var emailEl  = document.getElementById('w_email');
-    var telEl    = document.getElementById('w_tel');
-    var cittaEl  = document.getElementById('w_citta');
-    var ruoloEl  = document.getElementById('w_ruolo');
-    var noteEl   = document.getElementById('w_note');
-    var resultEl = document.getElementById('w_result');
+  const btn = document.getElementById("w_submit");
+  const box = document.getElementById("w_result");
 
-    var nome    = (nomeEl.value   || '').trim();
-    var cognome = (cognEl.value   || '').trim();
-    var email   = (emailEl.value  || '').trim();
-    var tel     = (telEl.value    || '').trim();
-    var citta   = (cittaEl.value  || '').trim();
-    var ruolo   = (ruoloEl.value  || '').trim();
-    var note    = (noteEl.value   || '').trim();
+  btn.addEventListener("click", async function(){
+    const first = (document.getElementById("w_nome").value||"").trim();
+    const last  = (document.getElementById("w_cognome").value||"").trim();
+    const email = (document.getElementById("w_email").value||"").trim();
+    const tel   = (document.getElementById("w_tel").value||"").trim();
+    const city  = (document.getElementById("w_citta").value||"").trim();
+    const role  = document.getElementById("w_ruolo").value||"";
+    const note  = (document.getElementById("w_note").value||"").trim();
 
-    if (!nome || !cognome || !email || !tel || !citta) {
-      alert('Compila tutti i campi obbligatori.');
-      ( !nome ? nomeEl : !cognome ? cognEl : !email ? emailEl : !tel ? telEl : cittaEl ).focus();
-      return;
+    if(!first || !last || !email || !tel || !city){
+      alert("Compila tutti i campi obbligatori."); return;
     }
 
-    var subject = 'Candidatura Team Partner — ' + ruolo + ' — ' + nome + ' ' + cognome;
+    btn.disabled = true; btn.textContent = "Invio in corso…";
+    box.style.display = "none"; box.textContent = "";
 
-    var bodyLines = [
-      'Ciao,',
-      '',
-      'Sono interessato a candidarmi per il ruolo di "' + ruolo + '", all\'interno del Team Partner di Stasera Qui.',
-      'Questi sono i miei dati:',
-      'Nome: ' + nome,
-      'Cognome: ' + cognome,
-      'Telefono: ' + tel,
-      'Indirizzo e-mail: ' + email,
-      'Città / Provincia: ' + citta,
-      'Motivazione: ' + (note || '—'),
-      '',
-      'Grazie per ricontattarmi appena possibile.',
-      '',
-      nome + ' ' + cognome
-    ];
-
-    // Usa \r\n per compatibilità massima coi client email
-    var body = bodyLines.join('\r\n');
-
-    var mailto = 'mailto:lavoraconnoi@staseraqui.it'
-               + '?subject=' + encodeURIComponent(subject)
-               + '&body=' + encodeURIComponent(body);
-
-    // Apri il client email
-    window.location.href = mailto;
-
-    // Messaggio di conferma in pagina
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = '<h3>Grazie!</h3><p class="small">Ti abbiamo aperto l’email con il riepilogo: inviala per completare la candidatura. Riceverai il tuo <b>codice partner</b> dopo la verifica da parte del nostro team.</p>';
+    try{
+      const r = await fetch(FN_URL, {
+        method: "POST",
+        headers: {
+          "content-type":"application/json",
+          "apikey": SUPABASE_ANON,
+          "Authorization": "Bearer " + SUPABASE_ANON
+        },
+        body: JSON.stringify({
+          first_name: first,
+          last_name:  last,
+          email:      email,
+          phone:      tel,
+          city:       city,
+          role:       role,
+          note:       note
+        })
+      });
+      const t = await r.text();
+      if(!r.ok){
+        try {
+          const j = JSON.parse(t);
+          alert("Errore invio: " + (j?.error || t));
+        } catch(_) {
+          alert("Errore invio.");
+        }
+        return;
+      }
+      // OK
+      box.style.display = "block";
+      box.innerHTML = '<h3>Grazie! 🎉</h3><p class="small">La tua candidatura è stata inviata. Ti abbiamo mandato una <b>mail di conferma</b> all’indirizzo indicato. Ti ricontatteremo al più presto.</p>';
+      document.getElementById("workForm").reset();
+    }catch(e){
+      alert("Errore di rete. Riprova fra poco.");
+    }finally{
+      btn.disabled = false; btn.textContent = "Invia candidatura";
+    }
   });
-});
+})();
 </script>
-
 <noscript><p style="padding:12px;text-align:center">Per visualizzare il contenuto attiva JavaScript.</p></noscript>
 </body>
 </html>
