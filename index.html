@@ -202,7 +202,7 @@
   // ====== CONFIG ======
   const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';
   const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';
-  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // usato SOLO per il percorso + geocoding Google
+  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // usato per percorso + autocomplete + geocoding
 
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
@@ -252,35 +252,121 @@
     return [];
   }
 
+  // ======= GOOGLE: loader unico (Places + Geometry) =======
+  let _gmapsLoading = null;
+  async function ensureGoogleLoaded(){
+    if (window.google && window.google.maps && window.google.maps.places) return;
+    if (_gmapsLoading) return _gmapsLoading;
+    _gmapsLoading = new Promise((resolve, reject)=>{
+      window._initGmapsAll = function(){ resolve(); };
+      const s = document.createElement('script');
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_API_KEY}&libraries=places,geometry&callback=_initGmapsAll`;
+      s.async = true; s.defer = true;
+      s.onerror = ()=> reject(new Error('Caricamento Google Maps fallito'));
+      document.head.appendChild(s);
+    });
+    return _gmapsLoading;
+  }
+
+  // ===== Autocomplete (Places) su campi ricerca/overlay =====
+  async function setupAutocomplete(){
+    try{
+      await ensureGoogleLoaded();
+      const makeAC = (el, onPlace)=>{
+        if (!el) return;
+        const ac = new google.maps.places.Autocomplete(el, {
+          types:['geocode'],
+          fields:['geometry','formatted_address'],
+          componentRestrictions:{ country:'it' }
+        });
+        ac.addListener('place_changed', ()=>{
+          const place = ac.getPlace();
+          const loc = place?.geometry?.location;
+          if (!loc) return;
+          const lat = loc.lat(), lng = loc.lng();
+          const label = place.formatted_address || el.value;
+          // Se è l'overlay → setta ORIGIN, altrimenti solo centra
+          if (el.id === 'geoAddr'){
+            ORIGIN = {lat,lng,label}; lShowOrigin();
+            $('#geoOverlay').style.display='none';
+          }
+          LEAF.map.setView([lat,lng], Math.max(13, LEAF.map.getZoom()));
+          renderMarkers();
+        });
+      };
+      makeAC(document.getElementById('searchInput'));
+      makeAC(document.getElementById('geoAddr'));
+    }catch(_){ /* se Places non carica, si va avanti col resto */ }
+  }
+
+  // ===== Geocoding ibrido con cache (prima Google, poi OSM IT) =====
+  const GEO_CACHE_KEY='SQ_GEO_CACHE_V1';
+  function geoCacheGet(q){
+    try{
+      const k=(q||'').trim().toLowerCase(); if(!k) return null;
+      const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}');
+      return store[k]||null;
+    }catch(_){ return null; }
+  }
+  function geoCacheSet(q,obj){
+    try{
+      const k=(q||'').trim().toLowerCase(); if(!k) return;
+      const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}');
+      const now=Date.now();
+      store[k] = { ...obj, _ts: now };
+      // LRU semplice: se >300, rimuovi i più vecchi
+      const entries = Object.entries(store);
+      if (entries.length > 300){
+        entries.sort((a,b)=> (a[1]?._ts||0)-(b[1]?._ts||0));
+        const toDel = entries.length - 300;
+        for (let i=0;i<toDel;i++){ delete store[entries[i][0]]; }
+      }
+      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(store));
+    }catch(_){}
+  }
+
+  async function geocodeAddrSmart(addr){
+    const q=(addr||'').trim(); if(!q) return null;
+    // Cache
+    const cached = geoCacheGet(q);
+    if (cached) return cached;
+
+    // 1) Google (bias Italia)
+    try{
+      await ensureGoogleLoaded();
+      const geocoder = new google.maps.Geocoder();
+      const g = await new Promise((resolve)=> {
+        geocoder.geocode({ address:q, componentRestrictions:{ country:'IT' }, region:'it' }, (res,status)=>{
+          if(status==='OK' && res && res[0]){
+            const r = res[0];
+            const loc = r.geometry.location;
+            resolve({ lat: loc.lat(), lng: loc.lng(), label: r.formatted_address });
+          } else { resolve(null); }
+        });
+      });
+      if (g){ geoCacheSet(q,g); return g; }
+    }catch(_){ /* passa a OSM */ }
+
+    // 2) OSM/Nominatim (forzato Italia)
+    try{
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q='+encodeURIComponent(q);
+      const r = await fetch(url, { headers:{'Accept-Language':'it'} });
+      const j = await r.json();
+      if (Array.isArray(j) && j.length){
+        const g = { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon), label: j[0].display_name };
+        geoCacheSet(q,g);
+        return g;
+      }
+    }catch(_){}
+    return null;
+  }
+
   // ===== MAPPA: bootstrap (Leaflet di default) =====
   (function setupMap(){
     initLeafletMap();
+    // In parallelo carico Google (per AC) senza bloccare nulla
+    setupAutocomplete();
   })();
-
-  // ===== GOOGLE MAPS: loader on-demand per percorso/geocoding =====
-  let _gmapsLoading = null;
-  async function ensureGoogleLoaded(){
-    if (window.google && window.google.maps) {
-      if (!GMAPS.map) initRouteGoogleMap();
-      if (!GMAPS.geocoder) GMAPS.geocoder = new google.maps.Geocoder();
-      return;
-    }
-    if (!_gmapsLoading){
-      _gmapsLoading = new Promise((resolve, reject)=>{
-        window._initRouteGoogleMap = function(){
-          initRouteGoogleMap();
-          if (!GMAPS.geocoder) GMAPS.geocoder = new google.maps.Geocoder();
-          resolve();
-        };
-        const s = document.createElement('script');
-        s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_API_KEY}&libraries=geometry&callback=_initRouteGoogleMap`;
-        s.async = true; s.defer = true;
-        s.onerror = ()=> reject(new Error('Caricamento Google Maps fallito'));
-        document.head.appendChild(s);
-      });
-    }
-    return _gmapsLoading;
-  }
 
   function initRouteGoogleMap(){
     const gdiv = document.getElementById('gmap');
@@ -291,7 +377,7 @@
     GMAPS.directionsService = new google.maps.DirectionsService();
     GMAPS.directionsRenderer = new google.maps.DirectionsRenderer({suppressMarkers:true, preserveViewport:false});
     GMAPS.directionsRenderer.setMap(GMAPS.map);
-    if (!GMAPS.geocoder) GMAPS.geocoder = new google.maps.Geocoder();
+    GMAPS.geocoder = new google.maps.Geocoder();
   }
 
   function pinSvgUrl(color = '#22b3f0'){
@@ -301,41 +387,6 @@
       <circle cx="32" cy="24" r="9" fill="#ffffff"/>
     </svg>`;
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
-  }
-
-  // ===== Geocoding: Google first, OSM fallback =====
-  async function geocodeGoogle(addr){
-    try{
-      await ensureGoogleLoaded();
-      return await new Promise(resolve=>{
-        GMAPS.geocoder.geocode({ address: addr, region: 'it' }, (res, status)=>{
-          if(status==='OK' && res && res[0]){
-            const loc = res[0].geometry.location;
-            resolve({ lat: loc.lat(), lng: loc.lng(), label: res[0].formatted_address });
-          } else {
-            resolve(null);
-          }
-        });
-      });
-    }catch(_){ return null; }
-  }
-
-  async function geocodeOSM(addr){
-    try{
-      const url = 'https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr);
-      const r = await fetch(url, {headers:{'Accept-Language':'it'}});
-      const j = await r.json();
-      if(!j || !j.length) return null;
-      return { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon), label: j[0].display_name };
-    }catch(_){ return null; }
-  }
-
-  async function geocodeSmart(addr){
-    // 1) prova Google
-    const g = await geocodeGoogle(addr);
-    if (g) return g;
-    // 2) fallback OSM
-    return await geocodeOSM(addr);
   }
 
   // ===== (Google) utilità marker — usate solo se un giorno vorrai GMaps anche per i pin =====
@@ -393,7 +444,7 @@
       if (!ORIGIN){
         const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
         if (ask && ask.trim()){
-          const g = await geocodeSmart(ask.trim());
+          const g = await geocodeAddrSmart(ask.trim());
           if (g){
             ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
             drawRouteAuto(ORIGIN, dest);
@@ -425,6 +476,8 @@
       const gdiv = document.getElementById('gmap');
       if (ldiv) ldiv.style.display = 'none';
       if (gdiv) gdiv.style.display = 'block';
+
+      if (!GMAPS.map) initRouteGoogleMap();
 
       GMAPS.directionsService.route({
         origin: new google.maps.LatLng(from.lat, from.lng),
@@ -467,9 +520,10 @@
     $('#cambiaOrigine').onclick = async ()=>{
       const ask = prompt('Nuova origine (indirizzo):', from.label||'');
       if (ask && ask.trim()){
-        const g = await geocodeSmart(ask.trim());
+        // Usa geocoding ibrido (Google→OSM)
+        const g = await geocodeAddrSmart(ask.trim());
         if (g){ ORIGIN = {lat:g.lat, lng:g.lng, label:g.label}; drawRouteAuto(ORIGIN, to); }
-        else  { alert('Indirizzo non trovato.'); }
+        else { alert('Indirizzo non trovato.'); }
       }
     };
   }
@@ -550,82 +604,7 @@
     }).addTo(LEAF.map).bindTooltip(ORIGIN.label||'Posizione attuale',{permanent:false});
   }
 
-  async function drawRouteLeaflet(from, to){
-    if (!from){
-      try { from = await getFreshPosition(); ORIGIN = from; } catch(_){}
-      if (!from){
-        const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza:','Torino');
-        if (!ask) return;
-        const g = await geocodeSmart(ask);
-        if(!g){ alert('Indirizzo non trovato.'); return; }
-        ORIGIN = from = {lat:g.lat, lng:g.lng, label:g.label};
-      }
-      lShowOrigin();
-    }
-    if (LEAF.routeLayer){ LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null; }
-
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
-    const r = await fetch(url); const j = await r.json();
-    if (!j || !j.routes || !j.routes.length){ alert('Impossibile calcolare il percorso.'); return; }
-    const route = j.routes[0];
-    LEAF.routeLayer = L.geoJSON(route.geometry, {style:{color:'#22b3f0',weight:5,opacity:0.9}}).addTo(LEAF.map);
-    LEAF.map.fitBounds(LEAF.routeLayer.getBounds(), {padding:[40,40]});
-
-    const km = (route.distance/1000).toFixed(1), min = Math.round(route.duration/60);
-    showRouteInfo(from, to, `${km} km`, `${min} min`);
-  }
-
-  // ===== DATEPICKER OVERLAY =====
-  const dpOverlay = $('#dpOverlay'), dpInput = $('#dpInput');
-  $('#selDataBtn').addEventListener('click', ()=>{
-    dpInput.value = state.customDate || todayISO();
-    dpOverlay.style.display='flex';
-    setTimeout(()=>dpInput.focus(),0);
-  });
-  $('#dpAnnulla').addEventListener('click', ()=> dpOverlay.style.display='none');
-  dpInput.addEventListener('change', ()=>{
-    if (dpInput.value){
-      state.customDate = dpInput.value;
-      state.day = null;
-      _refitTried = false;
-      setDateBadgeISO(state.customDate);
-      renderMarkers();
-    }
-    dpOverlay.style.display='none';
-  });
-  dpOverlay.addEventListener('click', (e)=>{ if(e.target===dpOverlay) dpOverlay.style.display='none'; });
-
-  function setDateBadgeISO(d1, d2){
-    $('#dateBadge').style.display='inline-block';
-    $('#dateBadge').textContent = d2 ? `${fmtIT(d1)} - ${fmtIT(d2)}` : fmtIT(d1);
-  }
-
-  // Click su Oggi/Domani/Weekend
-  $$('#dayPills .pill').forEach(p => p.addEventListener('click', ()=>{
-    const k = p.getAttribute('data-day'); if(!k) return;
-    state.day = k; state.customDate=null;
-    _refitTried = false;
-    const t = todayISO();
-    if (k==='oggi')   setDateBadgeISO(t);
-    if (k==='domani') setDateBadgeISO(addDays(t,1));
-    if (k==='weekend'){
-      const now=new Date(), d=now.getDay();
-      const sat=addDays(t, (6-d+7)%7), sun=addDays(t, (7-d+7)%7);
-      setDateBadgeISO(sat, sun);
-    }
-    renderMarkers();
-  }));
-
-  // Categorie
-  $$('#chips .chip').forEach(ch => ch.addEventListener('click', ()=>{
-    ch.classList.toggle('active');
-    const c = ch.getAttribute('data-cat');
-    if (ch.classList.contains('active')) state.cats.add(c); else state.cats.delete(c);
-    _refitTried = false;
-    renderMarkers();
-  }));
-
-  // ===== CERCA: sposta la mappa (non filtra eventi) =====
+  // ===== CERCA: centra mappa (non filtra eventi) con geocoding ibrido + cache =====
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
     _refitTried = false;
@@ -633,8 +612,7 @@
 
     if (!state.query){ renderMarkers(); return; }
 
-    // Geocoding SMART (Google → OSM)
-    const g = await geocodeSmart(state.query);
+    const g = await geocodeAddrSmart(state.query);
     if (g) { LEAF.map.setView([g.lat, g.lng], Math.max(13, LEAF.map.getZoom())); }
     else   { alert('Indirizzo non trovato.'); }
     renderMarkers();
@@ -661,7 +639,7 @@
     const query = ($('#geoAddr').value||'').trim();
     if(!query) return;
     allowAutoFit = false;
-    const g = await geocodeSmart(query);
+    const g = await geocodeAddrSmart(query);
     if (g){ ORIGIN = {lat:g.lat,lng:g.lng,label:g.label}; LEAF.map.setView([g.lat,g.lng],13); lShowOrigin(); $('#geoOverlay').style.display='none'; updateCounter(); }
     else  { alert('Indirizzo non trovato.'); }
   };
@@ -681,7 +659,7 @@
         const addr = prompt('Imposta origine (indirizzo):', ORIGIN.label||'');
         if (!addr) return;
         allowAutoFit = false;
-        const g = await geocodeSmart(addr);
+        const g = await geocodeAddrSmart(addr);
         if (g){ ORIGIN = {lat:g.lat,lng:g.lng,label:g.label}; LEAF.map.setView([g.lat,g.lng],13); lShowOrigin(); renderMarkers(); }
         else  { alert('Indirizzo non trovato.'); }
       }
