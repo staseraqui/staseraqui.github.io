@@ -78,11 +78,49 @@
 <script>
 (function(){
   document.getElementById('w_submit').addEventListener('click', function(){
-    var nome=w_nome.value.trim(), cognome=w_cognome.value.trim(), email=w_email.value.trim(), tel=w_tel.value.trim(), citta=w_citta.value.trim(), ruolo=w_ruolo.value, note=w_note.value.trim();
-    if(!nome||!cognome||!email||!tel||!citta){ alert('Compila tutti i campi obbligatori.'); return; }
-    var msg=['Nuova candidatura partner — Stasera Qui','','Nome: '+nome+' '+cognome,'Email: '+email,'Telefono: '+tel,'Città/Provincia: '+citta,'Ruolo: '+ruolo,'Note: '+(note||'—')].join('\\n');
-    window.location.href='mailto:lavoraconnoi@staseraqui.it?subject='+encodeURIComponent('Candidatura partner — '+nome+' '+cognome)+'&body='+encodeURIComponent(msg);
-    var r=document.getElementById('w_result'); r.style.display='block'; r.innerHTML='<h3>Grazie!</h3><p class="small">Ti abbiamo aperto l’email con il riepilogo: inviala per completare la candidatura. Riceverai il tuo <b>codice partner</b> dopo la verifica da parte del nostro team.</p>';
+    var nome = w_nome.value.trim();
+    var cognome = w_cognome.value.trim();
+    var email = w_email.value.trim();
+    var tel = w_tel.value.trim();
+    var citta = w_citta.value.trim();
+    var ruolo = w_ruolo.value;
+    var note = w_note.value.trim();
+
+    if(!nome||!cognome||!email||!tel||!citta){
+      alert('Compila tutti i campi obbligatori.');
+      return;
+    }
+
+    // Subject chiaro e utile
+    var subject = 'Candidatura Team Partner — ' + ruolo + ' — ' + nome + ' ' + cognome;
+
+    // Corpo email nel formato richiesto
+    var bodyLines = [
+      'Ciao,',
+      '',
+      'Sono interessato a candidarmi per il ruolo di "' + ruolo + '", all\\'interno del Team Partner di Stasera Qui.',
+      'Questi sono i miei dati:',
+      'Nome: ' + nome,
+      'Cognome: ' + cognome,
+      'Telefono: ' + tel,
+      'Indirizzo e-mail: ' + email,
+      'Città / Provincia: ' + citta,
+      'Motivazione: ' + (note || '—'),
+      '',
+      'Grazie per ricontattarmi appena possibile.',
+      '',
+      nome + ' ' + cognome
+    ].join('\\n');
+
+    var mailto = 'mailto:lavoraconnoi@staseraqui.it'
+               + '?subject=' + encodeURIComponent(subject)
+               + '&body=' + encodeURIComponent(bodyLines);
+
+    window.location.href = mailto;
+
+    var r = document.getElementById('w_result');
+    r.style.display = 'block';
+    r.innerHTML = '<h3>Grazie!</h3><p class="small">Ti abbiamo aperto l’email con il riepilogo: inviala per completare la candidatura. Riceverai il tuo <b>codice partner</b> dopo la verifica da parte del nostro team.</p>';
   });
 })();
 </script>
