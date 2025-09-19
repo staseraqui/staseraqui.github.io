@@ -20,13 +20,13 @@
     @media (max-width:900px){.grid3{grid-template-columns:1fr}}
     @media (max-width:720px){.grid{grid-template-columns:1fr}}
     .card h2{margin:0 0 8px}
-    label.small{font-size:12px;opacity:.95;color:#fff}
+    label.small{font-size:12px;opacity:1;color:#fff}
     input[type="date"], input[type="text"], select{
       width:100%;height:36px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
       background:#0f1c2d;color:#fff
     }
 
-    /* === Bottoni azzurri come in home === */
+    /* Bottoni azzurri come in home */
     .btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 12px;cursor:pointer}
     .btn:hover{filter:brightness(.92)}
     .btn.small{padding:6px 8px;font-size:12px;line-height:1}
@@ -38,7 +38,6 @@
     @media (max-width:520px){.kpis{grid-template-columns:1fr}}
     .kpi{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:12px}
     .kpi .n{font-size:28px;font-weight:700;margin-top:4px}
-    /* Testi prima “grigi” → ora bianchi */
     .muted{color:#fff}
     .note{font-size:13px;color:#fff;margin-top:6px}
 
@@ -49,13 +48,12 @@
     .flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .right{text-align:right}
     #loading{display:none}
-    #delBlock.disabled{opacity:.55}
 
     table.table{width:100%;border-collapse:collapse;margin-top:10px;color:#fff}
     table.table th, table.table td{border:1px solid rgba(255,255,255,.15);padding:8px;text-align:left;vertical-align:top}
     table.table th{background:#0f1c2d}
 
-    /* === Larghezze fisse + a capo multiplo nelle colonne date/città === */
+    /* Larghezze fisse + a capo multiplo nelle colonne date/città */
     #detailTable table.table{table-layout:fixed}
     #detailTable table.table th:nth-child(1), #detailTable table.table td:nth-child(1){width:90px}
     #detailTable table.table th:nth-child(2), #detailTable table.table td:nth-child(2){width:auto}
@@ -63,6 +61,9 @@
     #detailTable table.table th:nth-child(4), #detailTable table.table td:nth-child(4){width:220px;white-space:pre-line}
     #detailTable table.table th:nth-child(5), #detailTable table.table td:nth-child(5){width:160px;white-space:pre-line}
     #detailTable table.table th:nth-child(6), #detailTable table.table td:nth-child(6){width:220px}
+
+    /* Niente sbiadimento del blocco cancellazioni */
+    #delBlock.disabled{opacity:1}
   </style>
 
   <!-- Overlay login (stesso meccanismo dell'admin) -->
@@ -178,12 +179,12 @@
     <div class="kpi">
       <div class="muted">Attualmente in sito</div>
       <div class="n" id="k_now">—</div>
-      <div class="note">Eventi pubblicati con almeno un’occorrenza futura (dopo i filtri).</div>
+      <div class="note">Eventi pubblicati con almeno un’occorrenza futura (filtri applicati).</div>
     </div>
     <div class="kpi">
       <div class="muted">Scaduti</div>
       <div class="n" id="k_expired">—</div>
-      <div class="note">Tutte le occorrenze nel passato (dopo i filtri).</div>
+      <div class="note">Tutte le occorrenze nel passato (filtri applicati).</div>
     </div>
     <div class="kpi">
       <div class="muted">Caricati</div>
@@ -202,7 +203,7 @@
       <h2 style="margin:0;color:#fff">Dettagli (facoltativo)</h2>
       <button class="btn small" id="btnCSV" type="button" title="Esporta i dettagli filtrati">Scarica CSV dettagli</button>
     </div>
-    <p class="small muted" style="margin:6px 0 0">Anteprima rapida degli eventi conteggiati, dopo i filtri. (Massimo 200 righe per non appesantire.)</p>
+    <p class="small muted" style="margin:6px 0 0">Elenco coerente con i filtri impostati. (Massimo 200 righe mostrate per non appesantire.)</p>
     <div id="detailTable" class="small" style="color:#fff">—</div>
   </div>
 
@@ -259,7 +260,7 @@
   // Stato dati
   let EVENTS = [];          // {id, title, created_at, published, _cats:[]}
   let OCCS   = [];          // {event_id, data, citta}
-  let DELETES = [];         // {event_id, deleted_at, categories?, citta?} se disponibile
+  let DELETES = [];         // {event_id, deleted_at, citta?, _cats?}
   let deleteSupport = false;
 
   // Per export CSV dei dettagli
@@ -350,12 +351,10 @@
     return raw.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
   }
 
-  function eventMatchesFilters(ev, occsOfEvent, opts){
-    const cats = getActiveCats();
+  function eventMatchesCatsCities(ev, occsOfEvent, cities, cats){
     if (cats.size>0){
       if (!ev._cats || !ev._cats.some(c=>cats.has(c))) return false;
     }
-    const cities = opts.cities;
     if (cities.length>0){
       const ok = occsOfEvent.some(o => o.citta && cities.includes(o.citta.toLowerCase()));
       if (!ok) return false;
@@ -365,6 +364,7 @@
 
   function apply(){
     try{
+      // Leggi filtri (tutti opzionali e vuoti di default)
       const evtFrom = $('#f_evt_from').value || null;
       const evtTo   = $('#f_evt_to').value   || null;
       const upFrom  = $('#f_up_from').value  || null;
@@ -372,10 +372,13 @@
       const delFrom = $('#f_del_from').value || null;
       const delTo   = $('#f_del_to').value   || null;
       const cities  = parseCities();
-      const opts = { cities };
+      const cats    = getActiveCats();
 
+      const hasUpFilter  = !!(upFrom || upTo);
+      const hasDelFilter = !!(delFrom || delTo);
       const today = todayISO();
 
+      // Map occorrenze per evento
       const occByEv = new Map();
       OCCS.forEach(o=>{
         if (!occByEv.has(o.event_id)) occByEv.set(o.event_id, []);
@@ -384,12 +387,19 @@
 
       const eventsPub = EVENTS.filter(e => e.published !== false);
 
-      let k_now = 0, k_expired = 0;
-      LAST_DETAIL_ROWS = [];
+      // ===== KPI =====
+      let k_now = 0, k_expired = 0, k_uploaded = 0, k_deleted = 'N/D';
 
+      // NOW & SCADUTI rispettano TUTTI i filtri (categorie, città, data evento, data caricamento)
       for (const ev of eventsPub){
+        if (hasUpFilter){
+          const c = ev.created_at || null;
+          if (!c || !inRange(c, upFrom, upTo)) continue;
+        }
         const occAll = occByEv.get(ev.id) || [];
-        if (!eventMatchesFilters(ev, occAll, opts)) continue;
+        if (!eventMatchesCatsCities(ev, occAll, cities, cats)) continue;
+
+        // Applica filtro data evento sulle occorrenze
         const occ = occAll.filter(o=>{
           if (!o.data) return false;
           if (evtFrom || evtTo) return inRange(o.data, evtFrom, evtTo);
@@ -403,32 +413,33 @@
         else if (hasPastOnly) k_expired++;
       }
 
-      let k_uploaded = 0;
+      // CARICATI: eventi creati nel range, anche senza occorrenze filtrate
       for (const ev of eventsPub){
-        if (upFrom || upTo){
+        if (hasUpFilter){
           const c = ev.created_at || null;
           if (!c || !inRange(c, upFrom, upTo)) continue;
+        } else {
+          // se non c'è filtro caricamento, contiamo tutti (ma rispettando cat/città tramite occorrenze)
+          // richiede almeno un match su città/categorie se sono settate
+          const occAll = occByEv.get(ev.id) || [];
+          if (!eventMatchesCatsCities(ev, occAll, cities, cats)) continue;
         }
-        const occ = occByEv.get(ev.id) || [];
-        if (!eventMatchesFilters(ev, occ, opts)) continue;
         k_uploaded++;
       }
 
-      let k_deleted = 'N/D';
+      // CANCELLATI: solo se abbiamo un log; rispettano filtri cat/città e data cancellazione
       if (deleteSupport){
-        const cats = getActiveCats();
         const delRows = DELETES.filter(r=>{
-          if (delFrom || delTo){
+          if (hasDelFilter){
             const d = r.deleted_at || null;
             if (!d || !inRange(d, delFrom, delTo)) return false;
           }
           if (cats.size>0){
             if (!r._cats || !r._cats.some(c=>cats.has(c))) return false;
           }
-          if (cities.length>0 && r.citta){
+          if (cities.length>0){
+            if (!r.citta) return false;
             if (!cities.includes(String(r.citta).toLowerCase())) return false;
-          } else if (cities.length>0 && !r.citta){
-            return false;
           }
           return true;
         });
@@ -440,28 +451,61 @@
       $('#k_uploaded').textContent = String(k_uploaded);
       $('#k_deleted').textContent  = String(k_deleted);
 
-      // Tabella dettagli (max 200 righe) — ora con date/città su righe separate nella cella
+      // ===== DETTAGLI (coerente con tutti i filtri) =====
       const rows = [];
       const pushRow = (type, ev, occ)=>{
         const dates  = (occ||[]).map(o=>o.data).filter(Boolean).sort().join('\n'); // \n -> a capo grazie a white-space:pre-line
-        const cities = (occ||[]).map(o=>o.citta).filter(Boolean).join('\n');
-        rows.push([ type, ev.title || '(evento)', ev.created_at || '', dates, cities, (ev._cats||[]).join(', ') ]);
+        const citiesCell = (occ||[]).map(o=>o.citta).filter(Boolean).join('\n');
+        rows.push([ type, ev.title || '(evento)', ev.created_at || '', dates, citiesCell, (ev._cats||[]).join(', ') ]);
       };
 
-      for (const ev of eventsPub){
-        const occAll = occByEv.get(ev.id) || [];
-        if (!eventMatchesFilters(ev, occAll, opts)) continue;
-        const occ = occAll.filter(o=>{
-          if (!o.data) return false;
-          if (evtFrom || evtTo) return inRange(o.data, evtFrom, evtTo);
+      const hasDeleteList = deleteSupport && hasDelFilter;
+
+      if (hasDeleteList){
+        // Se stai filtrando per cancellazione: mostra SOLO i cancellati nel range
+        const evMap = new Map(eventsPub.map(e=>[e.id, e]));
+        const filteredDeletes = DELETES.filter(r=>{
+          if (hasDelFilter){
+            const d = r.deleted_at || null;
+            if (!d || !inRange(d, delFrom, delTo)) return false;
+          }
+          if (cats.size>0 && (!r._cats || !r._cats.some(c=>cats.has(c)))) return false;
+          if (cities.length>0){
+            if (!r.citta) return false;
+            if (!cities.includes(String(r.citta).toLowerCase())) return false;
+          }
           return true;
         });
-        if (occ.length===0) continue;
 
-        const hasFuture = occ.some(o => o.data >= today);
-        const hasPastOnly = !hasFuture && occ.every(o => o.data < today);
-        if (hasFuture && rows.length<200) pushRow('NOW', ev, occ);
-        else if (hasPastOnly && rows.length<200) pushRow('SCADUTO', ev, occ);
+        for (const r of filteredDeletes){
+          const ev = evMap.get(r.event_id) || { title:'(evento cancellato)', created_at:'' , _cats:r._cats||[] };
+          // Non abbiamo occorrenze; lasciamo celle date/città vuote (o solo città se presente nel log)
+          const fakeOcc = r.citta ? [{ data:'', citta:r.citta }] : [];
+          if (rows.length < 200) pushRow('CANCELLATO', ev, fakeOcc);
+        }
+      } else {
+        // Altrimenti: mostra NOW / SCADUTO, ma rispettando anche eventuale filtro caricamento
+        for (const ev of eventsPub){
+          if (hasUpFilter){
+            const c = ev.created_at || null;
+            if (!c || !inRange(c, upFrom, upTo)) continue;
+          }
+          const occAll = occByEv.get(ev.id) || [];
+          if (!eventMatchesCatsCities(ev, occAll, cities, cats)) continue;
+
+          const occ = occAll.filter(o=>{
+            if (!o.data) return false;
+            if (evtFrom || evtTo) return inRange(o.data, evtFrom, evtTo);
+            return true;
+          });
+          if (occ.length===0) continue;
+
+          const hasFuture = occ.some(o => o.data >= today);
+          const hasPastOnly = !hasFuture && occ.every(o => o.data < today);
+
+          if (hasFuture && rows.length<200) pushRow('NOW', ev, occ);
+          else if (hasPastOnly && rows.length<200) pushRow('SCADUTO', ev, occ);
+        }
       }
 
       LAST_DETAIL_ROWS = rows.slice();
@@ -471,22 +515,23 @@
       } else {
         const head = ['Stato','Titolo','Caricato il','Date evento','Città','Categorie'];
         const escape = s => (s||'').toString().replace(/[<>&]/g, m=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[m]));
-        const html = [
-          '<table class="table" aria-label="Dettaglio eventi">',
-          '<thead><tr>', head.map(h=>`<th>${h}</th>`).join(''), '</tr></thead>',
-          '<tbody>',
-          rows.map(r=>{
-            // Importante: lasciamo \n in col 4-5 (pre-line in CSS farà l’a capo)
-            return `<tr>${
-              r.map((c,i)=>{
-                const text = (c==null?'':String(c));
-                const safe = escape(text);
-                return `<td>${safe}</td>`;
-              }).join('')
-            }</tr>`;
-          }).join(''),
-          '</tbody></table>'
-        ].join('');
+        const bodyRows = rows.map(r=>{
+          return `<tr>${
+            r.map(c=>`<td>${escape(c==null?'':String(c))}</td>`).join('')
+          }</tr>`;
+        }).join('');
+        const totalShown = rows.length;
+        const html = `
+          <table class="table" aria-label="Dettaglio eventi">
+            <thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+            <tbody>${bodyRows}</tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5" class="right">Totale righe mostrate</th>
+                <th>${totalShown}</th>
+              </tr>
+            </tfoot>
+          </table>`;
         $('#detailTable').innerHTML = html;
       }
 
@@ -495,7 +540,7 @@
     }
   }
 
-  // Azzera filtri
+  // Azzera filtri (rimangono vuoti)
   $('#btnClear').addEventListener('click', ()=>{
     ['f_evt_from','f_evt_to','f_up_from','f_up_to','f_del_from','f_del_to','f_cities'].forEach(id=> $('#'+id).value='');
     $$('#catRow .chip.active').forEach(x=>x.classList.remove('active'));
