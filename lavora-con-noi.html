@@ -86,7 +86,15 @@
   const btn = document.getElementById("w_submit");
   const box = document.getElementById("w_result");
 
-  btn.addEventListener("click", async function(){
+  btn.addEventListener("click", sendApp);
+
+  // (opzionale) invio anche con Enter
+  document.getElementById("workForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    sendApp();
+  });
+
+  async function sendApp(){
     const first = (document.getElementById("w_nome").value||"").trim();
     const last  = (document.getElementById("w_cognome").value||"").trim();
     const email = (document.getElementById("w_email").value||"").trim();
@@ -107,17 +115,19 @@
         method: "POST",
         headers: {
           "content-type":"application/json",
+          // Con Verify JWT OFF non servono token, ma lasciamo gli header harmless:
           "apikey": SUPABASE_ANON,
           "Authorization": "Bearer " + SUPABASE_ANON
         },
         body: JSON.stringify({
-          first_name: first,
-          last_name:  last,
-          email:      email,
-          phone:      tel,
-          city:       city,
-          role:       role,
-          note:       note
+          // >>> CHIAVI allineate alla funzione partner-apply <<<
+          nome:    first,
+          cognome: last,
+          email:   email,
+          tel:     tel,
+          citta:   city,
+          ruolo:   role,
+          note:    note
         })
       });
       const t = await r.text();
@@ -139,7 +149,7 @@
     }finally{
       btn.disabled = false; btn.textContent = "Invia candidatura";
     }
-  });
+  }
 })();
 </script>
 <noscript><p style="padding:12px;text-align:center">Per visualizzare il contenuto attiva JavaScript.</p></noscript>
