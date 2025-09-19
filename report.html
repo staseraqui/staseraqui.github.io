@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/style.css?v=12">
 
   <style>
+    :root{ --accent:#22b3f0; }
     body{visibility:hidden}
     .wrap{max-width:1100px;margin:0 auto;padding:16px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -19,30 +20,49 @@
     @media (max-width:900px){.grid3{grid-template-columns:1fr}}
     @media (max-width:720px){.grid{grid-template-columns:1fr}}
     .card h2{margin:0 0 8px}
-    label.small{font-size:12px;opacity:.9}
+    label.small{font-size:12px;opacity:.95;color:#fff}
     input[type="date"], input[type="text"], select{
       width:100%;height:36px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
       background:#0f1c2d;color:#fff
     }
-    .btn.small{padding:6px 8px;font-size:12px}
+
+    /* === Bottoni azzurri come in home === */
+    .btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 12px;cursor:pointer}
+    .btn:hover{filter:brightness(.92)}
+    .btn.small{padding:6px 8px;font-size:12px;line-height:1}
+    .btn.primary{background:var(--accent);color:#fff}
+    .btn.light{background:rgba(255,255,255,.08);color:#fff}
+
     .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:10px}
     @media (max-width:900px){.kpis{grid-template-columns:1fr 1fr}}
     @media (max-width:520px){.kpis{grid-template-columns:1fr}}
     .kpi{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:12px}
     .kpi .n{font-size:28px;font-weight:700;margin-top:4px}
-    .muted{color:#b8c2ce}
-    .errorlog{background:#0b1623;border:1px dashed rgba(255,255,255,.25);padding:10px;border-radius:8px;font-size:12px;white-space:pre-wrap}
-    .note{font-size:13px;color:#b8c2ce;margin-top:6px}
+    /* Testi prima “grigi” → ora bianchi */
+    .muted{color:#fff}
+    .note{font-size:13px;color:#fff;margin-top:6px}
+
+    .errorlog{background:#0b1623;border:1px dashed rgba(255,255,255,.25);padding:10px;border-radius:8px;font-size:12px;white-space:pre-wrap;color:#fff}
     .pillrow{display:flex;gap:8px;flex-wrap:wrap}
-    .chip{cursor:pointer;display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:#0f1c2d}
+    .chip{cursor:pointer;display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:#0f1c2d;color:#fff}
     .chip.active{outline:3px solid #ffd24d;box-shadow:0 0 0 3px rgba(255,210,77,.25)}
     .flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .right{text-align:right}
     #loading{display:none}
     #delBlock.disabled{opacity:.55}
-    table.table{width:100%;border-collapse:collapse;margin-top:10px}
+
+    table.table{width:100%;border-collapse:collapse;margin-top:10px;color:#fff}
     table.table th, table.table td{border:1px solid rgba(255,255,255,.15);padding:8px;text-align:left;vertical-align:top}
     table.table th{background:#0f1c2d}
+
+    /* === Larghezze fisse + a capo multiplo nelle colonne date/città === */
+    #detailTable table.table{table-layout:fixed}
+    #detailTable table.table th:nth-child(1), #detailTable table.table td:nth-child(1){width:90px}
+    #detailTable table.table th:nth-child(2), #detailTable table.table td:nth-child(2){width:auto}
+    #detailTable table.table th:nth-child(3), #detailTable table.table td:nth-child(3){width:120px}
+    #detailTable table.table th:nth-child(4), #detailTable table.table td:nth-child(4){width:220px;white-space:pre-line}
+    #detailTable table.table th:nth-child(5), #detailTable table.table td:nth-child(5){width:160px;white-space:pre-line}
+    #detailTable table.table th:nth-child(6), #detailTable table.table td:nth-child(6){width:220px}
   </style>
 
   <!-- Overlay login (stesso meccanismo dell'admin) -->
@@ -65,8 +85,8 @@
         box.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65);z-index:999999';
         box.innerHTML = `
           <div class="card" style="background:#141419;border:1px solid #24242c;border-radius:12px;padding:20px;max-width:360px;width:92%">
-            <h2>Accesso</h2>
-            <p class="small">Inserisci email e password</p>
+            <h2 style="color:#fff">Accesso</h2>
+            <p class="small" style="color:#fff">Inserisci email e password</p>
             <input id="sq-email" type="email" placeholder="Email" autocomplete="username" style="width:100%;padding:12px;border-radius:10px;border:1px solid #2a2a33;background:#0f0f14;color:#f7f7fb;margin:8px 0">
             <input id="sq-pass" type="password" placeholder="Password" autocomplete="current-password" style="width:100%;padding:12px;border-radius:10px;border:1px solid #2a2a33;background:#0f0f14;color:#f7f7fb;margin:8px 0">
             <div class="small" id="sq-err" style="min-height:18px;color:#ffb4b4"></div>
@@ -100,10 +120,10 @@
 </header>
 
 <main class="wrap">
-  <h1 style="margin:8px 0 14px">Report</h1>
+  <h1 style="margin:8px 0 14px;color:#fff">Report</h1>
 
   <div class="card">
-    <h2>Filtri</h2>
+    <h2 style="color:#fff">Filtri</h2>
     <div class="grid3">
       <div>
         <label class="small">Data evento — dal</label>
@@ -178,13 +198,16 @@
   </div>
 
   <div class="card" style="margin-top:12px">
-    <h2>Dettagli (facoltativo)</h2>
-    <p class="small muted">Anteprima rapida degli eventi conteggiati, dopo i filtri. (Massimo 200 righe per non appesantire.)</p>
-    <div id="detailTable" class="small">—</div>
+    <div class="flex" style="justify-content:space-between;align-items:center">
+      <h2 style="margin:0;color:#fff">Dettagli (facoltativo)</h2>
+      <button class="btn small" id="btnCSV" type="button" title="Esporta i dettagli filtrati">Scarica CSV dettagli</button>
+    </div>
+    <p class="small muted" style="margin:6px 0 0">Anteprima rapida degli eventi conteggiati, dopo i filtri. (Massimo 200 righe per non appesantire.)</p>
+    <div id="detailTable" class="small" style="color:#fff">—</div>
   </div>
 
   <div class="card" style="margin-top:12px">
-    <h2>Log errori</h2>
+    <h2 style="color:#fff">Log errori</h2>
     <div id="errlog" class="errorlog">Nessun errore.</div>
   </div>
 </main>
@@ -239,6 +262,9 @@
   let DELETES = [];         // {event_id, deleted_at, categories?, citta?} se disponibile
   let deleteSupport = false;
 
+  // Per export CSV dei dettagli
+  let LAST_DETAIL_ROWS = []; // array di array [Stato, Titolo, Caricato il, Date evento (multi-riga), Città (multi-riga), Categorie]
+
   async function loadData(){
     $('#loading').style.display='block';
     try{
@@ -260,11 +286,10 @@
 
       // 3) Cancellazioni (best-effort)
       deleteSupport = false; DELETES = [];
-      // Prova tabella "events_deleted"
       try {
-        const { data: d1, error: de1 } = await sb.from('events_deleted')
+        const { data: d1 } = await sb.from('events_deleted')
           .select('event_id,deleted_at,city,citta,categories').order('deleted_at',{ascending:false}).limit(10000);
-        if (!de1 && Array.isArray(d1)) {
+        if (Array.isArray(d1)) {
           DELETES = d1.map(r=>({
             event_id: r.event_id || r.id || null,
             deleted_at: r.deleted_at ? String(r.deleted_at).slice(0,10) : null,
@@ -274,26 +299,21 @@
           deleteSupport = true;
         }
       } catch(_) {}
-      // Se vuoto, prova colonna "deleted_at" su events
       if (!deleteSupport){
         try{
-          const { data: ed, error: de2 } = await sb.from('events')
-            .select('id,deleted_at,categories').is('deleted_at', null).limit(1);
-          // sopra è solo test struttura; ora prendo quelli con deleted_at != null
-          const { data: ed2, error: de3 } = await sb.from('events')
+          const { data: ed2 } = await sb.from('events')
             .select('id,deleted_at,categories').not('deleted_at','is',null).order('deleted_at',{ascending:false}).limit(10000);
-          if (!de3 && Array.isArray(ed2)){
+          if (Array.isArray(ed2)){
             DELETES = ed2.map(r=>({ event_id:r.id, deleted_at: r.deleted_at ? String(r.deleted_at).slice(0,10) : null, citta:'', _cats: normCats(r) }));
             if (DELETES.length>0) deleteSupport = true;
           }
         }catch(_){}
       }
-      // Se ancora nulla, prova "deleted_events"
       if (!deleteSupport){
         try {
-          const { data: d2, error: de4 } = await sb.from('deleted_events')
+          const { data: d2 } = await sb.from('deleted_events')
             .select('event_id,deleted_at,city,citta,categories').order('deleted_at',{ascending:false}).limit(10000);
-          if (!de4 && Array.isArray(d2)) {
+          if (Array.isArray(d2)) {
             DELETES = d2.map(r=>({
               event_id: r.event_id || r.id || null,
               deleted_at: r.deleted_at ? String(r.deleted_at).slice(0,10) : null,
@@ -305,7 +325,6 @@
         } catch(_){}
       }
 
-      // UI cancellazione
       if (!deleteSupport){
         $('#delBlock').classList.add('disabled');
         $('#delNote').style.display='block';
@@ -336,7 +355,6 @@
     if (cats.size>0){
       if (!ev._cats || !ev._cats.some(c=>cats.has(c))) return false;
     }
-    // città: basta una occorrenza in una delle città selezionate (indipendente dalle date di caricamento/cancellazione)
     const cities = opts.cities;
     if (cities.length>0){
       const ok = occsOfEvent.some(o => o.citta && cities.includes(o.citta.toLowerCase()));
@@ -358,35 +376,33 @@
 
       const today = todayISO();
 
-      // mappa occorrenze per evento
       const occByEv = new Map();
       OCCS.forEach(o=>{
         if (!occByEv.has(o.event_id)) occByEv.set(o.event_id, []);
         occByEv.get(o.event_id).push(o);
       });
 
-      // filtro eventi "visibili" per categoria/città (e poi per date)
       const eventsPub = EVENTS.filter(e => e.published !== false);
 
-      // ---- KPI 1 e 2: now/expired su base occorrenze (con filtro data evento se settato)
       let k_now = 0, k_expired = 0;
-      let detailRows = []; // raccolgo qualche riga per tabella
+      LAST_DETAIL_ROWS = [];
 
       for (const ev of eventsPub){
-        const occ = (occByEv.get(ev.id) || []).filter(o=>{
+        const occAll = occByEv.get(ev.id) || [];
+        if (!eventMatchesFilters(ev, occAll, opts)) continue;
+        const occ = occAll.filter(o=>{
           if (!o.data) return false;
           if (evtFrom || evtTo) return inRange(o.data, evtFrom, evtTo);
           return true;
         });
-        if (!eventMatchesFilters(ev, occByEv.get(ev.id)||[], opts)) continue;
-        if (occ.length === 0) continue; // nessuna occorrenza nel range => non conta nei due KPI
+        if (occ.length === 0) continue;
+
         const hasFuture = occ.some(o => o.data >= today);
         const hasPastOnly = !hasFuture && occ.every(o => o.data < today);
         if (hasFuture) k_now++;
         else if (hasPastOnly) k_expired++;
       }
 
-      // ---- KPI 3: caricati (filtrati per data caricamento + categorie/città)
       let k_uploaded = 0;
       for (const ev of eventsPub){
         if (upFrom || upTo){
@@ -398,7 +414,6 @@
         k_uploaded++;
       }
 
-      // ---- KPI 4: cancellati (se disponibile log)
       let k_deleted = 'N/D';
       if (deleteSupport){
         const cats = getActiveCats();
@@ -407,15 +422,12 @@
             const d = r.deleted_at || null;
             if (!d || !inRange(d, delFrom, delTo)) return false;
           }
-          // categorie
           if (cats.size>0){
             if (!r._cats || !r._cats.some(c=>cats.has(c))) return false;
           }
-          // città se presente nel log
           if (cities.length>0 && r.citta){
             if (!cities.includes(String(r.citta).toLowerCase())) return false;
           } else if (cities.length>0 && !r.citta){
-            // se il log non ha città, non riesco a filtrare: escludo per coerenza
             return false;
           }
           return true;
@@ -423,22 +435,18 @@
         k_deleted = String(delRows.length);
       }
 
-      // Aggiorna KPI
       $('#k_now').textContent      = String(k_now);
       $('#k_expired').textContent  = String(k_expired);
       $('#k_uploaded').textContent = String(k_uploaded);
       $('#k_deleted').textContent  = String(k_deleted);
 
-      // Tabella di dettaglio (max 200 righe) — elenco eventi “now” e “expired”
+      // Tabella dettagli (max 200 righe) — ora con date/città su righe separate nella cella
       const rows = [];
-      let pushRow = (type, ev, occ)=> rows.push([
-        type,
-        ev.title || '(evento)',
-        ev.created_at || '',
-        (occ||[]).map(o=>o.data).filter(Boolean).sort().join(' | '),
-        (occ||[]).map(o=>o.citta).filter(Boolean).join(' | '),
-        (ev._cats||[]).join(', ')
-      ]);
+      const pushRow = (type, ev, occ)=>{
+        const dates  = (occ||[]).map(o=>o.data).filter(Boolean).sort().join('\n'); // \n -> a capo grazie a white-space:pre-line
+        const cities = (occ||[]).map(o=>o.citta).filter(Boolean).join('\n');
+        rows.push([ type, ev.title || '(evento)', ev.created_at || '', dates, cities, (ev._cats||[]).join(', ') ]);
+      };
 
       for (const ev of eventsPub){
         const occAll = occByEv.get(ev.id) || [];
@@ -456,15 +464,27 @@
         else if (hasPastOnly && rows.length<200) pushRow('SCADUTO', ev, occ);
       }
 
+      LAST_DETAIL_ROWS = rows.slice();
+
       if (!rows.length){
         $('#detailTable').textContent = '— Nessun evento da mostrare con questi filtri —';
       } else {
         const head = ['Stato','Titolo','Caricato il','Date evento','Città','Categorie'];
+        const escape = s => (s||'').toString().replace(/[<>&]/g, m=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[m]));
         const html = [
           '<table class="table" aria-label="Dettaglio eventi">',
           '<thead><tr>', head.map(h=>`<th>${h}</th>`).join(''), '</tr></thead>',
           '<tbody>',
-          rows.map(r=>`<tr>${r.map(c=>`<td>${(c||'').toString().replace(/[<>&]/g,s=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[s]))}</td>`).join('')}</tr>`).join(''),
+          rows.map(r=>{
+            // Importante: lasciamo \n in col 4-5 (pre-line in CSS farà l’a capo)
+            return `<tr>${
+              r.map((c,i)=>{
+                const text = (c==null?'':String(c));
+                const safe = escape(text);
+                return `<td>${safe}</td>`;
+              }).join('')
+            }</tr>`;
+          }).join(''),
           '</tbody></table>'
         ].join('');
         $('#detailTable').innerHTML = html;
@@ -482,6 +502,28 @@
     apply();
   });
   $('#btnApply').addEventListener('click', apply);
+
+  // Export CSV dettagli
+  $('#btnCSV').addEventListener('click', ()=>{
+    try{
+      if (!LAST_DETAIL_ROWS.length){ alert('Niente da esportare: applica dei filtri o carica i dati.'); return; }
+      const head = ['Stato','Titolo','Caricato il','Date evento','Città','Categorie'];
+      const q = (s)=> `"${ String(s==null?'':s).replace(/"/g,'""').replace(/\n/g,' | ') }"`;
+      const lines = [
+        head.join(','),
+        ...LAST_DETAIL_ROWS.map(r=> r.map(q).join(','))
+      ];
+      const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'staseraqui_report_dettagli.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }catch(e){
+      logErr('CSV: '+(e?.message||e));
+    }
+  });
 
   // Carica dati e applica
   (async function init(){
