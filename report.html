@@ -21,13 +21,7 @@
     @media (max-width:720px){.grid{grid-template-columns:1fr}}
     .card h2{margin:0 0 8px}
     label.small{font-size:12px;opacity:1;color:#fff}
-
-    /* input base */
-    input[type="text"], select{
-      width:100%;height:36px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
-      background:#0f1c2d;color:#fff
-    }
-    input[type="date"]{
+    input[type="date"], input[type="text"], select{
       width:100%;height:36px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
       background:#0f1c2d;color:#fff
     }
@@ -134,37 +128,37 @@
     <div class="grid3">
       <div>
         <label class="small">Data evento — dal</label>
-        <input type="date" id="f_evt_from" autocomplete="off">
+        <input type="date" id="f_evt_from">
       </div>
       <div>
         <label class="small">Data evento — al</label>
-        <input type="date" id="f_evt_to" autocomplete="off">
+        <input type="date" id="f_evt_to">
       </div>
       <div>
         <label class="small">Città (separa con virgola)</label>
-        <input type="text" id="f_cities" placeholder="Es. Torino, Milano" autocomplete="off">
+        <input type="text" id="f_cities" placeholder="Es. Torino, Milano">
       </div>
     </div>
 
     <div class="grid">
       <div>
         <label class="small">Data caricamento — dal</label>
-        <input type="date" id="f_up_from" autocomplete="off">
+        <input type="date" id="f_up_from">
       </div>
       <div>
         <label class="small">Data caricamento — al</label>
-        <input type="date" id="f_up_to" autocomplete="off">
+        <input type="date" id="f_up_to">
       </div>
     </div>
 
     <div class="grid" id="delBlock">
       <div>
         <label class="small">Data cancellazione — dal</label>
-        <input type="date" id="f_del_from" autocomplete="off">
+        <input type="date" id="f_del_from">
       </div>
       <div>
         <label class="small">Data cancellazione — al</label>
-        <input type="date" id="f_del_to" autocomplete="off">
+        <input type="date" id="f_del_to">
       </div>
     </div>
     <div class="note" id="delNote" style="display:none">Dato cancellazioni non disponibile: nessuna tabella/colonna di log trovata. (Va bene così se elimini definitivamente dal DB.)</div>
@@ -230,11 +224,24 @@
   const errlog = $('#errlog');
   const logErr = (m)=>{ errlog.textContent = (errlog.textContent==='Nessun errore.'?'':(errlog.textContent+'\\n')) + m; };
   const todayISO = ()=> new Date().toISOString().slice(0,10);
-  const inRange = (d,from,to)=> { if (!d) return false; if (from && d < from) return false; if (to && d > to) return false; return true; };
-  const normCats = (raw)=>{ const c=(raw?.categories??raw?.categorie??[]); if(Array.isArray(c))return c.filter(Boolean).map(String);
-    if(c==null)return[]; if(typeof c==='string'){ try{const j=JSON.parse(c); if(Array.isArray(j)) return j.filter(Boolean).map(String);}catch(_){}
-    if(c.includes(','))return c.split(',').map(s=>s.trim()).filter(Boolean); return c.trim()?[c.trim()]:[] } return[] };
-  const truthy = v => (v===true||v===1||v==='1'||v==='t'||v==='true'||v==='T'||v==='TRUE');
+  const inRange = (d,from,to)=> {
+    if (!d) return false;
+    if (from && d < from) return false;
+    if (to   && d > to)   return false;
+    return true;
+  };
+  const normCats = (raw)=>{
+    const c = (raw?.categories ?? raw?.categorie ?? []);
+    if (Array.isArray(c)) return c.filter(Boolean).map(String);
+    if (c == null) return [];
+    if (typeof c === 'string'){
+      try{ const j = JSON.parse(c); if (Array.isArray(j)) return j.filter(Boolean).map(String); }catch(_){}
+      if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
+      return c.trim() ? [c.trim()] : [];
+    }
+    return [];
+  };
+  const truthy = v => (v===true || v===1 || v==='1' || v==='t' || v==='true' || v==='T' || v==='TRUE');
 
   const CATS = ['Musica','Food & Drink','Sagre & Fiere','Famiglie & Bambini','Sport','Nightlife','Cultura/Spettacolo','Mercatini'];
   const catRow = $('#catRow');
@@ -251,26 +258,45 @@
   const sb = window.sb || (window.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth:{ persistSession:true, autoRefreshToken:true } }));
 
   // Stato dati
-  let EVENTS = [], OCCS = [], DELETES = [], deleteSupport = false;
-  let LAST_DETAIL_ROWS = [];
+  let EVENTS = [];          // {id, title, created_at, published, _cats:[]}
+  let OCCS   = [];          // {event_id, data, citta}
+  let DELETES = [];         // {event_id, deleted_at, citta?, _cats?}
+  let deleteSupport = false;
+
+  // Per export CSV dei dettagli
+  let LAST_DETAIL_ROWS = []; // array di array [Stato, Titolo, Caricato il, Date evento (multi-riga), Città (multi-riga), Categorie]
 
   async function loadData(){
     $('#loading').style.display='block';
     try{
-      const { data: evs } = await sb.from('events')
+      // 1) Events
+      const { data: evs, error: e1 } = await sb.from('events')
         .select('id,title,created_at,published,categories').order('created_at',{ascending:false}).limit(5000);
+      if (e1) throw e1;
       EVENTS = (evs||[]).map(e=>({ id:e.id, title:e.title||'(evento)', created_at:(e.created_at||'').slice(0,10), published: (!('published' in e) ? true : truthy(e.published)), _cats: normCats(e) }));
 
-      const { data: occs } = await sb.from('occurrences')
+      // 2) Occorrenze
+      const { data: occs, error: e2 } = await sb.from('occurrences')
         .select('event_id,data,date,citta,city').order('data',{ascending:false}).limit(20000);
-      OCCS = (occs||[]).map(o=>({ event_id:o.event_id, data:(o.data||o.date||'')||null, citta:(o.citta||o.city||'').toString().trim() }));
+      if (e2) throw e2;
+      OCCS = (occs||[]).map(o=>({
+        event_id:o.event_id,
+        data: (o.data || o.date || '') || null,
+        citta: (o.citta || o.city || '' ).toString().trim()
+      }));
 
+      // 3) Cancellazioni (best-effort)
       deleteSupport = false; DELETES = [];
       try {
         const { data: d1 } = await sb.from('events_deleted')
           .select('event_id,deleted_at,city,citta,categories').order('deleted_at',{ascending:false}).limit(10000);
         if (Array.isArray(d1)) {
-          DELETES = d1.map(r=>({ event_id:r.event_id||r.id||null, deleted_at:r.deleted_at?String(r.deleted_at).slice(0,10):null, citta:(r.citta||r.city||'').toString().trim(), _cats:normCats(r) }));
+          DELETES = d1.map(r=>({
+            event_id: r.event_id || r.id || null,
+            deleted_at: r.deleted_at ? String(r.deleted_at).slice(0,10) : null,
+            citta: (r.citta || r.city || '').toString().trim(),
+            _cats: normCats(r)
+          }));
           deleteSupport = true;
         }
       } catch(_) {}
@@ -279,7 +305,7 @@
           const { data: ed2 } = await sb.from('events')
             .select('id,deleted_at,categories').not('deleted_at','is',null).order('deleted_at',{ascending:false}).limit(10000);
           if (Array.isArray(ed2)){
-            DELETES = ed2.map(r=>({ event_id:r.id, deleted_at:r.deleted_at?String(r.deleted_at).slice(0,10):null, citta:'', _cats:normCats(r) }));
+            DELETES = ed2.map(r=>({ event_id:r.id, deleted_at: r.deleted_at ? String(r.deleted_at).slice(0,10) : null, citta:'', _cats: normCats(r) }));
             if (DELETES.length>0) deleteSupport = true;
           }
         }catch(_){}
@@ -289,7 +315,12 @@
           const { data: d2 } = await sb.from('deleted_events')
             .select('event_id,deleted_at,city,citta,categories').order('deleted_at',{ascending:false}).limit(10000);
           if (Array.isArray(d2)) {
-            DELETES = d2.map(r=>({ event_id:r.event_id||r.id||null, deleted_at:r.deleted_at?String(r.deleted_at).slice(0,10):null, citta:(r.citta||r.city||'').toString().trim(), _cats:normCats(r) }));
+            DELETES = d2.map(r=>({
+              event_id: r.event_id || r.id || null,
+              deleted_at: r.deleted_at ? String(r.deleted_at).slice(0,10) : null,
+              citta: (r.citta || r.city || '').toString().trim(),
+              _cats: normCats(r)
+            }));
             deleteSupport = true;
           }
         } catch(_){}
@@ -311,24 +342,35 @@
     }
   }
 
-  function getActiveCats(){ return new Set($$('#catRow .chip.active').map(x=>x.dataset.cat)); }
-  function parseCities(){ const raw=($('#f_cities').value||'').trim(); if(!raw) return []; return raw.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean); }
+  function getActiveCats(){
+    return new Set($$('#catRow .chip.active').map(x=>x.dataset.cat));
+  }
+  function parseCities(){
+    const raw = ($('#f_cities').value||'').trim();
+    if (!raw) return [];
+    return raw.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  }
 
   function eventMatchesCatsCities(ev, occsOfEvent, cities, cats){
-    if (cats.size>0){ if (!ev._cats || !ev._cats.some(c=>cats.has(c))) return false; }
-    if (cities.length>0){ const ok = occsOfEvent.some(o => o.citta && cities.includes(o.citta.toLowerCase())); if (!ok) return false; }
+    if (cats.size>0){
+      if (!ev._cats || !ev._cats.some(c=>cats.has(c))) return false;
+    }
+    if (cities.length>0){
+      const ok = occsOfEvent.some(o => o.citta && cities.includes(o.citta.toLowerCase()));
+      if (!ok) return false;
+    }
     return true;
   }
 
   function apply(){
     try{
+      // Leggi filtri (tutti opzionali e vuoti di default)
       const evtFrom = $('#f_evt_from').value || null;
       const evtTo   = $('#f_evt_to').value   || null;
       const upFrom  = $('#f_up_from').value  || null;
       const upTo    = $('#f_up_to').value    || null;
       const delFrom = $('#f_del_from').value || null;
       const delTo   = $('#f_del_to').value   || null;
-
       const cities  = parseCities();
       const cats    = getActiveCats();
 
@@ -336,13 +378,19 @@
       const hasDelFilter = !!(delFrom || delTo);
       const today = todayISO();
 
+      // Map occorrenze per evento
       const occByEv = new Map();
-      OCCS.forEach(o=>{ if(!occByEv.has(o.event_id)) occByEv.set(o.event_id, []); occByEv.get(o.event_id).push(o); });
+      OCCS.forEach(o=>{
+        if (!occByEv.has(o.event_id)) occByEv.set(o.event_id, []);
+        occByEv.get(o.event_id).push(o);
+      });
 
       const eventsPub = EVENTS.filter(e => e.published !== false);
 
-      let k_now=0, k_expired=0, k_uploaded=0, k_deleted='N/D';
+      // ===== KPI =====
+      let k_now = 0, k_expired = 0, k_uploaded = 0, k_deleted = 'N/D';
 
+      // NOW & SCADUTI rispettano TUTTI i filtri (categorie, città, data evento, data caricamento)
       for (const ev of eventsPub){
         if (hasUpFilter){
           const c = ev.created_at || null;
@@ -351,30 +399,48 @@
         const occAll = occByEv.get(ev.id) || [];
         if (!eventMatchesCatsCities(ev, occAll, cities, cats)) continue;
 
-        const occ = occAll.filter(o=>{ if(!o.data) return false; if (evtFrom || evtTo) return inRange(o.data, evtFrom, evtTo); return true; });
-        if (occ.length===0) continue;
+        // Applica filtro data evento sulle occorrenze
+        const occ = occAll.filter(o=>{
+          if (!o.data) return false;
+          if (evtFrom || evtTo) return inRange(o.data, evtFrom, evtTo);
+          return true;
+        });
+        if (occ.length === 0) continue;
 
-        const hasFuture = occ.some(o=>o.data >= today);
-        const hasPastOnly = !hasFuture && occ.every(o=>o.data < today);
-        if (hasFuture) k_now++; else if (hasPastOnly) k_expired++;
+        const hasFuture = occ.some(o => o.data >= today);
+        const hasPastOnly = !hasFuture && occ.every(o => o.data < today);
+        if (hasFuture) k_now++;
+        else if (hasPastOnly) k_expired++;
       }
 
+      // CARICATI: eventi creati nel range, anche senza occorrenze filtrate
       for (const ev of eventsPub){
         if (hasUpFilter){
           const c = ev.created_at || null;
           if (!c || !inRange(c, upFrom, upTo)) continue;
         } else {
+          // se non c'è filtro caricamento, contiamo tutti (ma rispettando cat/città tramite occorrenze)
+          // richiede almeno un match su città/categorie se sono settate
           const occAll = occByEv.get(ev.id) || [];
           if (!eventMatchesCatsCities(ev, occAll, cities, cats)) continue;
         }
         k_uploaded++;
       }
 
+      // CANCELLATI: solo se abbiamo un log; rispettano filtri cat/città e data cancellazione
       if (deleteSupport){
         const delRows = DELETES.filter(r=>{
-          if (hasDelFilter){ const d=r.deleted_at||null; if(!d || !inRange(d, delFrom, delTo)) return false; }
-          if (cats.size>0){ if(!r._cats || !r._cats.some(c=>cats.has(c))) return false; }
-          if (cities.length>0){ if(!r.citta) return false; if(!cities.includes(String(r.citta).toLowerCase())) return false; }
+          if (hasDelFilter){
+            const d = r.deleted_at || null;
+            if (!d || !inRange(d, delFrom, delTo)) return false;
+          }
+          if (cats.size>0){
+            if (!r._cats || !r._cats.some(c=>cats.has(c))) return false;
+          }
+          if (cities.length>0){
+            if (!r.citta) return false;
+            if (!cities.includes(String(r.citta).toLowerCase())) return false;
+          }
           return true;
         });
         k_deleted = String(delRows.length);
@@ -385,37 +451,58 @@
       $('#k_uploaded').textContent = String(k_uploaded);
       $('#k_deleted').textContent  = String(k_deleted);
 
+      // ===== DETTAGLI (coerente con tutti i filtri) =====
       const rows = [];
       const pushRow = (type, ev, occ)=>{
-        const dates  = (occ||[]).map(o=>o.data).filter(Boolean).sort().join('\n');
+        const dates  = (occ||[]).map(o=>o.data).filter(Boolean).sort().join('\n'); // \n -> a capo grazie a white-space:pre-line
         const citiesCell = (occ||[]).map(o=>o.citta).filter(Boolean).join('\n');
-        rows.push([ type, ev.title||'(evento)', ev.created_at||'', dates, citiesCell, (ev._cats||[]).join(', ') ]);
+        rows.push([ type, ev.title || '(evento)', ev.created_at || '', dates, citiesCell, (ev._cats||[]).join(', ') ]);
       };
 
       const hasDeleteList = deleteSupport && hasDelFilter;
 
       if (hasDeleteList){
+        // Se stai filtrando per cancellazione: mostra SOLO i cancellati nel range
         const evMap = new Map(eventsPub.map(e=>[e.id, e]));
         const filteredDeletes = DELETES.filter(r=>{
-          if (hasDelFilter){ const d=r.deleted_at||null; if(!d || !inRange(d, delFrom, delTo)) return false; }
+          if (hasDelFilter){
+            const d = r.deleted_at || null;
+            if (!d || !inRange(d, delFrom, delTo)) return false;
+          }
           if (cats.size>0 && (!r._cats || !r._cats.some(c=>cats.has(c)))) return false;
-          if (cities.length>0){ if(!r.citta) return false; if(!cities.includes(String(r.citta).toLowerCase())) return false; }
+          if (cities.length>0){
+            if (!r.citta) return false;
+            if (!cities.includes(String(r.citta).toLowerCase())) return false;
+          }
           return true;
         });
+
         for (const r of filteredDeletes){
-          const ev = evMap.get(r.event_id) || { title:'(evento cancellato)', created_at:'', _cats:r._cats||[] };
+          const ev = evMap.get(r.event_id) || { title:'(evento cancellato)', created_at:'' , _cats:r._cats||[] };
+          // Non abbiamo occorrenze; lasciamo celle date/città vuote (o solo città se presente nel log)
           const fakeOcc = r.citta ? [{ data:'', citta:r.citta }] : [];
           if (rows.length < 200) pushRow('CANCELLATO', ev, fakeOcc);
         }
       } else {
+        // Altrimenti: mostra NOW / SCADUTO, ma rispettando anche eventuale filtro caricamento
         for (const ev of eventsPub){
-          if (hasUpFilter){ const c=ev.created_at||null; if(!c || !inRange(c, upFrom, upTo)) continue; }
+          if (hasUpFilter){
+            const c = ev.created_at || null;
+            if (!c || !inRange(c, upFrom, upTo)) continue;
+          }
           const occAll = occByEv.get(ev.id) || [];
           if (!eventMatchesCatsCities(ev, occAll, cities, cats)) continue;
-          const occ = occAll.filter(o=>{ if(!o.data) return false; if (evtFrom || evtTo) return inRange(o.data, evtFrom, evtTo); return true; });
+
+          const occ = occAll.filter(o=>{
+            if (!o.data) return false;
+            if (evtFrom || evtTo) return inRange(o.data, evtFrom, evtTo);
+            return true;
+          });
           if (occ.length===0) continue;
-          const hasFuture = occ.some(o=>o.data >= today);
-          const hasPastOnly = !hasFuture && occ.every(o=>o.data < today);
+
+          const hasFuture = occ.some(o => o.data >= today);
+          const hasPastOnly = !hasFuture && occ.every(o => o.data < today);
+
           if (hasFuture && rows.length<200) pushRow('NOW', ev, occ);
           else if (hasPastOnly && rows.length<200) pushRow('SCADUTO', ev, occ);
         }
@@ -428,41 +515,67 @@
       } else {
         const head = ['Stato','Titolo','Caricato il','Date evento','Città','Categorie'];
         const escape = s => (s||'').toString().replace(/[<>&]/g, m=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[m]));
-        const bodyRows = rows.map(r=>`<tr>${r.map(c=>`<td>${escape(c==null?'':String(c))}</td>`).join('')}</tr>`).join('');
+        const bodyRows = rows.map(r=>{
+          return `<tr>${
+            r.map(c=>`<td>${escape(c==null?'':String(c))}</td>`).join('')
+          }</tr>`;
+        }).join('');
         const totalShown = rows.length;
-        $('#detailTable').innerHTML = `
+        const html = `
           <table class="table" aria-label="Dettaglio eventi">
             <thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
             <tbody>${bodyRows}</tbody>
             <tfoot>
-              <tr><th colspan="5" class="right">Totale righe mostrate</th><th>${totalShown}</th></tr>
+              <tr>
+                <th colspan="5" class="right">Totale righe mostrate</th>
+                <th>${totalShown}</th>
+              </tr>
             </tfoot>
           </table>`;
+        $('#detailTable').innerHTML = html;
       }
-    }catch(e){ logErr('Apply: '+(e?.message||e)); }
+
+    }catch(e){
+      logErr('Apply: '+(e?.message||e));
+    }
   }
 
+  // Azzera filtri (rimangono vuoti)
   $('#btnClear').addEventListener('click', ()=>{
-    ['f_cities','f_evt_from','f_evt_to','f_up_from','f_up_to','f_del_from','f_del_to'].forEach(id=> $('#'+id).value='');
+    ['f_evt_from','f_evt_to','f_up_from','f_up_to','f_del_from','f_del_to','f_cities'].forEach(id=> $('#'+id).value='');
     $$('#catRow .chip.active').forEach(x=>x.classList.remove('active'));
     apply();
   });
   $('#btnApply').addEventListener('click', apply);
 
-  // CSV esportazione
-  let LAST_DETAIL_ROWS = [];
+  // Export CSV dettagli
   $('#btnCSV').addEventListener('click', ()=>{
     try{
       if (!LAST_DETAIL_ROWS.length){ alert('Niente da esportare: applica dei filtri o carica i dati.'); return; }
       const head = ['Stato','Titolo','Caricato il','Date evento','Città','Categorie'];
       const q = (s)=> `"${ String(s==null?'':s).replace(/"/g,'""').replace(/\n/g,' | ') }"`;
-      const lines = [ head.join(','), ...LAST_DETAIL_ROWS.map(r=> r.map(q).join(',')) ];
+      const lines = [
+        head.join(','),
+        ...LAST_DETAIL_ROWS.map(r=> r.map(q).join(','))
+      ];
       const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'staseraqui_report_dettagli.csv'; document.body.appendChild(a); a.click(); a.remove();
-    }catch(e){ logErr('CSV: '+(e?.message||e)); }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'staseraqui_report_dettagli.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }catch(e){
+      logErr('CSV: '+(e?.message||e));
+    }
   });
 
-  (async function init(){ await loadData(); apply(); document.body.style.visibility='visible'; })();
+  // Carica dati e applica
+  (async function init(){
+    await loadData();
+    apply();
+    document.body.style.visibility='visible';
+  })();
 
 })();
 </script>
