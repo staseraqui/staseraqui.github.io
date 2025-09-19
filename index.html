@@ -202,7 +202,7 @@
   // ====== CONFIG ======
   const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';
   const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';
-  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // usato SOLO per il percorso
+  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // usato SOLO per il percorso + geocoding Google
 
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
@@ -257,17 +257,19 @@
     initLeafletMap();
   })();
 
-  // ===== GOOGLE MAPS: loader on-demand per il percorso =====
+  // ===== GOOGLE MAPS: loader on-demand per percorso/geocoding =====
   let _gmapsLoading = null;
   async function ensureGoogleLoaded(){
     if (window.google && window.google.maps) {
       if (!GMAPS.map) initRouteGoogleMap();
+      if (!GMAPS.geocoder) GMAPS.geocoder = new google.maps.Geocoder();
       return;
     }
     if (!_gmapsLoading){
       _gmapsLoading = new Promise((resolve, reject)=>{
         window._initRouteGoogleMap = function(){
           initRouteGoogleMap();
+          if (!GMAPS.geocoder) GMAPS.geocoder = new google.maps.Geocoder();
           resolve();
         };
         const s = document.createElement('script');
@@ -289,7 +291,7 @@
     GMAPS.directionsService = new google.maps.DirectionsService();
     GMAPS.directionsRenderer = new google.maps.DirectionsRenderer({suppressMarkers:true, preserveViewport:false});
     GMAPS.directionsRenderer.setMap(GMAPS.map);
-    GMAPS.geocoder = new google.maps.Geocoder();
+    if (!GMAPS.geocoder) GMAPS.geocoder = new google.maps.Geocoder();
   }
 
   function pinSvgUrl(color = '#22b3f0'){
@@ -299,6 +301,41 @@
       <circle cx="32" cy="24" r="9" fill="#ffffff"/>
     </svg>`;
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  }
+
+  // ===== Geocoding: Google first, OSM fallback =====
+  async function geocodeGoogle(addr){
+    try{
+      await ensureGoogleLoaded();
+      return await new Promise(resolve=>{
+        GMAPS.geocoder.geocode({ address: addr, region: 'it' }, (res, status)=>{
+          if(status==='OK' && res && res[0]){
+            const loc = res[0].geometry.location;
+            resolve({ lat: loc.lat(), lng: loc.lng(), label: res[0].formatted_address });
+          } else {
+            resolve(null);
+          }
+        });
+      });
+    }catch(_){ return null; }
+  }
+
+  async function geocodeOSM(addr){
+    try{
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr);
+      const r = await fetch(url, {headers:{'Accept-Language':'it'}});
+      const j = await r.json();
+      if(!j || !j.length) return null;
+      return { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon), label: j[0].display_name };
+    }catch(_){ return null; }
+  }
+
+  async function geocodeSmart(addr){
+    // 1) prova Google
+    const g = await geocodeGoogle(addr);
+    if (g) return g;
+    // 2) fallback OSM
+    return await geocodeOSM(addr);
   }
 
   // ===== (Google) utilità marker — usate solo se un giorno vorrai GMaps anche per i pin =====
@@ -356,7 +393,7 @@
       if (!ORIGIN){
         const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
         if (ask && ask.trim()){
-          const g = await geocodeAddrOSM(ask.trim());
+          const g = await geocodeSmart(ask.trim());
           if (g){
             ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
             drawRouteAuto(ORIGIN, dest);
@@ -430,27 +467,9 @@
     $('#cambiaOrigine').onclick = async ()=>{
       const ask = prompt('Nuova origine (indirizzo):', from.label||'');
       if (ask && ask.trim()){
-        // Usa geocoding Google se disponibile, altrimenti OSM
-        let newOrigin = null;
-        if (GMAPS.geocoder){
-          GMAPS.geocoder.geocode({address:ask.trim()}, (res2, status2)=>{
-            if(status2==='OK' && res2[0]){
-              newOrigin = {lat:res2[0].geometry.location.lat(), lng:res2[0].geometry.location.lng(), label:res2[0].formatted_address};
-              ORIGIN = newOrigin;
-              drawRouteAuto(ORIGIN, to);
-            } else {
-              // fallback OSM
-              geocodeAddrOSM(ask.trim()).then(g=>{
-                if (g){ ORIGIN = {lat:g.lat, lng:g.lng, label:g.label}; drawRouteAuto(ORIGIN, to); }
-                else { alert('Indirizzo non trovato.'); }
-              });
-            }
-          });
-        } else {
-          const g = await geocodeAddrOSM(ask.trim());
-          if (g){ ORIGIN = {lat:g.lat, lng:g.lng, label:g.label}; drawRouteAuto(ORIGIN, to); }
-          else { alert('Indirizzo non trovato.'); }
-        }
+        const g = await geocodeSmart(ask.trim());
+        if (g){ ORIGIN = {lat:g.lat, lng:g.lng, label:g.label}; drawRouteAuto(ORIGIN, to); }
+        else  { alert('Indirizzo non trovato.'); }
       }
     };
   }
@@ -531,20 +550,13 @@
     }).addTo(LEAF.map).bindTooltip(ORIGIN.label||'Posizione attuale',{permanent:false});
   }
 
-  async function geocodeAddrOSM(addr){
-    const url = 'https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr);
-    const r = await fetch(url, {headers:{'Accept-Language':'it'}});
-    const j = await r.json(); if(!j||!j.length) return null;
-    return {lat:parseFloat(j[0].lat), lng:parseFloat(j[0].lon), label:j[0].display_name};
-  }
-
   async function drawRouteLeaflet(from, to){
     if (!from){
       try { from = await getFreshPosition(); ORIGIN = from; } catch(_){}
       if (!from){
         const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza:','Torino');
         if (!ask) return;
-        const g = await geocodeAddrOSM(ask);
+        const g = await geocodeSmart(ask);
         if(!g){ alert('Indirizzo non trovato.'); return; }
         ORIGIN = from = {lat:g.lat, lng:g.lng, label:g.label};
       }
@@ -621,8 +633,8 @@
 
     if (!state.query){ renderMarkers(); return; }
 
-    // Geocoding via OSM (Leaflet è la mappa principale)
-    const g = await geocodeAddrOSM(state.query);
+    // Geocoding SMART (Google → OSM)
+    const g = await geocodeSmart(state.query);
     if (g) { LEAF.map.setView([g.lat, g.lng], Math.max(13, LEAF.map.getZoom())); }
     else   { alert('Indirizzo non trovato.'); }
     renderMarkers();
@@ -649,7 +661,7 @@
     const query = ($('#geoAddr').value||'').trim();
     if(!query) return;
     allowAutoFit = false;
-    const g = await geocodeAddrOSM(query);
+    const g = await geocodeSmart(query);
     if (g){ ORIGIN = {lat:g.lat,lng:g.lng,label:g.label}; LEAF.map.setView([g.lat,g.lng],13); lShowOrigin(); $('#geoOverlay').style.display='none'; updateCounter(); }
     else  { alert('Indirizzo non trovato.'); }
   };
@@ -669,7 +681,7 @@
         const addr = prompt('Imposta origine (indirizzo):', ORIGIN.label||'');
         if (!addr) return;
         allowAutoFit = false;
-        const g = await geocodeAddrOSM(addr);
+        const g = await geocodeSmart(addr);
         if (g){ ORIGIN = {lat:g.lat,lng:g.lng,label:g.label}; LEAF.map.setView([g.lat,g.lng],13); lShowOrigin(); renderMarkers(); }
         else  { alert('Indirizzo non trovato.'); }
       }
