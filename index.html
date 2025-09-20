@@ -43,7 +43,7 @@
 <meta property="og:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
 
 <!-- Twitter Card -->
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Stasera Qui — Eventi oggi vicino a te">
 <meta name="twitter:description" content="Concerti, sagre, nightlife, sport, cultura e altro. Filtra per data e categoria e vedi tutto sulla mappa.">
 <meta name="twitter:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
@@ -97,7 +97,7 @@
   #geoAddr{width:100%;background:#fff;color:#081421;border:1px solid rgba(0,0,0,.2);border-radius:10px;padding:12px}
   #geoBtns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
 
-  /* Condividi */
+  /* Barra condividi */
   .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
 </style>
 
@@ -165,8 +165,8 @@
   <div class="share" id="shareBar">
     <span class="small">Ti piace Stasera Qui? Condividilo:</span>
     <button class="btn primary" id="shareNative" type="button">Condividi</button>
-    <a class="btn light" id="shareFb"  href="#" target="_blank" rel="noopener">Facebook</a>
-    <a class="btn light" id="shareWa"  href="#" target="_blank" rel="noopener">WhatsApp</a>
+    <a class="btn light" id="shareFb" href="#" target="_blank" rel="noopener">Facebook</a>
+    <a class="btn light" id="shareWa" href="#" target="_blank" rel="noopener">WhatsApp</a>
     <button class="btn" id="shareIg" type="button">Instagram</button>
     <button class="btn" id="copyLink" type="button">Copia link</button>
   </div>
@@ -851,6 +851,63 @@
     _refitTried = false;
     renderMarkers();
   }
+
+  // ===== CONDIVIDI =====
+  (function(){
+    const SHARE_URL  = 'https://www.staseraqui.it/';
+    const SHARE_TEXT = 'Scopri cosa fare stasera vicino a te su Stasera Qui';
+    const SHARE_TITLE = 'Stasera Qui';
+
+    const FB_URL = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(SHARE_URL);
+    const WA_URL = 'https://wa.me/?text=' + encodeURIComponent(`${SHARE_TEXT} ${SHARE_URL}`);
+
+    const btnNative = document.getElementById('shareNative');
+    const linkFb    = document.getElementById('shareFb');
+    const linkWa    = document.getElementById('shareWa');
+    const btnIg     = document.getElementById('shareIg');
+    const btnCopy   = document.getElementById('copyLink');
+
+    if (linkFb) linkFb.href = FB_URL;
+    if (linkWa) linkWa.href = WA_URL;
+
+    if (btnNative){
+      btnNative.addEventListener('click', async ()=>{
+        if (navigator.share){
+          try{ await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: SHARE_URL }); }
+          catch(_){}
+        } else {
+          window.open(FB_URL, '_blank', 'noopener');
+        }
+      });
+    }
+
+    async function copyToClipboard(text){
+      try { await navigator.clipboard.writeText(text); return true; }
+      catch(_){
+        const ok = prompt('Copia il link e premi OK:', text);
+        return !!ok;
+      }
+    }
+
+    if (btnCopy){
+      btnCopy.addEventListener('click', async ()=>{
+        const ok = await copyToClipboard(SHARE_URL);
+        if (ok) alert('Link copiato! Incollalo dove vuoi (anche su Instagram).');
+      });
+    }
+
+    if (btnIg){
+      btnIg.addEventListener('click', async ()=>{
+        await copyToClipboard(SHARE_URL);
+        const appLink = 'instagram://app';
+        const webLink = 'https://www.instagram.com/';
+        const t = Date.now();
+        window.location.href = appLink;
+        setTimeout(()=>{ if (Date.now()-t < 1500) window.open(webLink, '_blank', 'noopener'); }, 800);
+        alert('Link copiato! Apri una Storia o un post e incolla il link di Stasera Qui.');
+      });
+    }
+  })();
 </script>
 
 <!-- ✅ REGISTRAZIONE SERVICE WORKER (Turbo) -->
@@ -862,62 +919,6 @@ if ('serviceWorker' in navigator) {
       .catch(err => console.warn('SW errore:', err));
   });
 }
-</script>
-
-<!-- 🔗 CONDIVISIONE: Web Share + FB/WA/IG + Copia -->
-<script>
-(function(){
-  const SHARE_URL  = 'https://www.staseraqui.it/';
-  const SHARE_TEXT = 'Scopri cosa fare stasera vicino a te su Stasera Qui';
-  const SHARE_TITLE = 'Stasera Qui';
-
-  const FB_URL = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(SHARE_URL);
-  const WA_URL = 'https://wa.me/?text=' + encodeURIComponent(`${SHARE_TEXT} ${SHARE_URL}`);
-
-  const btnNative = document.getElementById('shareNative');
-  const linkFb    = document.getElementById('shareFb');
-  const linkWa    = document.getElementById('shareWa');
-  const btnIg     = document.getElementById('shareIg');
-  const btnCopy   = document.getElementById('copyLink');
-
-  if (linkFb) linkFb.href = FB_URL;
-  if (linkWa) linkWa.href = WA_URL;
-
-  if (btnNative){
-    btnNative.addEventListener('click', async ()=>{
-      if (navigator.share){
-        try{
-          await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: SHARE_URL });
-        }catch(_){}
-      } else {
-        window.open(FB_URL, '_blank', 'noopener');
-      }
-    });
-  }
-
-  async function copyToClipboard(text){
-    try { await navigator.clipboard.writeText(text); alert('Link copiato!'); }
-    catch(_){
-      prompt('Copia il link e premi OK:', text);
-    }
-  }
-
-  if (btnCopy){
-    btnCopy.addEventListener('click', ()=> copyToClipboard(SHARE_URL));
-  }
-
-  if (btnIg){
-    btnIg.addEventListener('click', async ()=>{
-      await copyToClipboard(SHARE_URL);
-      const appLink = 'instagram://app';
-      const webLink = 'https://www.instagram.com/';
-      const t = Date.now();
-      window.location.href = appLink;
-      setTimeout(()=>{ if (Date.now()-t < 1500) window.open(webLink, '_blank', 'noopener'); }, 800);
-      alert('Apri una Storia o un post su Instagram e incolla il link di Stasera Qui.');
-    });
-  }
-})();
 </script>
 
 <footer class="page-footer">
