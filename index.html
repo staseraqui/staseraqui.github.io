@@ -94,7 +94,7 @@
   #geoOverlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:10001}
   #geoBox{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px;max-width:520px;width:92%}
   #geoBox h3{margin:0 0 8px}
-  #geoAddr{width:100%;background:#fff;color:#081421;border:1px solid rgba(0,0,0,.2);border-radius:10px;padding:12px}
+  #geoAddr{width:100%;background:#fff;color:#081421;border:1px solid rgba(0,0,0,.2);border-radius:10px}
   #geoBtns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
 
   /* Barra condividi */
@@ -165,10 +165,6 @@
   <div class="share" id="shareBar">
     <span class="small">Ti piace Stasera Qui? Condividilo:</span>
     <button class="btn primary" id="shareNative" type="button">Condividi</button>
-    <a class="btn light" id="shareFb" href="#" target="_blank" rel="noopener">Facebook</a>
-    <a class="btn light" id="shareWa" href="#" target="_blank" rel="noopener">WhatsApp</a>
-    <button class="btn" id="shareIg" type="button">Instagram</button>
-    <button class="btn" id="copyLink" type="button">Copia link</button>
   </div>
 
   <!-- Ricerca -->
@@ -318,7 +314,7 @@
   async function setupAutocomplete(){
     try{
       await ensureGoogleLoaded();
-      const makeAC = (el, onPlace)=>{
+      const makeAC = (el)=>{
         if (!el) return;
         const ac = new google.maps.places.Autocomplete(el, {
           types:['geocode'],
@@ -852,34 +848,14 @@
     renderMarkers();
   }
 
-  // ===== CONDIVIDI =====
+  // ===== CONDIVIDI (solo bottone giallo) =====
   (function(){
     const SHARE_URL  = 'https://www.staseraqui.it/';
     const SHARE_TEXT = 'Scopri cosa fare stasera vicino a te su Stasera Qui';
     const SHARE_TITLE = 'Stasera Qui';
 
-    const FB_URL = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(SHARE_URL);
-    const WA_URL = 'https://wa.me/?text=' + encodeURIComponent(`${SHARE_TEXT} ${SHARE_URL}`);
-
     const btnNative = document.getElementById('shareNative');
-    const linkFb    = document.getElementById('shareFb');
-    const linkWa    = document.getElementById('shareWa');
-    const btnIg     = document.getElementById('shareIg');
-    const btnCopy   = document.getElementById('copyLink');
-
-    if (linkFb) linkFb.href = FB_URL;
-    if (linkWa) linkWa.href = WA_URL;
-
-    if (btnNative){
-      btnNative.addEventListener('click', async ()=>{
-        if (navigator.share){
-          try{ await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: SHARE_URL }); }
-          catch(_){}
-        } else {
-          window.open(FB_URL, '_blank', 'noopener');
-        }
-      });
-    }
+    if (!btnNative) return;
 
     async function copyToClipboard(text){
       try { await navigator.clipboard.writeText(text); return true; }
@@ -889,24 +865,15 @@
       }
     }
 
-    if (btnCopy){
-      btnCopy.addEventListener('click', async ()=>{
+    btnNative.addEventListener('click', async ()=>{
+      if (navigator.share){
+        try{ await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: SHARE_URL }); }
+        catch(_){ /* utente ha annullato o errore → ignora */ }
+      } else {
         const ok = await copyToClipboard(SHARE_URL);
-        if (ok) alert('Link copiato! Incollalo dove vuoi (anche su Instagram).');
-      });
-    }
-
-    if (btnIg){
-      btnIg.addEventListener('click', async ()=>{
-        await copyToClipboard(SHARE_URL);
-        const appLink = 'instagram://app';
-        const webLink = 'https://www.instagram.com/';
-        const t = Date.now();
-        window.location.href = appLink;
-        setTimeout(()=>{ if (Date.now()-t < 1500) window.open(webLink, '_blank', 'noopener'); }, 800);
-        alert('Link copiato! Apri una Storia o un post e incolla il link di Stasera Qui.');
-      });
-    }
+        if (ok) alert('Link copiato! Incollalo dove vuoi.');
+      }
+    });
   })();
 </script>
 
