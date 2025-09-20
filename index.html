@@ -472,7 +472,6 @@
   async function routeTo(dest){
     try{
       ORIGIN = await getFreshPosition();
-      // Non centriamo la mappa principale qui: si occuperà il renderer del percorso
     }catch(_){
       if (!ORIGIN){
         const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
@@ -482,7 +481,6 @@
             ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
             drawRouteAuto(ORIGIN, dest);
           } else {
-            // Apri direttamente Google Maps
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
           }
           return;
@@ -498,13 +496,11 @@
   async function drawRouteAuto(from, to){
     const haveKey = !!(GMAPS_API_KEY && !/^INSERISCI_/.test(GMAPS_API_KEY));
     if (!haveKey){
-      // Nessuna chiave → usa solo Leaflet/OSRM
       drawRouteLeaflet(from, to);
       return;
     }
     try{
       await ensureGoogleLoaded();
-      // Passa alla mappa Google dedicata al percorso
       const ldiv = document.getElementById('map');
       const gdiv = document.getElementById('gmap');
       if (ldiv) ldiv.style.display = 'none';
@@ -525,12 +521,10 @@
           gShowOrigin();
           showRouteInfo(from, to, dist, dur);
         } else {
-          // Fallback: OSRM su mappa Google (polyline)
           drawRouteOSRMOnGoogle(from, to);
         }
       });
     }catch(_){
-      // Se Google fallisce, usa Leaflet
       drawRouteLeaflet(from, to);
     }
   }
@@ -553,7 +547,6 @@
     $('#cambiaOrigine').onclick = async ()=>{
       const ask = prompt('Nuova origine (indirizzo):', from.label||'');
       if (ask && ask.trim()){
-        // Usa geocoding ibrido (Google→OSM)
         const g = await geocodeAddrSmart(ask.trim());
         if (g){ ORIGIN = {lat:g.lat, lng:g.lng, label:g.label}; drawRouteAuto(ORIGIN, to); }
         else { alert('Indirizzo non trovato.'); }
@@ -604,17 +597,17 @@
     const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
     const cats  = (ev._cats||[]).join(', ');
-    const descr = ev.description||ev.descrizione||'';
+    theDescr = ev.description||ev.descrizione||'';
     const posterHTML = ev.locandina_url
       ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
       : '';
 
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:300px">
-      <b>${ev.title||ev.titolo||'(evento)'}</b><br>
+      <b>${ev.title||ev.titolo||'(evento)'} </b><br>
       <small>${cats||''}</small><br>
       ${when}<br>${where}
-      ${descr? `<br><br>${descr}`:''}
+      ${theDescr? `<br><br>${theDescr}`:''}
       <div class="popup-actions">
          <button class="btn accent" data-calc="1">Calcola percorso</button>
          ${posterHTML}
@@ -636,6 +629,80 @@
       radius:6, fillColor:'#4da3ff', fillOpacity:0.9, color:'#fff', weight:2
     }).addTo(LEAF.map).bindTooltip(ORIGIN.label||'Posizione attuale',{permanent:false});
   }
+
+  // ====== FILTRI — HANDLERS UI ======
+  // Giorni rapidi (Oggi / Domani / Weekend)
+  (function setupDayPills(){
+    const pills = $$('#dayPills .pill');
+    const badge = $('#dateBadge');
+
+    function setDateBadgeISO(d1, d2){
+      badge.style.display='inline-block';
+      badge.textContent = d2 ? `${fmtIT(d1)} - ${fmtIT(d2)}` : fmtIT(d1);
+    }
+
+    pills.forEach(p=>{
+      const day = p.getAttribute('data-day');
+      if (!day) return; // salta "Seleziona data"
+      p.addEventListener('click', ()=>{
+        // evidenzia la pill selezionata
+        pills.forEach(x=> x.classList.toggle('active', x===p));
+        state.day = day;
+        state.customDate = null;
+        _refitTried = false;
+        const t = todayISO();
+        if (day==='oggi')   setDateBadgeISO(t);
+        if (day==='domani') setDateBadgeISO(addDays(t,1));
+        if (day==='weekend'){
+          const now=new Date(), d=now.getDay();
+          const sat=addDays(t, (6-d+7)%7);
+          const sun=addDays(t, (7-d+7)%7);
+          setDateBadgeISO(sat, sun);
+        }
+        renderMarkers();
+      });
+    });
+
+    // Seleziona data (apre il datepicker)
+    const dpOverlay = $('#dpOverlay');
+    const dpInput = $('#dpInput');
+    const dpAnnulla = $('#dpAnnulla');
+    const selBtn = $('#selDataBtn');
+
+    selBtn.addEventListener('click', ()=>{
+      dpInput.value = state.customDate || todayISO();
+      dpOverlay.style.display='flex';
+      setTimeout(()=> dpInput.focus(), 0);
+    });
+    dpAnnulla.addEventListener('click', ()=> dpOverlay.style.display='none');
+    dpOverlay.addEventListener('click', (e)=>{ if(e.target===dpOverlay) dpOverlay.style.display='none'; });
+    dpInput.addEventListener('change', ()=>{
+      if (dpInput.value){
+        state.customDate = dpInput.value;
+        state.day = null;
+        _refitTried = false;
+        setDateBadgeISO(state.customDate);
+        // togli evidenziazione alle altre pill
+        pills.forEach(x=> x.classList.remove('active'));
+        renderMarkers();
+      }
+      dpOverlay.style.display='none';
+    });
+  })();
+
+  // Categorie (chip)
+  (function setupChips(){
+    $$('#chips .chip').forEach(ch=>{
+      ch.addEventListener('click', ()=>{
+        ch.classList.toggle('active');
+        const c = ch.getAttribute('data-cat');
+        if (ch.classList.contains('active')) state.cats.add(c);
+        else state.cats.delete(c);
+        _refitTried = false;
+        renderMarkers();
+      });
+    });
+  })();
 
   // ===== CERCA: centra mappa (non filtra eventi) con geocoding ibrido + cache =====
   $('#searchBtn').addEventListener('click', async ()=>{
@@ -713,7 +780,7 @@
     if (occ.data && occ.data < todayISO()) return false;
     if (state.day==='oggi'   && occ.data!==todayISO()) return false;
     if (state.day==='domani' && occ.data!==addDays(todayISO(),1)) return false;
-    if (state.day==='weekend'){ const w=weekday(occ.data); if (![6,0].includes(w)) return false; } <!-- weekend: sab+dom (come ora) -->
+    if (state.day==='weekend'){ const w=weekday(occ.data); if (![6,0].includes(w)) return false; }
     if (state.customDate && occ.data!==state.customDate) return false;
 
     if (state.cats.size>0){
