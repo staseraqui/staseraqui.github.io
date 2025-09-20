@@ -56,12 +56,12 @@
 
 <link rel="stylesheet" href="assets/style.css?v=10">
 
-<!-- Leaflet -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<!-- Leaflet (ORA LOCALE) -->
+<link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css"/>
+<script src="/assets/vendor/leaflet/leaflet.js"></script>
 
-<!-- Supabase JS -->
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<!-- Supabase JS (ORA LOCALE) -->
+<script src="/assets/vendor/supabase/supabase.min.js"></script>
 
 <style>
   .claim{font-style:italic;font-weight:700;text-align:center;margin:8px 0 16px;font-size:20px}
@@ -318,7 +318,6 @@
           if (!loc) return;
           const lat = loc.lat(), lng = loc.lng();
           const label = place.formatted_address || el.value;
-          // Se è l'overlay → setta ORIGIN, altrimenti solo centra
           if (el.id === 'geoAddr'){
             ORIGIN = {lat,lng,label}; lShowOrigin();
             $('#geoOverlay').style.display='none';
@@ -347,7 +346,6 @@
       const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}');
       const now=Date.now();
       store[k] = { ...obj, _ts: now };
-      // LRU semplice: se >300, rimuovi i più vecchi
       const entries = Object.entries(store);
       if (entries.length > 300){
         entries.sort((a,b)=> (a[1]?._ts||0)-(b[1]?._ts||0));
@@ -360,11 +358,10 @@
 
   async function geocodeAddrSmart(addr){
     const q=(addr||'').trim(); if(!q) return null;
-    // Cache
     const cached = geoCacheGet(q);
     if (cached) return cached;
 
-    // 1) Google (bias Italia)
+    // 1) Google (Italia)
     try{
       await ensureGoogleLoaded();
       const geocoder = new google.maps.Geocoder();
@@ -378,9 +375,9 @@
         });
       });
       if (g){ geoCacheSet(q,g); return g; }
-    }catch(_){ /* passa a OSM */ }
+    }catch(_){}
 
-    // 2) OSM/Nominatim (forzato Italia)
+    // 2) OSM/Nominatim (Italia)
     try{
       const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q='+encodeURIComponent(q);
       const r = await fetch(url, { headers:{'Accept-Language':'it'} });
@@ -394,10 +391,9 @@
     return null;
   }
 
-  // ===== MAPPA: bootstrap (Leaflet di default) =====
+  // ===== MAPPA: bootstrap (Leaflet) + Places in parallelo =====
   (function setupMap(){
     initLeafletMap();
-    // In parallelo carico Google (per AC) senza bloccare nulla
     setupAutocomplete();
   })();
 
@@ -422,7 +418,6 @@
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   }
 
-  // ===== (Google) utilità marker — usate solo se un giorno vorrai GMaps anche per i pin =====
   function gClearMarkers(){ markers.forEach(m=>m.setMap && m.setMap(null)); markers=[]; }
 
   function gShowOrigin(){
@@ -444,17 +439,13 @@
   }
 
   function clearRoute(){
-    // Nascondi mappa Google del percorso e mostra Leaflet
     const ldiv = document.getElementById('map');
     const gdiv = document.getElementById('gmap');
     if (gdiv) gdiv.style.display = 'none';
     if (ldiv) ldiv.style.display = 'block';
-
-    // Pulisci route su entrambe le mappe
     if (GMAPS.directionsRenderer) GMAPS.directionsRenderer.set('directions', null);
     if (GMAPS.osrmPolyline){ GMAPS.osrmPolyline.setMap(null); GMAPS.osrmPolyline=null; }
     if (LEAF.routeLayer){ LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null; }
-
     $('#routeInfo').style.display='none';
   }
 
@@ -470,9 +461,8 @@
   }
 
   async function routeTo(dest){
-    try{
-      ORIGIN = await getFreshPosition();
-    }catch(_){
+    try{ ORIGIN = await getFreshPosition(); }
+    catch(_){
       if (!ORIGIN){
         const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
         if (ask && ask.trim()){
@@ -495,17 +485,13 @@
 
   async function drawRouteAuto(from, to){
     const haveKey = !!(GMAPS_API_KEY && !/^INSERISCI_/.test(GMAPS_API_KEY));
-    if (!haveKey){
-      drawRouteLeaflet(from, to);
-      return;
-    }
+    if (!haveKey){ drawRouteLeaflet(from, to); return; }
     try{
       await ensureGoogleLoaded();
       const ldiv = document.getElementById('map');
       const gdiv = document.getElementById('gmap');
       if (ldiv) ldiv.style.display = 'none';
       if (gdiv) gdiv.style.display = 'block';
-
       if (!GMAPS.map) initRouteGoogleMap();
 
       GMAPS.directionsService.route({
@@ -520,13 +506,9 @@
           GMAPS.map.fitBounds(res.routes[0].bounds);
           gShowOrigin();
           showRouteInfo(from, to, dist, dur);
-        } else {
-          drawRouteOSRMOnGoogle(from, to);
-        }
+        } else { drawRouteOSRMOnGoogle(from, to); }
       });
-    }catch(_){
-      drawRouteLeaflet(from, to);
-    }
+    }catch(_){ drawRouteLeaflet(from, to); }
   }
 
   function showRouteInfo(from, to, distTxt, durTxt){
@@ -597,14 +579,14 @@
     const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
     const when  = `${fmtIT(occ.data)} ore ${occ.ora||''}`;
     const cats  = (ev._cats||[]).join(', ');
-    theDescr = ev.description||ev.descrizione||'';
+    const theDescr = ev.description||ev.descrizione||'';
     const posterHTML = ev.locandina_url
       ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
       : '';
 
     const m = L.marker([occ.lat,occ.lng],{icon:LEAF.pinIcon}).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:300px">
-      <b>${ev.title||ev.titolo||'(evento)'} </b><br>
+      <b>${ev.title||ev.titolo||'(evento)'}</b><br>
       <small>${cats||''}</small><br>
       ${when}<br>${where}
       ${theDescr? `<br><br>${theDescr}`:''}
@@ -631,7 +613,6 @@
   }
 
   // ====== FILTRI — HANDLERS UI ======
-  // Giorni rapidi (Oggi / Domani / Weekend)
   (function setupDayPills(){
     const pills = $$('#dayPills .pill');
     const badge = $('#dateBadge');
@@ -643,9 +624,8 @@
 
     pills.forEach(p=>{
       const day = p.getAttribute('data-day');
-      if (!day) return; // salta "Seleziona data"
+      if (!day) return;
       p.addEventListener('click', ()=>{
-        // evidenzia la pill selezionata
         pills.forEach(x=> x.classList.toggle('active', x===p));
         state.day = day;
         state.customDate = null;
@@ -655,15 +635,13 @@
         if (day==='domani') setDateBadgeISO(addDays(t,1));
         if (day==='weekend'){
           const now=new Date(), d=now.getDay();
-          const sat=addDays(t, (6-d+7)%7);
-          const sun=addDays(t, (7-d+7)%7);
+          const sat=addDays(t, (6-d+7)%7), sun=addDays(t, (7-d+7)%7);
           setDateBadgeISO(sat, sun);
         }
         renderMarkers();
       });
     });
 
-    // Seleziona data (apre il datepicker)
     const dpOverlay = $('#dpOverlay');
     const dpInput = $('#dpInput');
     const dpAnnulla = $('#dpAnnulla');
@@ -682,7 +660,6 @@
         state.day = null;
         _refitTried = false;
         setDateBadgeISO(state.customDate);
-        // togli evidenziazione alle altre pill
         pills.forEach(x=> x.classList.remove('active'));
         renderMarkers();
       }
@@ -690,7 +667,6 @@
     });
   })();
 
-  // Categorie (chip)
   (function setupChips(){
     $$('#chips .chip').forEach(ch=>{
       ch.addEventListener('click', ()=>{
@@ -704,14 +680,12 @@
     });
   })();
 
-  // ===== CERCA: centra mappa (non filtra eventi) con geocoding ibrido + cache =====
+  // ===== CERCA — centra mappa con geocoding ibrido + cache =====
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
     _refitTried = false;
     allowAutoFit = false;
-
     if (!state.query){ renderMarkers(); return; }
-
     const g = await geocodeAddrSmart(state.query);
     if (g) { LEAF.map.setView([g.lat, g.lng], Math.max(13, LEAF.map.getZoom())); }
     else   { alert('Indirizzo non trovato.'); }
@@ -744,7 +718,7 @@
     else  { alert('Indirizzo non trovato.'); }
   };
 
-  // Bottone 📍
+  // 📍 posizione
   $('#locBtn').addEventListener('click', async ()=>{
     if (ORIGIN){
       const resp = confirm('Vuoi aggiornare la posizione?\nOK = usa GPS adesso\nAnnulla = inserisci un indirizzo');
@@ -776,7 +750,6 @@
 
   // ===== FILTRI LOGICA =====
   function occPassesFilters(occ){
-    // nascondi automaticamente occorrenze scadute
     if (occ.data && occ.data < todayISO()) return false;
     if (state.day==='oggi'   && occ.data!==todayISO()) return false;
     if (state.day==='domani' && occ.data!==addDays(todayISO(),1)) return false;
@@ -806,24 +779,18 @@
 
   function renderMarkers(){
     lClearMarkers();
-
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
-
     let rendered = 0;
-
     OCCS.forEach(occ=>{
       if (occ.lat==null || occ.lng==null) return;
       if (bounds && !contains(occ.lat,occ.lng)) return;
       if (!occPassesFilters(occ)) return;
-
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
       lAddMarker(occ, ev);
       rendered++;
     });
-
     updateCounter();
-
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
       const all = computeAllBounds();
       if (all){
@@ -834,38 +801,21 @@
     }
   }
 
-  // Lista eventi visibili
-  $('#listBtn').addEventListener('click', ()=>{
-    const bounds = LEAF.map.getBounds();
-    const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
-    const occs = OCCS.filter(o => o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o))
-                     .sort((a,b)=> (a.data+a.ora).localeCompare(b.data+b.ora));
-    if (!occs.length){ alert('Nessun evento visibile nell’area attuale.'); return; }
-    const rows = occs.map(o=>{
-      const ev = EVENTS_BY_ID.get(o.event_id)||{};
-      return `• ${(ev.title||ev.titolo||'(evento)')} — ${fmtIT(o.data)} ore ${o.ora||''} — ${o.luogo||''}, ${o.indirizzo||''}, ${o.citta||''}`;
-    }).join('\n');
-    alert('Eventi visibili:\n\n'+rows);
-  });
-
   // ===== DATI =====
   async function loadData(){
-    // 1) Eventi
     const { data: evs, error: evErr } = await sb.from('events')
       .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published');
     if (evErr) { console.error('ERR events:', evErr); return; }
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
-    // Filtra: se c’è la colonna published, accetta ogni valore “truthy”
     EVENTS = EVENTS_ALL.filter(e => !('published' in e) || isTruthyPub(e.published))
                        .map(e => ({ ...e, _cats: normCats(e) }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
-    // 2) Occorrenze legate ad eventi validi — SOLO future/odierne (migliora performance)
     const today = todayISO();
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city')
-      .gte('data', today); // << carica solo eventi da oggi in avanti
+      .gte('data', today);
     if (occErr) { console.error('ERR occs:', occErr); return; }
 
     const validEventIds = new Set(EVENTS.map(e => e.id));
@@ -882,8 +832,6 @@
         indirizzo: o.indirizzo || o.address || '',
         citta: o.citta || o.city || ''
       }));
-
-    // 3) Solo occorrenze con coordinate valide
     OCCS = norm.filter(o => o.lat != null && o.lng != null);
 
     console.info('Loaded EVENTS:', EVENTS.length, 'OCCS:', OCCS.length);
@@ -891,6 +839,18 @@
     renderMarkers();
   }
 </script>
+
+<!-- ✅ REGISTRAZIONE SERVICE WORKER (Turbo) -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('/sw.js?v=3')
+      .then(r => console.log('SW registrato:', r.scope))
+      .catch(err => console.warn('SW errore:', err));
+  });
+}
+</script>
+
 <footer class="page-footer">
     <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
 </footer>
