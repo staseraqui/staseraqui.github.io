@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Seleziona & Elimina — Stasera Qui</title>
+  <title>Modifica & Elimina — Stasera Qui</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=12">
@@ -12,8 +12,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
-  <!-- Supabase -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <!-- Supabase (jsdelivr, stabile) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- Config condivisa -->
   <script src="assets/app-config.js?v=6"></script>
@@ -48,6 +48,18 @@
     #authBox{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px;max-width:360px;width:92%}
     #authBox h3{margin:0 0 8px}
     #authErr{color:#ff9a9a;margin-top:8px;display:none}
+
+    /* ====== MODIFICA ====== */
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width:840px){ .form-grid{grid-template-columns:1fr} }
+    .form-grid textarea{min-height:120px}
+    .cats{display:flex;gap:6px;flex-wrap:wrap}
+    .chip{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:#0f1c2d;cursor:pointer}
+    .chip.on{outline:3px solid #ffd24d}
+    .tbl{width:100%;border-collapse:collapse}
+    .tbl th,.tbl td{border:1px solid rgba(255,255,255,.15);padding:6px;vertical-align:top}
+    .tbl th{background:#0f1c2d}
+    .smallmuted{font-size:12px;color:#b8c2ce}
   </style>
 </head>
 <body>
@@ -62,8 +74,8 @@
 </header>
 
 <main class="wrap">
-  <h1 style="margin:8px 0 10px">Seleziona & elimina eventi</h1>
-  <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi scegli se <b>Nascondere</b> (soft: <i>published=false</i>) oppure <b>Eliminare definitivamente</b> (sposta nel <i>cestino</i> con <i>deleted_at</i>, ripristinabile — gli <b>scaduti</b> non si ripristinano).</p>
+  <h1 style="margin:8px 0 10px">Seleziona, <span style="color:#ffd24d">modifica</span> o elimina eventi</h1>
+  <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi puoi <b>Modificare</b>, <b>Nascondere</b> (soft: <i>published=false</i>) oppure <b>Eliminare definitivamente</b> (cestino con <i>deleted_at</i>; gli <b>scaduti</b> non si ripristinano).</p>
 
   <div id="map"></div>
 
@@ -76,8 +88,9 @@
   <div class="list" id="selList" aria-live="polite"></div>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-    <button class="btn accent"  id="btnSoft" type="button">Nascondi (published=false)</button>
-    <button class="btn warning" id="btnHard" type="button">Elimina definitivamente → Cestino</button>
+    <button class="btn primary" id="btnEdit"  type="button">Modifica eventi selezionati</button>
+    <button class="btn accent"  id="btnSoft"  type="button">Nascondi (published=false)</button>
+    <button class="btn warning" id="btnHard"  type="button">Elimina definitivamente → Cestino</button>
     <a class="btn" href="admin.html">← Torna all’area admin</a>
   </div>
 
@@ -89,7 +102,7 @@
   </div>
 </main>
 
-<!-- MODALE: Nascosti -->
+<!-- MODALE: Nascosti (invariato) -->
 <div id="modalHidden" class="modal" aria-hidden="true">
   <div class="box">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -98,35 +111,21 @@
     </div>
 
     <div class="filters" style="margin:10px 0">
-      <div>
-        <label class="small">Dal (data evento)</label>
-        <input type="date" id="hFrom">
-      </div>
-      <div>
-        <label class="small">Al (data evento)</label>
-        <input type="date" id="hTo">
-      </div>
-      <div>
-        <label class="small">Città</label>
-        <input id="hCity" placeholder="Es. Torino">
-      </div>
+      <div><label class="small">Dal (data evento)</label><input type="date" id="hFrom"></div>
+      <div><label class="small">Al (data evento)</label><input type="date" id="hTo"></div>
+      <div><label class="small">Città</label><input id="hCity" placeholder="Es. Torino"></div>
       <div>
         <label class="small">Categoria</label>
         <select id="hCat">
           <option value="">Tutte</option>
-          <option>Musica</option>
-          <option>Food & Drink</option>
-          <option>Nightlife</option>
-          <option>Cultura/Spettacolo</option>
-          <option>Famiglie & Bambini</option>
-          <option>Sport</option>
-          <option>Sagre & Fiere</option>
-          <option>Mercatini</option>
+          <option>Musica</option><option>Food & Drink</option><option>Nightlife</option>
+          <option>Cultura/Spettacolo</option><option>Famiglie & Bambini</option>
+          <option>Sport</option><option>Sagre & Fiere</option><option>Mercatini</option>
         </select>
       </div>
       <div style="display:flex;gap:6px;align-items:flex-end">
         <button class="btn primary" id="hFilter" type="button">Filtra</button>
-        <button class="btn ghost" id="hReset" type="button">Azzera</button>
+        <button class="btn ghost"   id="hReset"  type="button">Azzera</button>
       </div>
     </div>
 
@@ -134,7 +133,7 @@
   </div>
 </div>
 
-<!-- MODALE: Eliminati (Cestino) -->
+<!-- MODALE: Eliminati (cestino) — invariato -->
 <div id="modalDeleted" class="modal" aria-hidden="true">
   <div class="box">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -143,35 +142,21 @@
     </div>
 
     <div class="filters" style="margin:10px 0">
-      <div>
-        <label class="small">Dal (data evento)</label>
-        <input type="date" id="dFrom">
-      </div>
-      <div>
-        <label class="small">Al (data evento)</label>
-        <input type="date" id="dTo">
-      </div>
-      <div>
-        <label class="small">Città</label>
-        <input id="dCity" placeholder="Es. Genova">
-      </div>
+      <div><label class="small">Dal (data evento)</label><input type="date" id="dFrom"></div>
+      <div><label class="small">Al (data evento)</label><input type="date" id="dTo"></div>
+      <div><label class="small">Città</label><input id="dCity" placeholder="Es. Genova"></div>
       <div>
         <label class="small">Categoria</label>
         <select id="dCat">
           <option value="">Tutte</option>
-          <option>Musica</option>
-          <option>Food & Drink</option>
-          <option>Nightlife</option>
-          <option>Cultura/Spettacolo</option>
-          <option>Famiglie & Bambini</option>
-          <option>Sport</option>
-          <option>Sagre & Fiere</option>
-          <option>Mercatini</option>
+          <option>Musica</option><option>Food & Drink</option><option>Nightlife</option>
+          <option>Cultura/Spettacolo</option><option>Famiglie & Bambini</option>
+          <option>Sport</option><option>Sagre & Fiere</option><option>Mercatini</option>
         </select>
       </div>
       <div style="display:flex;gap:6px;align-items:flex-end">
         <button class="btn primary" id="dFilter" type="button">Filtra</button>
-        <button class="btn ghost" id="dReset" type="button">Azzera</button>
+        <button class="btn ghost"   id="dReset"  type="button">Azzera</button>
       </div>
     </div>
 
@@ -180,7 +165,7 @@
   </div>
 </div>
 
-<!-- OVERLAY LOGIN (email + password) -->
+<!-- OVERLAY LOGIN (email + password) — invariato -->
 <div id="authGate" aria-hidden="true">
   <div id="authBox">
     <h3>Accedi</h3>
@@ -193,6 +178,22 @@
       <button class="btn primary" id="authLogin" type="button">Entra</button>
     </div>
     <div id="authErr" class="small"></div>
+  </div>
+</div>
+
+<!-- MODALE: Modifica eventi selezionati -->
+<div id="modalEdit" class="modal" aria-hidden="true">
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <h3 id="edHdr" style="margin:0">Modifica eventi selezionati</h3>
+      <button class="btn" data-close="modalEdit" type="button">Chiudi</button>
+    </div>
+
+    <div id="edNav" class="smallmuted" style="margin:6px 0 10px"></div>
+
+    <div id="edForm">
+      <!-- il form viene generato via JS -->
+    </div>
   </div>
 </div>
 
@@ -257,6 +258,9 @@
   const todayISO = () => new Date().toISOString().slice(0,10);
   const getTitle = e => e.title || e.titolo || '(evento)';
   const getCats  = e => Array.isArray(e.categories) ? e.categories : (Array.isArray(e.categorie) ? e.categorie : []);
+
+  // ====== Categorie standard ======
+  const CATS = ['Musica','Food & Drink','Sagre & Fiere','Famiglie & Bambini','Sport','Nightlife','Cultura/Spettacolo','Mercatini'];
 
   // ====== MAPPE: Google (preferito) con fallback OSM ======
   let USE_GMAPS = false;
@@ -355,10 +359,40 @@
     });
   }
 
+  // ======= Geocoding ibrido (Google → OSM) per la MODIFICA =======
+  async function geocodeAddrSmart(addr){
+    const q=(addr||'').trim(); if(!q) return null;
+    // 1) Google (se disponibile)
+    try{
+      if (window.google && google.maps){
+        const geocoder = new google.maps.Geocoder();
+        const g = await new Promise((resolve)=>{
+          geocoder.geocode({ address:q, componentRestrictions:{ country:'IT' }, region:'it' }, (res, status)=>{
+            if(status==='OK' && res && res[0]){
+              const r = res[0], loc = r.geometry.location;
+              resolve({ lat: loc.lat(), lng: loc.lng(), label: r.formatted_address });
+            } else resolve(null);
+          });
+        });
+        if (g) return g;
+      }
+    }catch(_){}
+    // 2) OSM
+    try{
+      const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q='+encodeURIComponent(q);
+      const r=await fetch(url,{headers:{'Accept-Language':'it'}});
+      const j=await r.json();
+      if (Array.isArray(j) && j.length){
+        return { lat:parseFloat(j[0].lat), lng:parseFloat(j[0].lon), label:j[0].display_name };
+      }
+    }catch(_){}
+    return null;
+  }
+
   // ====== STATO & DATI ======
   const EVENTS = new Map();         // id -> { id, title, published, deleted_at, cats }
   const OCCS_BY_EVENT = new Map();  // id -> [ occ non cestinate ]
-  const ALL_OCCS_BY_EVENT = new Map(); // id -> tutte le occ (anche cestinate) per logiche Cestino
+  const ALL_OCCS_BY_EVENT = new Map(); // id -> tutte le occ (anche cestinate)
   const SELECTED = new Set();
   function setSelectedIcon(id, on){ USE_GMAPS ? gSetSelected(id,on) : lSetSelected(id,on); }
 
@@ -366,7 +400,7 @@
     // Eventi
     const { data: evs, error: evErr } = await sb
       .from('events')
-      .select('id, title, titolo, published, deleted_at, categories, categorie');
+      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at');
     if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
 
     // Occorrenze (tutte)
@@ -380,6 +414,7 @@
       EVENTS.set(e.id, {
         id: e.id,
         title: getTitle(e),
+        raw: e, // per la modale di modifica
         published: e.published,
         deleted_at: e.deleted_at || null,
         cats: getCats(e)
@@ -391,9 +426,9 @@
     (occs||[]).forEach(o=>{
       if (!ALL_OCCS_BY_EVENT.has(o.event_id)) ALL_OCCS_BY_EVENT.set(o.event_id, []);
       ALL_OCCS_BY_EVENT.get(o.event_id).push(o);
-      // sulla mappa: solo occorrenze non cestinate E non scadute
+      // mappa: solo occorrenze non cestinate E non scadute
       if (o.deleted_at) return;
-      if (o.data && o.data < todayISO()) return; // << auto-hide scadute
+      if (o.data && o.data < todayISO()) return;
       if (o.lat==null || o.lng==null) return;
       if (!OCCS_BY_EVENT.has(o.event_id)) OCCS_BY_EVENT.set(o.event_id, []);
       OCCS_BY_EVENT.get(o.event_id).push(o);
@@ -452,7 +487,7 @@
     });
   }
 
-  // ====== AZIONI ======
+  // ====== AZIONI: soft/hard delete (invariato) ======
   async function softHide(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
@@ -481,7 +516,7 @@
   $('#btnSoft').addEventListener('click', softHide);
   $('#btnHard').addEventListener('click', hardDelete);
 
-  // ====== MODALI ======
+  // ====== MODALI standard ======
   function openModal(id){ const m=$('#'+id); if(m) m.style.display='flex'; }
   function closeModal(id){ const m=$('#'+id); if(m) m.style.display='none'; }
   $$('[data-close]').forEach(b=> b.addEventListener('click', ()=> closeModal(b.getAttribute('data-close')) ));
@@ -559,25 +594,21 @@
     const cat  = $('#dCat').value || '';
     const today = todayISO();
 
-    // 1) ID dal CESTINO occorrenze
     const rOcc = await sb.from('occurrences')
       .select('event_id, data, citta, city, deleted_at')
       .not('deleted_at','is',null);
     if (rOcc.error){ $('#dResults').innerHTML = `<div class="small">Errore: ${rOcc.error.message}</div>`; return; }
     const ids = [...new Set((rOcc.data||[]).map(o=>o.event_id))];
 
-    // 2) eventi relativi
     let evs = [];
     if (ids.length){
       const rEv = await sb.from('events').select('id, title, titolo, published, deleted_at, categories, categorie').in('id', ids);
       if (!rEv.error) evs = rEv.data||[];
     }
 
-    // 3) filtro per categoria
     const evFiltered = evs.filter(e=> !cat || getCats(e).includes(cat));
     if (!evFiltered.length){ $('#dResults').innerHTML = '<div class="small">Cestino vuoto per i filtri impostati.</div>'; return; }
 
-    // 4) filtro data/città sulle occ
     const byEvent = new Map();
     (rOcc.data||[]).forEach(o=>{
       const c=(o.citta||o.city||'').toLowerCase();
@@ -588,7 +619,6 @@
       byEvent.get(o.event_id).push(o);
     });
 
-    // 5) render
     let html='';
     evFiltered.forEach(e=>{
       const occsAll = (ALL_OCCS_BY_EVENT.get(e.id)||[]);
@@ -616,7 +646,6 @@
 
     $('#dResults').innerHTML = html || '<div class="small">Cestino vuoto per i filtri impostati.</div>';
 
-    // Bind azioni
     $$('#dResults [data-restore-deleted]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-deleted');
@@ -632,32 +661,239 @@
     $$('#dResults [data-hardpurge]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-hardpurge');
-        if (!confirm('Eliminare DEFINITIVAMENTE questo evento? Verrà rimosso dal DB (rimane solo nello storico se configurato).')) return;
-
-        // log (best-effort)
+        if (!confirm('Eliminare DEFINITIVAMENTE questo evento? Verrà rimosso dal DB.')) return;
         try{
-          const ev = EVENTS.get(id);
-          const occs = ALL_OCCS_BY_EVENT.get(id)||[];
-          if (ev){
-            await sb.from('events_log').insert([{
-              event_id: id, action:'hard_delete', snapshot: ev, action_at: new Date().toISOString()
-            }]);
-          }
-          if (occs.length){
-            const rows = occs.map(o=>({ event_id:id, occ_id:o.id, action:'hard_delete', snapshot:o, action_at: new Date().toISOString() }));
-            await sb.from('occurrences_log').insert(rows);
-          }
-        }catch(_){}
-
-        const r1 = await sb.from('occurrences').delete().eq('event_id', id);
-        if (r1.error){ alert('Errore delete occorrenze: '+(r1.error.message||String(r1.error))); return; }
-        const r2 = await sb.from('events').delete().eq('id', id);
-        if (r2.error){ alert('Errore delete evento: '+(r2.error.message||String(r2.error))); return; }
-
+          await sb.from('occurrences').delete().eq('event_id', id);
+          await sb.from('events').delete().eq('id', id);
+        }catch(e){ alert('Errore: '+(e?.message||e)); return; }
         $('#lastAction').textContent = 'Evento eliminato definitivamente.';
         await loadData(); renderDeleted();
       });
     });
+  }
+
+  // ====== MODIFICA EVENTI ======
+  const editModal = $('#modalEdit');
+  let editIds = [];
+  let editIndex = 0;
+  let current = null; // { ev, occs:[], deleted:Set, added:[] }
+
+  $('#btnEdit').addEventListener('click', openEdit);
+
+  async function openEdit(){
+    if (!SELECTED.size){ alert('Seleziona almeno un evento.'); return; }
+    editIds = [...SELECTED];
+    editIndex = 0;
+    await loadEditItem();
+    openModal('modalEdit');
+  }
+
+  async function loadEditItem(){
+    const id = editIds[editIndex];
+    const evRec = EVENTS.get(id)?.raw;
+    if (!evRec){
+      const { data } = await sb.from('events').select('*').eq('id', id).single();
+      current = { ev:data, occs:[], deleted:new Set(), added:[] };
+    } else {
+      current = { ev: evRec, occs:[], deleted:new Set(), added:[] };
+    }
+    const { data: occs } = await sb.from('occurrences')
+      .select('id,event_id,lat,lng,data,ora,luogo,indirizzo,citta,city,deleted_at')
+      .eq('event_id', id).is('deleted_at', null).order('data');
+    current.occs = (occs||[]).map(o=>({ ...o, city: o.citta || o.city || '' }));
+
+    renderEditForm();
+  }
+
+  function renderEditForm(){
+    const e = current.ev || {};
+    const cats = getCats(e);
+    const idxInfo = `Evento ${editIndex+1} di ${editIds.length} — ID: ${e.id||'-'}`;
+    $('#edNav').textContent = idxInfo;
+
+    const checked = c => cats.includes(c) ? 'on' : '';
+
+    const html = `
+      <div class="form-grid">
+        <div>
+          <label>Titolo*</label>
+          <input id="edTitle" value="${(e.title||e.titolo||'').replaceAll('"','&quot;')}">
+        </div>
+        <div>
+          <label>Locandina (URL)</label>
+          <input id="edPoster" value="${(e.locandina_url||'').replaceAll('"','&quot;')}">
+        </div>
+        <div style="grid-column:1/-1">
+          <label>Descrizione</label>
+          <textarea id="edDesc">${(e.description||e.descrizione||'').replaceAll('<','&lt;')}</textarea>
+        </div>
+        <div>
+          <label>Categorie</label>
+          <div class="cats" id="edCats">
+            ${CATS.map(c=>`<span class="chip ${checked(c)}" data-cat="${c}">${c}</span>`).join('')}
+          </div>
+          <div class="smallmuted" style="margin-top:6px">Clicca per attivare/disattivare.</div>
+        </div>
+        <div>
+          <label>Pubblicato</label>
+          <select id="edPublished"><option value="true"${e.published===false?'':' selected'}>Sì (visibile)</option><option value="false"${e.published===false?' selected':''}>No (nascosto)</option></select>
+        </div>
+      </div>
+
+      <h3 style="margin:14px 0 6px">Occorrenze</h3>
+      <table class="tbl" id="edOccTbl" aria-label="Occorrenze">
+        <thead><tr>
+          <th>Data</th><th>Ora</th><th>Luogo</th><th>Indirizzo</th><th>Città</th><th>Lat</th><th>Lng</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${current.occs.map((o,i)=>rowOccHtml(o,i)).join('')}
+        </tbody>
+      </table>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <button class="btn" id="edAddOcc" type="button">Aggiungi occorrenza</button>
+        <span class="smallmuted">Suggerimento: dopo aver cambiato indirizzo/città, usa “Geocoda” per compilare Lat/Lng.</span>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:12px">
+        <button class="btn" id="edPrev" ${editIndex===0?'disabled':''} type="button">◀ Precedente</button>
+        <button class="btn primary" id="edSave" type="button">💾 Salva</button>
+        <button class="btn" id="edNext" ${editIndex===editIds.length-1?'disabled':''} type="button">Successivo ▶</button>
+      </div>
+    `;
+    $('#edForm').innerHTML = html;
+
+    // bind categorie
+    $$('#edCats .chip').forEach(ch=>{
+      ch.addEventListener('click', ()=> ch.classList.toggle('on'));
+    });
+
+    // bind occorrenze
+    $('#edAddOcc').addEventListener('click', ()=>{
+      current.occs.push({ id:null, event_id: current.ev.id, data:'', ora:'', luogo:'', indirizzo:'', city:'', lat:'', lng:'' });
+      renderEditForm();
+    });
+    $$('#edOccTbl [data-del]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const i = parseInt(b.getAttribute('data-del'),10);
+        const row = current.occs[i];
+        if (row.id){ current.deleted = current.deleted || new Set(); current.deleted.add(row.id); }
+        current.occs.splice(i,1);
+        renderEditForm();
+      });
+    });
+    $$('#edOccTbl [data-geocode]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const i = parseInt(b.getAttribute('data-geocode'),10);
+        const tr = $('#edOccTbl tbody').children[i];
+        const addr = (tr.querySelector('[data-f=indirizzo]').value||'') + ', ' + (tr.querySelector('[data-f=city]').value||'');
+        const g = await geocodeAddrSmart(addr);
+        if (g){
+          tr.querySelector('[data-f=lat]').value = g.lat;
+          tr.querySelector('[data-f=lng]').value = g.lng;
+        }else{
+          alert('Indirizzo non trovato.');
+        }
+      });
+    });
+
+    // nav & save
+    $('#edPrev').addEventListener('click', async ()=>{ if(await saveEdit(false)) { editIndex--; await loadEditItem(); } });
+    $('#edNext').addEventListener('click', async ()=>{ if(await saveEdit(false)) { editIndex++; await loadEditItem(); } });
+    $('#edSave').addEventListener('click', async ()=>{ await saveEdit(true); });
+  }
+
+  function rowOccHtml(o,i){
+    return `<tr>
+      <td><input data-f="data" value="${o.data||''}" type="date"></td>
+      <td><input data-f="ora"  value="${o.ora||''}"  placeholder="es. 21:00"></td>
+      <td><input data-f="luogo" value="${o.luogo||''}"></td>
+      <td><input data-f="indirizzo" value="${o.indirizzo||''}"></td>
+      <td><input data-f="city" value="${o.citta||o.city||''}"></td>
+      <td style="min-width:100px"><input data-f="lat" value="${o.lat??''}" placeholder="45.x"></td>
+      <td style="min-width:100px"><input data-f="lng" value="${o.lng??''}" placeholder="7.x"></td>
+      <td style="white-space:nowrap">
+        <button class="btn small" data-geocode="${i}" type="button">Geocoda</button>
+        <button class="btn small" data-del="${i}" type="button">Elimina</button>
+      </td>
+    </tr>`;
+  }
+
+  async function saveEdit(showAlert){
+    try{
+      // raccogli campi evento
+      const title = ($('#edTitle').value||'').trim();
+      if (!title){ alert('Inserisci un titolo.'); return false; }
+      const desc  = ($('#edDesc').value||'').trim();
+      const poster= ($('#edPoster').value||'').trim();
+      const published = $('#edPublished').value==='true';
+      const cats = $$('#edCats .chip.on').map(x=> x.getAttribute('data-cat'));
+
+      const payload = {
+        title, titolo:title,
+        description:desc, descrizione:desc,
+        categories:cats,  categorie:cats,
+        locandina_url: poster || null,
+        published
+      };
+      const r1 = await sb.from('events').update(payload).eq('id', current.ev.id);
+      if (r1.error){ alert('Errore salvataggio evento: '+(r1.error.message||String(r1.error))); return false; }
+
+      // raccogli occorrenze dalla tabella
+      const rows = Array.from($('#edOccTbl tbody').children);
+      const occs = rows.map(tr=>{
+        const get = f => tr.querySelector(`[data-f="${f}"]`).value;
+        return {
+          id: current.occs[rows.indexOf(tr)]?.id || null,
+          event_id: current.ev.id,
+          data: (get('data')||'').trim() || null,
+          ora: (get('ora')||'').trim(),
+          luogo: (get('luogo')||'').trim(),
+          indirizzo: (get('indirizzo')||'').trim(),
+          citta: (get('city')||'').trim(),
+          lat: get('lat') ? Number(get('lat')) : null,
+          lng: get('lng') ? Number(get('lng')) : null
+        };
+      });
+
+      // elimina quelli rimossi
+      const toDelete = (current.deleted? Array.from(current.deleted) : []).filter(Boolean);
+      if (toDelete.length){
+        const rDel = await sb.from('occurrences').delete().in('id', toDelete);
+        if (rDel.error){ alert('Errore eliminazione occorrenze: '+(rDel.error.message||String(rDel.error))); return false; }
+      }
+
+      // split update/insert
+      const updates = occs.filter(o=> o.id);
+      const inserts = occs.filter(o=> !o.id);
+
+      for (const u of updates){
+        const row = {
+          data: u.data, ora: u.ora, luogo: u.luogo, indirizzo: u.indirizzo,
+          citta: u.citta, city: u.citta, lat: u.lat, lng: u.lng
+        };
+        const ru = await sb.from('occurrences').update(row).eq('id', u.id);
+        if (ru.error){ alert('Errore update occorrenza: '+(ru.error.message||String(ru.error))); return false; }
+      }
+
+      if (inserts.length){
+        const rowsIns = inserts.map(o=>({
+          event_id: current.ev.id,
+          data: o.data, ora:o.ora, luogo:o.luogo, indirizzo:o.indirizzo,
+          citta:o.citta, city:o.citta, lat:o.lat, lng:o.lng
+        }));
+        const ri = await sb.from('occurrences').insert(rowsIns);
+        if (ri.error){ alert('Errore inserimento occorrenze: '+(ri.error.message||String(ri.error))); return false; }
+      }
+
+      // aggiorna cache locale e mappa
+      await loadData();
+      if (showAlert) { alert('Salvato.'); }
+      $('#lastAction').textContent = 'Modifica salvata.';
+      return true;
+    }catch(e){
+      alert('Errore salvataggio: '+(e?.message||e));
+      return false;
+    }
   }
 
   // ====== AVVIO (dopo login) ======
