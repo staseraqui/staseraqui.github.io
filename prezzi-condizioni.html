@@ -38,6 +38,8 @@
       padding:6px 10px;border-radius:999px;margin:6px 6px 0 0;font-size:13px}
     .faq h3{margin:12px 0 6px}
     .fineprint{color:var(--muted);font-size:13px;margin-top:6px}
+    .defs li{margin:6px 0}
+    .eg{background:#0f1c2d;border:1px dashed rgba(255,255,255,.25);padding:8px;border-radius:8px;font-size:14px}
   </style>
 
   <!-- Dati strutturati -->
@@ -80,7 +82,7 @@
       <div class="plan-title">Evento singolo</div>
       <div class="price"><span id="pSingle">—</span>€</div>
       <ul class="incl">
-        <li>1 occorrenza (una data)</li>
+        <li>1 data (un solo giorno) in una location</li>
         <li>Locandina/foto visibile nel dettaglio evento</li>
         <li>Geolocalizzazione su mappa + calcolo percorso</li>
         <li>Pubblicazione immediata dopo il pagamento</li>
@@ -88,21 +90,21 @@
       <div class="cta-wrap">
         <a class="btn primary" href="pubblica-evento.html">Pubblica evento singolo</a>
       </div>
-      <div class="fineprint">Se durante l’inserimento aggiungi altre date, il sistema passa automaticamente al piano “Evento multiplo”.</div>
+      <div class="fineprint">Se inserisci un periodo “dal/al” o più date, il sistema passa automaticamente al piano “Evento multiplo”.</div>
     </div>
 
     <div class="price-card">
       <div class="plan-title">Evento multiplo</div>
       <div class="price"><span id="pMulti">—</span>€</div>
       <ul class="incl">
-        <li>2 o più occorrenze (max 4)</li>
+        <li>2 o più date <b>oppure</b> un periodo continuativo di più giorni</li>
         <li>Stesse funzioni del piano singolo</li>
-        <li>Ideale per rassegne, weekend, mini-tour</li>
+        <li>Ideale per rassegne, festival, weekend lunghi, mini-tour</li>
       </ul>
       <div class="cta-wrap">
         <a class="btn accent" href="pubblica-evento.html">Pubblica evento multiplo</a>
       </div>
-      <div class="fineprint">Il piano viene scelto automaticamente in base al numero di occorrenze inserite.</div>
+      <div class="fineprint">Il piano viene scelto automaticamente in base alle date inserite.</div>
     </div>
   </div>
 
@@ -112,6 +114,31 @@
     <div class="badge">Fattura elettronica</div>
     <div class="badge">Supporto via email</div>
     <div class="badge">Partner & codici sconto</div>
+  </div>
+
+  <!-- ISTRUZIONI -->
+  <div class="card" id="istruzioni">
+    <h2 class="block-title" style="margin-top:0">Istruzioni: evento singolo vs multiplo</h2>
+    <ul class="defs">
+      <li><b>Evento singolo</b>: una sola data (un giorno) e una sola location.</li>
+      <li><b>Evento multiplo</b> quando:
+        <ul>
+          <li>inserisci 2 o più date distinte (anche nella stessa location);</li>
+          <li>oppure inserisci un <b>periodo continuo “dal/al”</b> che copre 2 o più giorni;</li>
+          <li>oppure l’evento si svolge in <b>location diverse</b>.</li>
+        </ul>
+      </li>
+    </ul>
+    <div class="eg" style="margin-top:8px">
+      <p style="margin:0 0 6px"><b>Esempi</b></p>
+      <ul style="margin:0 0 0 18px">
+        <li>“Concerto venerdì 12” → <b>singolo</b> (1 data).</li>
+        <li>“Sagra 20–24 giugno” (5 giorni continui) → <b>multiplo</b> (usa un’unica occorrenza con “Dal” 20/06 e “Al” 24/06).</li>
+        <li>“Rassegna i quattro sabati di maggio” → <b>multiplo</b> (4 occorrenze con “Dal/Al” uguali a ciascun sabato).</li>
+      </ul>
+    </div>
+    <p class="fineprint">Nota tecnica: per periodi molto lunghi potremmo chiederti di suddividerli in più annunci (ad es. per settimane). Se hai dubbi scrivi a <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a>.</p>
+    <div class="cta-wrap"><a class="btn" href="pubblica-evento.html">Torna alla pubblicazione</a></div>
   </div>
 
   <!-- Condizioni -->
@@ -132,13 +159,13 @@
     <h2 class="block-title" style="margin-top:0">Domande frequenti</h2>
 
     <h3>Devo scegliere il piano prima?</h3>
-    <p>No: nella pagina “Pubblica evento” inserisci le date. Se è 1 data → “Evento singolo”, se sono 2+ date (max 4) → “Evento multiplo”. Il prezzo mostrato qui è solo informativo.</p>
+    <p>No: nella pagina “Pubblica evento” inserisci le date o il periodo. Se è 1 giorno → “Evento singolo”, se sono 2+ giorni o più date → “Evento multiplo”. Il prezzo mostrato qui è solo informativo.</p>
 
     <h3>Posso caricare più locandine?</h3>
     <p>Al momento 1 locandina per evento. Se hai giorni molto diversi tra loro, crea eventi separati.</p>
 
-    <h3>Posso annullare un evento già pubblicato?</h3>
-    <p>Sì, contattaci a <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a>. A breve introdurremo l’annullamento self-service per gli organizzatori.</p>
+    <h3>Periodi lunghi non ci stanno in un solo annuncio?</h3>
+    <p>Per limiti tecnici del sistema di pagamento, periodi molto estesi potrebbero non rientrare in un singolo annuncio. In quel caso ti chiediamo di suddividerli (es. per settimane) o di contattarci a <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a>.</p>
   </div>
 
   <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:14px 0 40px">
