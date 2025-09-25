@@ -5,7 +5,7 @@ Compilare i **campi DA COMPILARE** e salvare.
 | Area | Fornitore | Scopo | Note / Dati |
 |------|-----------|-------|-------------|
 | Dominio | Aruba | Registrar dominio | Dominio: **staseraqui.it** |
-| DNS | **DA COMPILARE** (Aruba/Cloudflare) | Risoluzione DNS | Indicare dove puntano A/AAAA/CNAME (root e www) |
+| DNS | **Cloudflare** (Aruba/Cloudflare) | Risoluzione DNS | Indicare dove puntano A/AAAA/CNAME (root e www) |
 | Hosting statico | **DA COMPILARE** | Hosting sito | Es. GitHub Pages / Cloudflare Pages |
 | Supabase | supabase.com | DB Postgres, Storage, Edge Functions | Project: `rubdzlnolxcgpjklfggk` — URL: `https://rubdzlnolxcgpjklfggk.supabase.co` |
 | Stripe | stripe.com | Pagamenti | Prezzi: `STRIPE_PRICE_SINGLE` / `STRIPE_PRICE_MULTI` (Price ID); Webhook: **DA COMPILARE (se usato)** |
