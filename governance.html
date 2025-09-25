@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Governance & Ownership — Stasera Qui</title>
+  <link rel="canonical" href="https://www.staseraqui.it/governance.html">
+  <meta name="robots" content="index,follow">
+  <meta name="description" content="Informazioni su proprietà del dominio, gestione tecnica e fornitori del servizio Stasera Qui. Contatti ufficiali e prova di ownership.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Governance & Ownership — Stasera Qui">
+  <meta property="og:description" content="Proprietà del dominio, gestione tecnica, fornitori, contatti ufficiali e prova di ownership.">
+  <meta property="og:url" content="https://www.staseraqui.it/governance.html">
+  <meta property="og:site_name" content="Stasera Qui">
+  <meta property="og:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Governance & Ownership — Stasera Qui">
+  <meta name="twitter:description" content="Proprietà del dominio, gestione tecnica, fornitori, contatti ufficiali e prova di ownership.">
+  <meta name="twitter:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
+
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=23">
+  <style>
+    .kpi{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+    @media (max-width:820px){ .kpi{grid-template-columns:1fr} }
+    .card h3{margin:0 0 6px}
+    .muted{color:var(--muted)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .list-tight li{margin:6px 0}
+  </style>
+
+  <!-- Dati strutturati -->
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"AboutPage",
+    "name":"Governance & Ownership — Stasera Qui",
+    "url":"https://www.staseraqui.it/governance.html",
+    "isPartOf":{"@type":"WebSite","name":"Stasera Qui","url":"https://www.staseraqui.it/"},
+    "publisher":{"@type":"Organization","name":"Stasera Qui"}
+  }
+  </script>
+
+  <!-- GA4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SDBGY51C46"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-SDBGY51C46');</script>
+</head>
+<body>
+<header class="header">
+  <a href="index.html" class="logo" aria-label="Stasera Qui - home">
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
+      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
+      <circle cx="32" cy="24" r="9" fill="#ffffff"/>
+    </svg>
+    <span class="wordmark">stasera qui</span>
+  </a>
+</header>
+
+<main class="container">
+  <h1>Governance & Ownership</h1>
+  <p class="muted">Questa pagina riepiloga proprietà del dominio, gestione tecnica, fornitori e contatti ufficiali. Include un collegamento alla prova di proprietà tecnica del dominio.</p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Proprietà del dominio e del sito</h2>
+    <ul class="list-tight">
+      <li><b>Dominio:</b> <span class="mono">staseraqui.it</span></li>
+      <li><b>Registrar del dominio:</b> Aruba</li>
+      <li><b>DNS attivi:</b> Cloudflare (solo DNS)</li>
+      <li><b>Hosting del sito:</b> GitHub Pages (<span class="mono">www.staseraqui.it</span>)</li>
+      <li><b>Prova tecnica di ownership:</b> <a href="/.well-known/ownership.txt" target="_blank" rel="noopener">/.well-known/ownership.txt</a></li>
+    </ul>
+  </div>
+
+  <div class="kpi">
+    <div class="card">
+      <h3>Contatti ufficiali</h3>
+      <ul class="list-tight">
+        <li><b>Email info:</b> <a href="mailto:info@staseraqui.it">info@staseraqui.it</a></li>
+        <li><b>Email eventi:</b> <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a></li>
+      </ul>
+      <p class="small muted">Per richieste legali/amministrative, scrivi a uno degli indirizzi sopra indicando l’oggetto.</p>
+    </div>
+
+    <div class="card">
+      <h3>Piattaforme usate</h3>
+      <ul class="list-tight">
+        <li><b>Supabase</b> — database, storage immagini ed edge functions</li>
+        <li><b>Stripe</b> — pagamenti online e fatturazione</li>
+        <li><b>Resend</b> — invio email transazionali</li>
+        <li><b>Google Analytics</b> — statistiche di visita</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Trasparenza e tracciabilità</h3>
+    <ul class="list-tight">
+      <li>Policy di sicurezza e accesso al database applicate tramite Row-Level Security (RLS) in Supabase.</li>
+      <li>Pagamenti gestiti da Stripe; ricevute e fatture inviate via email.</li>
+      <li>File di prova ownership pubblicamente consultabile (link sopra).</li>
+    </ul>
+    <p class="small muted">Ulteriori dettagli tecnici o documentazione sono disponibili su richiesta motivata.</p>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:16px 0 36px">
+    <a class="btn" href="index.html">← Torna alla mappa</a>
+    <a class="btn" href="prezzi-condizioni.html">Prezzi & Condizioni</a>
+    <a class="btn" href="pubblica-evento.html">Pubblica un evento</a>
+  </div>
+</main>
+
+<footer class="page-footer">
+  <a href="termini-privacy.html" class="btn">Termini & Privacy</a>
+</footer>
+</body>
+</html>
