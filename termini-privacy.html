@@ -31,14 +31,8 @@
   {"@context":"https://schema.org","@type":"WebSite","name":"Stasera Qui","url":"https://www.staseraqui.it/","potentialAction":{"@type":"SearchAction","target":"https://www.staseraqui.it/?q={search_term_string}","query-input":"required name=search_term_string"}}
   </script>
 
-<!-- Google Analytics 4 -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-SDBGY51C46"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){ dataLayer.push(arguments); }
-  gtag('js', new Date());
-  gtag('config', 'G-SDBGY51C46');
-</script>   
+  <!-- ✅ Cookie banner / GA dopo consenso -->
+  <script src="assets/cookie-consent.js" defer></script>
 </head>
 <body>
 <header class="header">
@@ -85,7 +79,7 @@
   <p>Puoi richiedere accesso, rettifica, cancellazione, limitazione e portabilità scrivendo a <a href="mailto:info@staseraqui.it">info@staseraqui.it</a>.</p>
 
   <h2>8. Cookie</h2>
-  <p>Usiamo solo cookie tecnici essenziali per il funzionamento del sito; al momento non impieghiamo cookie di profilazione.</p>
+  <p>Usiamo cookie tecnici essenziali per il funzionamento del sito e Google Analytics solo previo tuo consenso, in forma aggregata. Puoi modificare le preferenze in qualsiasi momento dal link in fondo alla pagina.</p>
 
   <h2>9. Contatti</h2>
   <p>Email dedicata: <a href="mailto:info@staseraqui.it">info@staseraqui.it</a>.</p>
@@ -97,8 +91,8 @@
 </main>
 
 <footer class="page-footer">
-  <a href="index.html" class="btn">Home</a>
   <a href="contatti.html" class="btn">Contatti</a>
+  <a href="#" class="btn" id="cookieSettingsLink">Preferenze cookie</a>
 </footer>
 
 <noscript><p style="padding:12px;text-align:center">Per visualizzare il contenuto attiva JavaScript.</p></noscript>
