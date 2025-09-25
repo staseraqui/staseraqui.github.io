@@ -27,6 +27,7 @@
     .cartItem{background:#17304d;color:#d7f2ff;border:1px solid #2e6e8f;border-radius:10px;padding:6px 10px;display:flex;gap:8px;align-items:center}
     .cartItem b{white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
     .cartItem button{padding:6px 8px}
+    .help-inline{font-size:12px;color:#b8c2ce;margin-top:4px}
   </style>
 
   <!-- Config chiavi -->
@@ -77,9 +78,6 @@
     <div id="cartList"></div>
   </div>
 
-  <!-- (resto del tuo markup invariato) -->
-  <!-- ... TUTTO IDENTICO al file che mi hai passato ... -->
-  <!-- Ho lasciato intatti form, script e logica del carrello/checkout -->
   <div class="card">
     <h2 style="margin-top:0">Perché pubblicare su Stasera Qui?</h2>
     <ul style="margin-top:6px">
@@ -117,23 +115,11 @@
       </div>
     </div>
 
-    <h3 class="block-title">Prenotazione / Contatto</h3>
-    <div id="contattiWrap">
-      <div class="grid contact">
-        <div><label>Nome referente</label><input class="ref_name" placeholder="Es. Laura Bianchi"></div>
-        <div><label>Numero referente</label><input class="ref_phone" type="tel" placeholder="+39 333 1234567"></div>
-      </div>
-    </div>
-    <div style="margin-top:6px">
-      <button class="btn secondary" id="addContact" type="button">Aggiungi contatto</button>
-    </div>
+    <h3 class="block-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Occorrenze</span>
+      <a class="btn secondary" id="howBtn" href="prezzi-condizioni.html#istruzioni" target="_blank" rel="noopener">Cos’è evento singolo/multiplo?</a>
+    </h3>
 
-    <div style="margin-top:10px">
-      <label for="descrizione">Descrizione breve (max 400)*</label>
-      <textarea id="descrizione" maxlength="400" required placeholder="Due righe chiare: cosa succede, per chi è, dettagli utili." style="min-height:240px"></textarea>
-    </div>
-
-    <h3 class="block-title">Occorrenze</h3>
     <div id="occWrap">
       <div class="occ card">
         <div class="grid">
@@ -142,11 +128,18 @@
         </div>
         <div class="grid">
           <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>
-          <div><label>Data*</label><input class="data" type="date"></div>
+          <div>
+            <label>Dal*</label>
+            <input class="dal" type="date">
+            <div class="help-inline">Se l’evento dura più giorni, compila anche “Al”.</div>
+          </div>
         </div>
         <div class="grid">
+          <div>
+            <label>Al (facoltativo)</label>
+            <input class="al" type="date">
+          </div>
           <div><label>Orario*</label><input class="ora" type="time"></div>
-          <div></div>
         </div>
       </div>
     </div>
@@ -289,10 +282,10 @@
       <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>\
     </div><div class="grid">\
       <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>\
-      <div><label>Data*</label><input class="data" type="date"></div>\
+      <div><label>Dal*</label><input class="dal" type="date"><div class="help-inline">Compila anche “Al” se dura più giorni</div></div>\
     </div><div class="grid">\
+      <div><label>Al (facoltativo)</label><input class="al" type="date"></div>\
       <div><label>Orario*</label><input class="ora" type="time"></div>\
-      <div style="display:flex;align-items:flex-end;justify-content:flex-end"><button type="button" class="btn secondary del-btn">Elimina occorrenza</button></div>\
     </div>';
     wrapO.appendChild(d);
   });
@@ -306,6 +299,16 @@
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
   function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
+  function toISO(d){ try{ return new Date(d+'T00:00:00').toISOString().slice(0,10); }catch(_){ return d; } }
+  function datesBetweenInclusive(from, to){
+    const res=[]; if(!from) return res;
+    const start = new Date(from+'T00:00:00'); const end = new Date((to||from)+'T00:00:00');
+    if(isNaN(start)||isNaN(end) || end < start) return res;
+    for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+      res.push(d.toISOString().slice(0,10));
+    }
+    return res;
+  }
 
   // Geocoding con Google Maps JS
   async function geocode(indirizzo, citta){
@@ -336,10 +339,13 @@
       const luogo=clean((b.querySelector('.luogo')||{}).value||'');
       const indirizzo=clean((b.querySelector('.indirizzo')||{}).value||'');
       const citta=clean((b.querySelector('.citta')||{}).value||'');
-      const data=(b.querySelector('.data')||{}).value||'';
+      const dal=(b.querySelector('.dal')||{}).value||'';
+      const al =(b.querySelector('.al')||{}).value||'';
       const ora=(b.querySelector('.ora')||{}).value||'';
-      if(!luogo||!indirizzo||!citta||!data||!ora){ occ.push(null); }
-      else { occ.push({luogo,indirizzo,citta,data,ora}); }
+      const from = dal, to = al || dal;
+      if(!luogo||!indirizzo||!citta||!from||!ora){ occ.push(null); }
+      else if (to && to < from){ occ.push(null); }
+      else { occ.push({luogo,indirizzo,citta,dal:from,al:to,ora}); }
     });
     if(occ.length===0 || occ.indexOf(null)>-1) return null;
     return occ;
@@ -354,13 +360,29 @@
     const anyCat=(document.getElementById('catBadges').children.length>0);
     const occ=collectOcc();
     if(!titolo||!descr||!file||!anyCat||!occ){
-      err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria* e completa tutte le occorrenze.'; return;
+      err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria* e completa tutte le occorrenze (date e orario).'; return;
     }
+
+    // espandi le date dei periodi
+    const expanded=[];
+    occ.forEach(o=>{
+      datesBetweenInclusive(o.dal, o.al).forEach(d=>{
+        expanded.push({ ...o, data:d });
+      });
+    });
+
     document.getElementById('pv_titolo').textContent=titolo;
     document.getElementById('pv_cats').textContent=badgesToArray().join(', ');
     document.getElementById('pv_descr').textContent=descr;
-    document.getElementById('pv_occ').textContent=occ.length+' occorrenza/e';
-    const ul=document.createElement('ul'); occ.forEach(o=>{ const li=document.createElement('li'); li.textContent=o.data+' ore '+o.ora+' — '+o.luogo+', '+o.indirizzo+', '+o.citta; ul.appendChild(li); });
+    document.getElementById('pv_occ').textContent=expanded.length+' occorrenza/e';
+
+    const ul=document.createElement('ul');
+    occ.forEach(o=>{
+      const r = (o.al && o.al!==o.dal) ? (`dal ${toISO(o.dal)} al ${toISO(o.al)}`) : (`${toISO(o.dal)}`);
+      const li=document.createElement('li');
+      li.textContent = `${r} — ore ${o.ora} — ${o.luogo}, ${o.indirizzo}, ${o.citta}`;
+      ul.appendChild(li);
+    });
     const list=document.getElementById('pv_list'); list.innerHTML=''; list.appendChild(ul);
     document.getElementById('preview').style.display='block';
     window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
@@ -402,7 +424,7 @@
       const file  =(document.getElementById('locandina').files||[])[0];
       const occ   =collectOcc();
       if(!titolo||!descr||!file||!occ||!catsArr.length){
-        err.textContent='Compila Titolo, Descrizione, Locandina, almeno 1 Categoria e tutte le occorrenze.'; return;
+        err.textContent='Compila Titolo, Descrizione, Locandina, almeno 1 Categoria e tutte le occorrenze (date e orario).'; return;
       }
 
       // Upload locandina
@@ -414,15 +436,18 @@
       const pub = sb.storage.from('event-images').getPublicUrl(fname);
       const locandina_url = pub?.data?.publicUrl || '';
 
-      // Geocoding per ogni occorrenza
-      const occFull=[];
+      // Geocoding per ogni occorrenza + espansione periodi a giorni
+      const occExpanded=[];
       for(const o of occ){
         const g = await geocode(o.indirizzo, o.citta);
-        if(!g){ err.textContent = `Indirizzo non trovato per: ${o.indirizzo}, ${o.citta}`; return; }
-        occFull.push({ ...o, lat: +g.lat.toFixed(6), lng: +g.lng.toFixed(6) });
+        const days = datesBetweenInclusive(o.dal, o.al);
+        if(!days.length){ err.textContent = `Intervallo date non valido per: ${o.luogo}, ${o.citta}`; return; }
+        for(const d of days){
+          occExpanded.push({ luogo:o.luogo, indirizzo:o.indirizzo, citta:o.citta, data:d, ora:o.ora, lat:+g.lat.toFixed(6), lng:+g.lng.toFixed(6) });
+        }
       }
 
-      const eventObj = { titolo, descr, prezzo, cats: catsArr, locandina_url, occ: occFull };
+      const eventObj = { titolo, descr, prezzo, cats: catsArr, locandina_url, occ: occExpanded };
       CART.push(eventObj);
       refreshCartUI();
 
@@ -443,11 +468,11 @@
           </div>
           <div class="grid">
             <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>
-            <div><label>Data*</label><input class="data" type="date"></div>
+            <div><label>Dal*</label><input class="dal" type="date"><div class="help-inline">Compila anche “Al” se dura più giorni</div></div>
           </div>
           <div class="grid">
+            <div><label>Al (facoltativo)</label><input class="al" type="date"></div>
             <div><label>Orario*</label><input class="ora" type="time"></div>
-            <div></div>
           </div>
         </div>`;
       document.getElementById('preview').style.display='none';
@@ -480,9 +505,12 @@
           la:+(+o.lat).toFixed(6), ln:+(+o.lng).toFixed(6)
         }));
         const occStr = JSON.stringify(occMin);
+
+        // ⚠️ Limite Stripe metadata (~500 char). Manteniamo un guard-rail.
         if(occStr.length>450){
-          throw new Error(`Troppo testo nelle occorrenze per “${ev.titolo}”. Riduci il numero di date (consigliato max 4).`);
+          throw new Error(`Periodo troppo lungo per un singolo annuncio. Dividi il periodo in più annunci (es. per settimane) oppure scrivi a eventi@staseraqui.it`);
         }
+
         const metadata = {
           titolo: (ev.titolo||'').slice(0,80),
           descr: (ev.descr||'').slice(0,180),
@@ -506,7 +534,7 @@
           'apikey': SUPABASE_ANON,
           'Authorization': 'Bearer ' + SUPABASE_ANON
         },
-        body: JSON.stringify({ bundle: bundleItems }) // <<< formato atteso dalla function
+        body: JSON.stringify({ bundle: bundleItems })
       });
 
       if(!resp.ok){
