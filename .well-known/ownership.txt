@@ -1,7 +1,1 @@
-# StaseraQui ownership proof (public)
-domain: staseraqui.it
-owner_name: Andrea Cordero
-owner_email: andrea.cordero@staseraqui.it
-issued: 2025-09-25
-method: DNS TXT _owner + public file /.well-known/ownership.txt
-purpose: proof of control and hand-off reference
+sq-ownership=v1; domain=staseraqui.it; owner_name=Andrea Cordero; owner_email=andrea.cordero@staseraqui.it; issued=2025-09-25; note=public-proof
