@@ -5,7 +5,7 @@
 
 ## Custodia chiavi / segreti
 - Password manager utilizzato: **DA COMPILARE**  
-- Titolare: Andrea (email: info@staseraqui.it)
+- Titolare: Andrea Cordero (email: info@staseraqui.it)
 
 ## Variabili ambiente (Edge Function / Supabase)
 Queste sono i **nomi** delle variabili; i valori sono nel password manager:
