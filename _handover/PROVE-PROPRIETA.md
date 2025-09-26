@@ -1,7 +1,7 @@
 # Prove di proprietà e controllo amministrativo
 
 ## Dominio
-- Registrar: **Aruba** (account: **DA COMPILARE**).
+- Registrar: **Aruba** (account: **3422114@aruba.it**).
 - File di prova proprietà: `https://www.staseraqui.it/.well-known/ownership.txt`  
   (contenuto: **StaseraQui — Owner: Andrea Cordero** oppure token tecnico).
 
