@@ -1,0 +1,4 @@
+Domain: staseraqui.it
+Owner: Andrea Cordero
+Proof created: 2025-09-26
+Note: copia interna del file .well-known/ownership.txt
