@@ -10,7 +10,7 @@ Questo dossier spiega **cos'è il progetto**, **dove vive**, **come si avvia in 
 - **Email**: Resend (invii transazionali, se abilitati).
 - **Geografia**: Google Maps (API JS per geocoding/route) + Leaflet/OSM.
 - **Analytics**: Google Analytics 4 (caricato solo dopo consenso cookie).
-- **Dominio**: staseraqui.it (registrar: Aruba). DNS attuale: **Cloudflare** (Aruba/Cloudflare).
+- **Dominio**: staseraqui.it (registrar: Aruba). DNS attuale: **Cloudflare**.
 
 ## Link rapidi
 - Sito: https://www.staseraqui.it/
@@ -23,7 +23,7 @@ Questo dossier spiega **cos'è il progetto**, **dove vive**, **come si avvia in 
 > **Nota**: le chiavi pubbliche sono in `assets/app-config.js`. Le chiavi segrete NON sono nel repo (vedi `ACCESSI.md`).
 
 ## Pubblicazione
-Il sito viene servito come statico (hosting **DA COMPILARE**: GitHub Pages / Cloudflare Pages / altro).  
+Il sito viene servito come statico (hosting **GitHub Pages**).  
 La pubblicazione avviene **commit → push** su `main` (o sul branch configurato per l’hosting).
 
 ## Dove sono i pezzi critici
