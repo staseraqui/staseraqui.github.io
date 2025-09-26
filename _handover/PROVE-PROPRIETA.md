@@ -7,7 +7,7 @@
 
 ## DNS
 - Esportare screenshot/CSV dei record DNS (root `@`, `www`, eventuali CNAME per servizi).
-- Indicare chi gestisce **attualmente** i DNS (Aruba/Cloudflare).
+- Indicare chi gestisce **attualmente** i DNS: Cloudflare.
 
 ## GitHub (codice)
 - Repo: **DA COMPILARE** (URL) — l’owner è **Andrea Cordero**.
