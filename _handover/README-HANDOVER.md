@@ -10,7 +10,7 @@ Questo dossier spiega **cos'è il progetto**, **dove vive**, **come si avvia in 
 - **Email**: Resend (invii transazionali, se abilitati).
 - **Geografia**: Google Maps (API JS per geocoding/route) + Leaflet/OSM.
 - **Analytics**: Google Analytics 4 (caricato solo dopo consenso cookie).
-- **Dominio**: staseraqui.it (registrar: Aruba). DNS attuale: **DA COMPILARE** (Aruba/Cloudflare).
+- **Dominio**: staseraqui.it (registrar: Aruba). DNS attuale: **Cloudflare** (Aruba/Cloudflare).
 
 ## Link rapidi
 - Sito: https://www.staseraqui.it/
@@ -34,4 +34,4 @@ La pubblicazione avviene **commit → push** su `main` (o sul branch configurato
 - **RLS/permessi**: funzioni `jwt_email()`, `is_admin()`, policies su tabelle pubbliche
 
 ## Contatti operativi
-- Referente: Andrea — info@staseraqui.it
+- Referente: Andrea Cordero — info@staseraqui.it
