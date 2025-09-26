@@ -4,7 +4,7 @@
 > Indicare **dove** sono custodite (es. password manager, cassaforte fisica, account titolare).
 
 ## Custodia chiavi / segreti
-- Password manager utilizzato: **DA COMPILARE**  
+- Password manager utilizzato: **Apple Password**  
 - Titolare: Andrea Cordero (email: info@staseraqui.it)
 
 ## Variabili ambiente (Edge Function / Supabase)
@@ -21,14 +21,14 @@ Queste sono i **nomi** delle variabili; i valori sono nel password manager:
 - `GOOGLE_MAPS_API_KEY` (frontend: in `assets/app-config.js` o su Pages come env pubblica)
 
 ## Accessi piattaforme
-- **Supabase**: utente: **DA COMPILARE** (email); 2FA: **DA COMPILARE**
-- **Stripe**: utente: **DA COMPILARE**; 2FA: **DA COMPILARE**
-- **Resend**: utente: **DA COMPILARE**
-- **Google Cloud (Maps)**: account: **DA COMPILARE**
-- **Google Analytics**: account: **DA COMPILARE**
-- **GitHub**: org/repo: **DA COMPILARE**
-- **Aruba** (registrar): account: **DA COMPILARE**
-- **Cloudflare** (se usato per DNS/Pages): account: **DA COMPILARE**
+- **Supabase**: utente: **info@staseraqui.it** (email); 2FA: **DA COMPILARE**
+- **Stripe**: utente: **andrea.cordero@staseraqui.it**; 2FA: **DA COMPILARE**
+- **Resend**: utente: **info@staseraqui.it**
+- **Google Cloud (Maps)**: account: **andrea.cordero75@gmail.com**
+- **Google Analytics**: account: **andrea.cordero75@gmail.com**
+- **GitHub**: org/repo: **staseraqui/staseraqui.github.io**
+- **Aruba** (registrar): account: **3422114@aruba.it**
+- **Cloudflare** (se usato per DNS/Pages): account: **andrea.cordero@staseraqui.it**
 
 ## Procedure rapide
 - **Rotazione chiave Stripe**: crea nuova secret → aggiorna env su Supabase Edge → ri-deploy → disattiva vecchia.
