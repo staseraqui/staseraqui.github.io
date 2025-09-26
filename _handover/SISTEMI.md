@@ -9,10 +9,10 @@ Compilare i **campi DA COMPILARE** e salvare.
 | Hosting statico | **GitHub Pages** | Hosting sito | Es. GitHub Pages / Cloudflare Pages |
 | Supabase | supabase.com | DB Postgres, Storage, Edge Functions | Project: `rubdzlnolxcgpjklfggk` — URL: `https://rubdzlnolxcgpjklfggk.supabase.co` |
 | Stripe | stripe.com | Pagamenti | Prezzi: `STRIPE_PRICE_SINGLE` / `STRIPE_PRICE_MULTI` (Price ID); Webhook: **(https://rubdzlnolxcgpjklfggk.functions.supabase.co/stripe-webhook)** |
-| Resend | resend.com | Email transazionali | Dominio verificato: **DA COMPILARE** |
+| Resend | resend.com | Email transazionali | Dominio verificato: **staseraqui.it** |
 | Google Maps | console.cloud.google.com | Geocoding / Directions | API key: conservata in `.env` (vedi ACCESSI.md) |
 | Google Analytics 4 | analytics.google.com | Analytics | ID proprietà: `G-SDBGY51C46` |
-| GitHub | github.com | Codice e versionamento | Repo: **DA COMPILARE (org/owner/repo)** |
+| GitHub | github.com | Codice e versionamento | Repo: **staseraqui/staseraqui.github.io** |
 
 ## Componenti applicative
 - **Bucket Storage**: `event-images`
