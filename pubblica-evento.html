@@ -307,21 +307,37 @@
     }
   });
 
-  // ====== UTILITY ======
+    // ====== UTILITY ======
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
   function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
-  function toISO(d){ try{ return new Date(d+'T00:00:00').toISOString().slice(0,10); }catch(_){ return d; } }
+
+  // NON convertire più in UTC: le stringhe YYYY-MM-DD restano come sono
+  function toISO(d){
+    return (typeof d==='string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) ? d : d;
+  }
+
+  // Espansione di un intervallo in giorni, in modo UTC-safe (niente salti di giorno)
   function datesBetweenInclusive(from, to){
-    const res=[]; if(!from) return res;
-    const start = new Date(from+'T00:00:00'); const end = new Date((to||from)+'T00:00:00');
-    if(isNaN(start)||isNaN(end) || end < start) return res;
-    for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
-      res.push(d.toISOString().slice(0,10));
+    const res = [];
+    if(!from) return res;
+
+    const m1 = String(from).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const m2 = String(to || from).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!m1 || !m2) return res;
+
+    let d   = new Date(Date.UTC(+m1[1], +m1[2]-1, +m1[3])); // UTC puro
+    const e = new Date(Date.UTC(+m2[1], +m2[2]-1, +m2[3]));
+
+    while (d.getTime() <= e.getTime()){
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth()+1).padStart(2,'0');
+      const day = String(d.getUTCDate()).padStart(2,'0');
+      res.push(`${y}-${m}-${day}`);
+      d.setUTCDate(d.getUTCDate()+1);
     }
     return res;
   }
-
   // Geocoding con Google Maps JS
   async function geocode(indirizzo, citta){
     await loadGoogleMaps();
