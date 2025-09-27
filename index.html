@@ -803,20 +803,35 @@
 
   // ===== FILTRI LOGICA =====
   function occPassesFilters(occ){
-    if (occ.data && occ.data < todayISO()) return false;
-    if (state.day==='oggi'   && occ.data!==todayISO()) return false;
-    if (state.day==='domani' && occ.data!==addDays(todayISO(),1)) return false;
-    if (state.day==='weekend'){ const w=weekday(occ.data); if (![6,0].includes(w)) return false; }
-    if (state.customDate && occ.data!==state.customDate) return false;
+  const today = todayISO();
 
-    if (state.cats.size>0){
-      const ev = EVENTS_BY_ID.get(occ.event_id);
-      const evCats = (ev?._cats || []);
-      if (!evCats.some(c=>state.cats.has(c))) return false;
-    }
-    return true;
+  // Escludi passato
+  if (occ.data && occ.data < today) return false;
+
+  // Se è stata scelta una data specifica, ha la precedenza
+  if (state.customDate && occ.data !== state.customDate) return false;
+
+  // Giorni rapidi
+  if (state.day === 'oggi'   && occ.data !== today) return false;
+  if (state.day === 'domani' && occ.data !== addDays(today, 1)) return false;
+
+  // Weekend = SOLO il prossimo sabato/domenica (quelli mostrati nel badge)
+  if (state.day === 'weekend'){
+    const now = new Date();
+    const sat = addDays(today, (6 - now.getDay() + 7) % 7);
+    const sun = addDays(today, (7 - now.getDay() + 7) % 7);
+    if (occ.data !== sat && occ.data !== sun) return false;
   }
 
+  // Categorie
+  if (state.cats.size > 0){
+    const ev = EVENTS_BY_ID.get(occ.event_id);
+    const evCats = (ev?._cats || []);
+    if (!evCats.some(c => state.cats.has(c))) return false;
+  }
+
+  return true;
+}
   function updateCounter(){
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
