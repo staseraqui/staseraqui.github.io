@@ -804,24 +804,29 @@
     }
   }
 
-  // ===== DATI =====
+    // ===== DATI =====
   async function loadData(){
+    // EVENTS: prendi solo quelli NON cestinati; "published" true o null (compat. vecchi dati)
     const { data: evs, error: evErr } = await sb.from('events')
-      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published');
+      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at')
+      .is('deleted_at', null); // ⬅️ esclude eventi nel cestino
     if (evErr) { console.error('ERR events:', evErr); return; }
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
-    EVENTS = EVENTS_ALL.filter(e => !('published' in e) || isTruthyPub(e.published))
-                       .map(e => ({ ...e, _cats: normCats(e) }));
+    EVENTS = EVENTS_ALL
+      .filter(e => !('published' in e) || isTruthyPub(e.published)) // published:true o assente
+      .map(e => ({ ...e, _cats: normCats(e) }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
+    // OCCURRENCES: solo NON cestinate e dal "today" in poi
     const today = todayISO();
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
-      .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city')
-      .gte('data', today);
+      .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city, deleted_at')
+      .is('deleted_at', null)  // ⬅️ esclude occorrenze nel cestino
+      .gte('data', today);     // ⬅️ solo future (coerente con UI)
     if (occErr) { console.error('ERR occs:', occErr); return; }
 
-    const validEventIds = new Set(EVENTS.map(e => e.id));
+    const validEventIds = new Set(EVENTS.map(e => e.id)); // occ legate a eventi attivi
     const norm = (occsRaw || [])
       .filter(o => validEventIds.has(o.event_id))
       .map(o => ({
@@ -834,14 +839,15 @@
         luogo: o.luogo || o.venue || '',
         indirizzo: o.indirizzo || o.address || '',
         citta: o.citta || o.city || ''
-      }));
+      }))
+      .filter(o => o.data); // sicurezza: deve avere la data
     OCCS = norm.filter(o => o.lat != null && o.lng != null);
 
     console.info('Loaded EVENTS:', EVENTS.length, 'OCCS:', OCCS.length);
     _refitTried = false;
     renderMarkers();
   }
-
+  
   // ===== CONDIVIDI (solo bottone giallo) =====
   (function(){
     const SHARE_URL  = 'https://www.staseraqui.it/';
