@@ -784,16 +784,25 @@
     lClearMarkers();
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
-    let rendered = 0;
-    OCCS.forEach(occ=>{
+        let rendered = 0;
+
+    // Ordina per data/ora DESC: aggiungiamo prima le date lontane e per ultime
+    // le più vicine, così restano "sopra" e sono quelle che vedi al click.
+    const occsToRender = OCCS.slice().sort((a,b)=>{
+      const ad = a.data || '', bd = b.data || '';
+      if (ad !== bd) return ad > bd ? -1 : 1; // DESC per data
+      const at = a.ora || '', bt = b.ora || '';
+      return at > bt ? -1 : (at < bt ? 1 : 0); // DESC per ora
+    });
+
+    occsToRender.forEach(occ=>{
       if (occ.lat==null || occ.lng==null) return;
       if (bounds && !contains(occ.lat,occ.lng)) return;
       if (!occPassesFilters(occ)) return;
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
       lAddMarker(occ, ev);
       rendered++;
-    });
-    updateCounter();
+    });    updateCounter();
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
       const all = computeAllBounds();
       if (all){
