@@ -518,11 +518,12 @@
         }));
         const occStr = JSON.stringify(occMin);
 
-        // ⚠️ Limite Stripe metadata (~500 char). Guard-rail lato client.
-        if(occStr.length>450){
-          throw new Error(`Periodo troppo lungo per un singolo annuncio. Dividi il periodo in più annunci (es. per settimane) oppure scrivi a eventi@staseraqui.it`);
-        }
-
+        // ✅ Niente più limite “a caratteri”: contiamo i giorni reali come fa il backend.
+const MAX_DAYS = 60; // deve corrispondere a MAX_DAYS_PER_EVENT su create-checkout-session
+const actualDays = new Set(occMin.map(o => o.d)).size; // occMin ha 1 entry per giorno
+if (actualDays > MAX_DAYS) {
+  throw new Error(`Periodo troppo lungo: ${actualDays} giorni (limite ${MAX_DAYS}). Dividi il periodo in più annunci o contattaci: eventi@staseraqui.it`);
+}
         const metadata = {
           titolo: (ev.titolo||'').slice(0,80),
           descr: (ev.descr||'').slice(0,180),
