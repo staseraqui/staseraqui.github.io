@@ -755,10 +755,12 @@
         <div><label>Data*</label><input class="data" type="date" value="${o?.data||''}"></div>
       </div>
       <div class="grid">
-        <div><label>Orario*</label><input class="ora" type="time" value="${o?.ora||o?.time||''}"></div>
-        <div></div>
-      </div>
-    </div>`;
+  <div><label>Orario (facoltativo)</label>
+    <input class="ora" type="text" placeholder="es. 15:00–21:00 (vuoto = tutto il giorno)" value="${o?.ora||o?.time||''}">
+  </div>
+  <div></div>
+</div>
+</div>`;
   }
   $('#addOcc').addEventListener('click', ()=> { occWrap.insertAdjacentHTML('beforeend', occRow({})); });
   occWrap.addEventListener('click', e=>{
@@ -895,7 +897,7 @@
       const citta = clean((box.querySelector('.citta')||{}).value||'');
       const data = (box.querySelector('.data')||{}).value||'';
       const ora  = (box.querySelector('.ora')||{}).value||'';
-      if (!luogo || !indirizzo || !citta || !data || !ora) return null;
+      if (!luogo || !indirizzo || !citta || !data) return null;
       occ.push({ id, luogo, indirizzo, citta, data, ora });
     }
     return occ;
