@@ -147,13 +147,38 @@
           </div>
         </div>
         <div class="grid">
-          <div>
-            <label>Al (facoltativo)</label>
-            <input class="al" type="date">
-          </div>
-          <div><label>Orario*</label><input class="ora" type="time"></div>
-        </div>
+  <div>
+    <label>Al (facoltativo)</label>
+    <input class="al" type="date">
+  </div>
+  <div>
+    <label>Orario</label>
+    <select class="sched_mode">
+      <option value="none" selected>Nessun orario (tutto il giorno)</option>
+      <option value="single">Stessa fascia per tutte le date</option>
+      <option value="split">Feriali vs weekend</option>
+    </select>
+
+    <div class="sched_single" style="display:none;margin-top:6px">
+      <div class="grid">
+        <div><label>Dalle</label><input type="time" class="time_from"></div>
+        <div><label>Alle</label><input type="time" class="time_to"></div>
       </div>
+    </div>
+
+    <div class="sched_split" style="display:none;margin-top:6px">
+      <div class="smallmuted" style="margin-bottom:4px">Default: lun–ven 15:00–21:00; sab–dom 10:00–21:00</div>
+      <div class="grid">
+        <div><label>Lun–Ven dalle</label><input type="time" class="wd_from" value="15:00"></div>
+        <div><label>Lun–Ven alle</label><input type="time" class="wd_to" value="21:00"></div>
+      </div>
+      <div class="grid">
+        <div><label>Sab–Dom dalle</label><input type="time" class="we_from" value="10:00"></div>
+        <div><label>Sab–Dom alle</label><input type="time" class="we_to" value="21:00"></div>
+      </div>
+    </div>
+  </div>
+</div>      </div>
     </div>
     <div style="margin-top:8px">
       <button class="btn primary" id="addOcc" type="button">Aggiungi altra occorrenza</button>
@@ -296,9 +321,33 @@
       <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>\
       <div><label>Dal*</label><input class="dal" type="date"><div class="help-inline">Compila anche “Al” se dura più giorni</div></div>\
     </div><div class="grid">\
-      <div><label>Al (facoltativo)</label><input class="al" type="date"></div>\
-      <div><label>Orario*</label><input class="ora" type="time"></div>\
-    </div>';
+  <div><label>Al (facoltativo)</label><input class="al" type="date"></div>\
+  <div>\
+    <label>Orario</label>\
+    <select class="sched_mode">\
+      <option value="none" selected>Nessun orario (tutto il giorno)</option>\
+      <option value="single">Stessa fascia per tutte le date</option>\
+      <option value="split">Feriali vs weekend</option>\
+    </select>\
+    <div class="sched_single" style="display:none;margin-top:6px">\
+      <div class="grid">\
+        <div><label>Dalle</label><input type="time" class="time_from"></div>\
+        <div><label>Alle</label><input type="time" class="time_to"></div>\
+      </div>\
+    </div>\
+    <div class="sched_split" style="display:none;margin-top:6px">\
+      <div class="smallmuted" style="margin-bottom:4px">Default: lun–ven 15:00–21:00; sab–dom 10:00–21:00</div>\
+      <div class="grid">\
+        <div><label>Lun–Ven dalle</label><input type="time" class="wd_from" value="15:00"></div>\
+        <div><label>Lun–Ven alle</label><input type="time" class="wd_to" value="21:00"></div>\
+      </div>\
+      <div class="grid">\
+        <div><label>Sab–Dom dalle</label><input type="time" class="we_from" value="10:00"></div>\
+        <div><label>Sab–Dom alle</label><input type="time" class="we_to" value="21:00"></div>\
+      </div>\
+    </div>\
+  </div>\
+</div>';
     wrapO.appendChild(d);
   });
   wrapO.addEventListener('click', e=>{
@@ -307,7 +356,17 @@
     }
   });
 
-    // ====== UTILITY ======
+  // Orari: mostra/nascondi pannelli in base alla selezione
+wrapO.addEventListener('change', (e)=>{
+  if (!e.target.classList.contains('sched_mode')) return;
+  const box = e.target.closest('.occ');
+  const m = e.target.value;
+  const s1 = box.querySelector('.sched_single');
+  const s2 = box.querySelector('.sched_split');
+  if (s1) s1.style.display = (m==='single') ? 'block' : 'none';
+  if (s2) s2.style.display = (m==='split')  ? 'block' : 'none';
+});
+  // ====== UTILITY ======
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
   function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
@@ -338,6 +397,21 @@
     }
     return res;
   }
+  function formatRange(a,b){ if(a&&b) return `${a}-${b}`; if(a) return a; if(b) return b; return ''; }
+function weekdayOfISO(d){ try{ return new Date(d+'T00:00:00').getDay(); }catch(_){ return null; } } // 0=dom ... 6=sab
+function oraForDate(o, d){
+  const mode = o.mode || 'none';
+  if (mode==='none') return '';
+  if (mode==='single') return formatRange(o.t_from||'', o.t_to||'');
+  if (mode==='split'){
+    const wd = weekdayOfISO(d);
+    const weekend = (wd===0 || wd===6);
+    const from = weekend ? (o.we_from||'') : (o.wd_from||'');
+    const to   = weekend ? (o.we_to||'')   : (o.wd_to||'');
+    return formatRange(from,to);
+  }
+  return '';
+}
   // Geocoding con Google Maps JS
   async function geocode(indirizzo, citta){
     await loadGoogleMaps();
@@ -361,44 +435,81 @@
     throw new Error('Geocoding fallito (Google Maps JS)');
   }
 
-  function collectOcc(){
-    const occ=[];
-    Array.prototype.forEach.call(document.querySelectorAll('#occWrap .occ'), (b)=>{
-      const luogo=clean((b.querySelector('.luogo')||{}).value||'');
-      const indirizzo=clean((b.querySelector('.indirizzo')||{}).value||'');
-      const citta=clean((b.querySelector('.citta')||{}).value||'');
-      const dal=(b.querySelector('.dal')||{}).value||'';
-      const al =(b.querySelector('.al')||{}).value||'';
-      const ora=(b.querySelector('.ora')||{}).value||'';
-      const from = dal, to = al || dal;
-      if(!luogo||!indirizzo||!citta||!from||!ora){ occ.push(null); }
-      else if (to && to < from){ occ.push(null); }
-      else { occ.push({luogo,indirizzo,citta,dal:from,al:to,ora}); }
-    });
+function collectOcc(){
+  const occ=[];
+  Array.prototype.forEach.call(document.querySelectorAll('#occWrap .occ'), (b)=>{
+    const luogo=clean((b.querySelector('.luogo')||{}).value||'');
+    const indirizzo=clean((b.querySelector('.indirizzo')||{}).value||'');
+    const citta=clean((b.querySelector('.citta')||{}).value||'');
+    const dal=(b.querySelector('.dal')||{}).value||'';
+    const al =(b.querySelector('.al')||{}).value||'';
+    const mode=(b.querySelector('.sched_mode')||{}).value||'none';
+    const t_from=(b.querySelector('.time_from')||{}).value||'';
+    const t_to=(b.querySelector('.time_to')||{}).value||'';
+    const wd_from=(b.querySelector('.wd_from')||{}).value||'';
+    const wd_to=(b.querySelector('.wd_to')||{}).value||'';
+    const we_from=(b.querySelector('.we_from')||{}).value||'';
+    const we_to=(b.querySelector('.we_to')||{}).value||'';
+
+    const from = dal, to = al || dal;
+    if(!luogo||!indirizzo||!citta||!from){ occ.push(null); }
+    else if (to && to < from){ occ.push(null); }
+    else {
+      occ.push({luogo,indirizzo,citta,dal:from,al:to,mode,t_from,t_to,wd_from,wd_to,we_from,we_to});
+    }
+  });
+  if(occ.length===0 || occ.indexOf(null)>-1) return null;
+  return occ;
+};
     if(occ.length===0 || occ.indexOf(null)>-1) return null;
     return occ;
   }
 
   // ====== ANTEPRIMA ======
   document.getElementById('anteprimaBtn').addEventListener('click', ()=>{
-    err.textContent='';
-    const titolo=clean(document.getElementById('titolo').value);
-    const descr =clean(document.getElementById('descrizione').value);
-    const file  =(document.getElementById('locandina').files||[])[0];
-    const anyCat=(document.getElementById('catBadges').children.length>0);
-    const occ=collectOcc();
-    if(!titolo||!descr||!file||!anyCat||!occ){
-      err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria* e completa tutte le occorrenze (date e orario).'; return;
-    }
+  err.textContent='';
+  const titolo=clean(document.getElementById('titolo').value);
+  const descr =clean(document.getElementById('descrizione').value);
+  const file  =(document.getElementById('locandina').files||[])[0];
+  const anyCat=(document.getElementById('catBadges').children.length>0);
+  const occ=collectOcc();
+  if(!titolo||!descr||!file||!anyCat||!occ){
+    err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria* e completa tutte le occorrenze (luogo/indirizzo/città e date).'; return;
+  }
 
-    // espandi le date dei periodi
-    const expanded=[];
-    occ.forEach(o=>{
-      datesBetweenInclusive(o.dal, o.al).forEach(d=>{
-        expanded.push({ ...o, data:d });
-      });
+  // espandi le date dei periodi
+  const expanded=[];
+  occ.forEach(o=>{
+    datesBetweenInclusive(o.dal, o.al).forEach(d=>{
+      expanded.push({ ...o, data:d, ora: oraForDate(o, d) });
     });
+  });
 
+  document.getElementById('pv_titolo').textContent=titolo;
+  document.getElementById('pv_cats').textContent=badgesToArray().join(', ');
+  document.getElementById('pv_descr').textContent=descr;
+  document.getElementById('pv_occ').textContent=expanded.length+' occorrenza/e';
+
+  const ul=document.createElement('ul');
+  occ.forEach(o=>{
+    const r = (o.al && o.al!==o.dal) ? (`dal ${toISO(o.dal)} al ${toISO(o.al)}`) : (`${toISO(o.dal)}`);
+    let sched='';
+    if (o.mode==='single'){
+      const s = formatRange(o.t_from||'', o.t_to||'');
+      if (s) sched = ` — ore ${s}`;
+    } else if (o.mode==='split'){
+      const fer = formatRange(o.wd_from||'', o.wd_to||'') || '—';
+      const we  = formatRange(o.we_from||'', o.we_to||'') || '—';
+      sched = ` — feriali ${fer}; weekend ${we}`;
+    }
+    const li=document.createElement('li');
+    li.textContent = `${r}${sched} — ${o.luogo}, ${o.indirizzo}, ${o.citta}`;
+    ul.appendChild(li);
+  });
+  const list=document.getElementById('pv_list'); list.innerHTML=''; list.appendChild(ul);
+  document.getElementById('preview').style.display='block';
+  window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
+});
     document.getElementById('pv_titolo').textContent=titolo;
     document.getElementById('pv_cats').textContent=badgesToArray().join(', ');
     document.getElementById('pv_descr').textContent=descr;
@@ -452,7 +563,7 @@
       const file  =(document.getElementById('locandina').files||[])[0];
       const occ   =collectOcc();
       if(!titolo||!descr||!file||!occ||!catsArr.length){
-        err.textContent='Compila Titolo, Descrizione, Locandina, almeno 1 Categoria e tutte le occorrenze (date e orario).'; return;
+        err.textContent='Compila Titolo, Descrizione, Locandina, almeno 1 Categoria e tutte le occorrenze (luogo/indirizzo/città e date).'; return;
       }
 
       // Upload locandina
@@ -466,15 +577,18 @@
 
       // Geocoding per ogni occorrenza + espansione periodi a giorni
       const occExpanded=[];
-      for(const o of occ){
-        const g = await geocode(o.indirizzo, o.citta);
-        const days = datesBetweenInclusive(o.dal, o.al);
-        if(!days.length){ err.textContent = `Intervallo date non valido per: ${o.luogo}, ${o.citta}`; return; }
-        for(const d of days){
-          occExpanded.push({ luogo:o.luogo, indirizzo:o.indirizzo, citta:o.citta, data:d, ora:o.ora, lat:+g.lat.toFixed(6), lng:+g.lng.toFixed(6) });
-        }
-      }
-
+for(const o of occ){
+  const g = await geocode(o.indirizzo, o.citta);
+  const days = datesBetweenInclusive(o.dal, o.al);
+  if(!days.length){ err.textContent = `Intervallo date non valido per: ${o.luogo}, ${o.citta}`; return; }
+  for(const d of days){
+    occExpanded.push({
+      luogo:o.luogo, indirizzo:o.indirizzo, citta:o.citta,
+      data:d, ora: oraForDate(o, d),
+      lat:+(+g.lat).toFixed(6), lng:+(+g.lng).toFixed(6)
+    });
+  }
+}
       const eventObj = { titolo, descr, prezzo, cats: catsArr, locandina_url, occ: occExpanded };
       CART.push(eventObj);
       refreshCartUI();
@@ -489,20 +603,44 @@
         ch.classList.remove('active'); ch.style.background='#17304d'; ch.style.color='#d7f2ff'; ch.style.borderColor='#2e6e8f';
       });
       document.getElementById('occWrap').innerHTML = `
-        <div class="occ card">
+  <div class="occ card">
+    <div class="grid">
+      <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>
+      <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>
+    </div>
+    <div class="grid">
+      <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>
+      <div><label>Dal*</label><input class="dal" type="date"><div class="help-inline">Compila anche “Al” se dura più giorni</div></div>
+    </div>
+    <div class="grid">
+      <div><label>Al (facoltativo)</label><input class="al" type="date"></div>
+      <div>
+        <label>Orario</label>
+        <select class="sched_mode">
+          <option value="none" selected>Nessun orario (tutto il giorno)</option>
+          <option value="single">Stessa fascia per tutte le date</option>
+          <option value="split">Feriali vs weekend</option>
+        </select>
+        <div class="sched_single" style="display:none;margin-top:6px">
           <div class="grid">
-            <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale"></div>
-            <div><label>Indirizzo*</label><input class="indirizzo" placeholder="Via Roma 1"></div>
+            <div><label>Dalle</label><input type="time" class="time_from"></div>
+            <div><label>Alle</label><input type="time" class="time_to"></div>
+          </div>
+        </div>
+        <div class="sched_split" style="display:none;margin-top:6px">
+          <div class="smallmuted" style="margin-bottom:4px">Default: lun–ven 15:00–21:00; sab–dom 10:00–21:00</div>
+          <div class="grid">
+            <div><label>Lun–Ven dalle</label><input type="time" class="wd_from" value="15:00"></div>
+            <div><label>Lun–Ven alle</label><input type="time" class="wd_to" value="21:00"></div>
           </div>
           <div class="grid">
-            <div><label>Città*</label><input class="citta" placeholder="Es. Torino"></div>
-            <div><label>Dal*</label><input class="dal" type="date"><div class="help-inline">Compila anche “Al” se dura più giorni</div></div>
+            <div><label>Sab–Dom dalle</label><input type="time" class="we_from" value="10:00"></div>
+            <div><label>Sab–Dom alle</label><input type="time" class="we_to" value="21:00"></div>
           </div>
-          <div class="grid">
-            <div><label>Al (facoltativo)</label><input class="al" type="date"></div>
-            <div><label>Orario*</label><input class="ora" type="time"></div>
-          </div>
-        </div>`;
+        </div>
+      </div>
+    </div>
+  </div>`;
       document.getElementById('preview').style.display='none';
       window.scrollTo({top:0, behavior:'smooth'});
     }catch(e){
