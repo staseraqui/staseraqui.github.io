@@ -592,19 +592,25 @@
 
   function lAddMarker(occ, ev){
     const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
-    const when  = occ.ora ? `${fmtIT(occ.data)} ore ${occ.ora}` : `${fmtIT(occ.data)}`;
     const cats  = (ev._cats||[]).join(', ');
     const theDescr = ev.description||ev.descrizione||'';
-
+    
     // —— URL sito + locandina (robusto) ——
-    const websiteRaw = firstNonEmpty(ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale);
-    const website = safeUrl(websiteRaw);
-    const posterRaw = firstNonEmpty(ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover);
-    const locandinaUrl = safeUrl(posterRaw);
+const websiteRaw = firstNonEmpty(
+  ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
+  ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook
+);
+const website = safeUrl(websiteRaw);
 
-    const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-    const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
+const posterRaw = firstNonEmpty(
+  ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
+  ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url
+);
+const locandinaUrl = safeUrl(posterRaw);
 
+const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
+    
     // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
     const today = todayISO();
     const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
@@ -618,6 +624,18 @@
       )
       .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
 
+    // === RIGA DATE DAL–AL (con orari se presenti) ===
+let dateLine = '';
+if (allDates.length > 1) {
+  const start = allDates[0];
+  const end   = allDates[allDates.length - 1];
+  const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
+  const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
+  dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
+} else {
+  const only = allDates[0] || occ;
+  dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
+}    
     const otherDates = allDates.filter(o => o.id !== occ.id);
     const multiBadge = allDates.length > 1
       ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
@@ -640,7 +658,7 @@
     const html = `<div style="color:#081421;max-width:320px">
         <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
         <small>${cats||''}</small><br>
-        ${when}<br>${where}
+        ${dateLine}<br>${where}
         ${theDescr ? `<br><br>${theDescr}` : ''}
         ${listHtml}
         <div class="popup-actions">
