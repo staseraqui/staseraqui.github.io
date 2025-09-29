@@ -758,8 +758,9 @@ if (locandinaUrl && locandinaUrl.startsWith('/')){
   try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
 }
 
-const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';    
+const btnSite   = website ? `<button class="btn" data-open="${website}">Apri sito evento</button>` : '';
+const btnPoster = locandinaUrl ? `<button class="btn primary" data-open="${locandinaUrl}">Apri locandina</button>` : '';
+    
     // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
     const today = todayISO();
     const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
@@ -818,24 +819,33 @@ if (allDates.length > 1) {
       </div>`;
 
     m.bindPopup(html).on('popupopen', ()=>{
-      const btn = document.querySelector('button[data-calc="1"]');
-      if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
+  // 1) Percorso
+  const btnRoute = document.querySelector('button[data-calc="1"]');
+  if (btnRoute) btnRoute.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
 
-      // Tap su una data → imposta il filtro per quella data e ricarica i marker
-      document.querySelectorAll('.sq-date').forEach(a=>{
-        a.addEventListener('click', (e)=>{
-          e.preventDefault();
-          const d = a.getAttribute('data-date');
-          state.customDate = d;
-          state.day = null;
-          allowAutoFit = false;
-          const badge = document.getElementById('dateBadge');
-          if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
-          LEAF.map.closePopup();
-          renderMarkers();
-        });
-      });
+  // 2) Altre date → imposta filtro e ricarica marker
+  document.querySelectorAll('.sq-date').forEach(a=>{
+    a.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const d = a.getAttribute('data-date');
+      state.customDate = d;
+      state.day = null;
+      allowAutoFit = false;
+      const badge = document.getElementById('dateBadge');
+      if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
+      LEAF.map.closePopup();
+      renderMarkers();
     });
+  });
+
+  // 3) Sito/Locandina → apri in nuova scheda
+  document.querySelectorAll('button[data-open]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const href = b.getAttribute('data-open');
+      if (href) window.open(href, '_blank', 'noopener');
+    });
+  });
+});
 
     markers.push(m);
   }
