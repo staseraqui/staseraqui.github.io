@@ -99,6 +99,8 @@
 
   /* Barra condividi */
   .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.leaflet-popup-content .popup-actions .btn{display:inline-block}
+.leaflet-popup-content a.btn{text-decoration:none}  
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -287,11 +289,57 @@
     }
     return [];
   }
-  function safeUrl(u){
-    u = (u||'').trim(); if(!u) return '';
-    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
-    try { new URL(u); return u; } catch(_){ return ''; }
+function safeUrl(u){
+  // Accetta: stringhe, array, oggetti con {url|href|link|src}, data:image, //, /percorso, www., domini senza protocollo
+  if (u == null) return '';
+  if (Array.isArray(u)){
+    for (const item of u){
+      const s = safeUrl(item);
+      if (s) return s;
+    }
+    return '';
   }
+  if (typeof u === 'object'){
+    const candidates = [u.url, u.href, u.link, u.src];
+    for (const c of candidates){
+      const s = safeUrl(c);
+      if (s) return s;
+    }
+    return '';
+  }
+  let s = String(u).trim();
+  if (!s) return '';
+
+  // data URL immagini
+  if (/^data:image\//i.test(s)) return s;
+
+  // protocol-relative → aggiungi https:
+  if (/^\/\//.test(s)) s = 'https:' + s;
+
+  // percorso relativo al sito
+  if (/^\//.test(s)) return s;
+
+  // www. o dominio senza schema → aggiungi https://
+  if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
+
+  try { new URL(s); return s; } catch(_){ return ''; }
+}
+
+function pickFirstUrl(...fields){
+  for (const f of fields){
+    const s = safeUrl(f);
+    if (s) return s;
+    // Se la stringa è JSON (es. '{"url":"..."}' o '["..."]') prova a parsare
+    if (typeof f === 'string'){
+      try{
+        const j = JSON.parse(f);
+        const s2 = safeUrl(j);
+        if (s2) return s2;
+      }catch(_){}
+    }
+  }
+  return '';
+}  
   function firstNonEmpty(...vals){
     for (const v of vals){
       const s = (v ?? '').toString().trim();
@@ -595,18 +643,24 @@
     const cats  = (ev._cats||[]).join(', ');
     const theDescr = ev.description||ev.descrizione||'';
     
-    // —— URL sito + locandina (robusto) ——
-const websiteRaw = firstNonEmpty(
+// —— URL sito + locandina (robusto) ——
+const website = pickFirstUrl(
   ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
-  ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook
+  ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
+  ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
+  ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
 );
-const website = safeUrl(websiteRaw);
 
-const posterRaw = firstNonEmpty(
+let locandinaUrl = pickFirstUrl(
   ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
-  ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url
+  ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
+  ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
 );
-const locandinaUrl = safeUrl(posterRaw);
+
+// Ultima chance: se la “locandina” è un percorso relativo, trasformalo in assoluto per sicurezza
+if (locandinaUrl && locandinaUrl.startsWith('/')) {
+  try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
+}
 
 const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
 const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
