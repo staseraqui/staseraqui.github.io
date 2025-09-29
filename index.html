@@ -695,19 +695,23 @@ if (allDates.length > 1) {
       ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
       : '';
 
-    // Lista "Altre date"
-    const listHtml = otherDates.length
-      ? `<div style="margin-top:6px">
-           <b>Altre date:</b>
-           <ul style="margin:6px 0 0 18px">
-             ${otherDates.slice(0,8).map(o =>
-               `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
-             ).join('')}
-           </ul>
-           ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
-         </div>`
-      : '';
-
+    // Lista "Altre date" (versione sicura, niente template annidati)
+let listHtml = '';
+if (otherDates.length) {
+  const items = otherDates.slice(0,8).map(o => {
+    const oraTxt = o.ora ? (' ore ' + o.ora) : '';
+    return '<li><a href="#" class="sq-date" data-date="' + o.data + '">' + fmtIT(o.data) + oraTxt + '</a></li>';
+  }).join('');
+  const more = (otherDates.length > 8)
+    ? '<div class="small" style="opacity:.8">…e altre ' + (otherDates.length-8) + '</div>'
+    : '';
+  listHtml =
+    '<div style="margin-top:6px">' +
+      '<b>Altre date:</b>' +
+      '<ul style="margin:6px 0 0 18px">' + items + '</ul>' +
+      more +
+    '</div>';
+}
     const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:320px">
         <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
@@ -948,14 +952,18 @@ if (allDates.length > 1) {
       return at > bt ? -1 : (at < bt ? 1 : 0); // DESC per ora
     });
 
-    occsToRender.forEach(occ=>{
-      if (occ.lat==null || occ.lng==null) return;
-      if (bounds && !contains(occ.lat,occ.lng)) return;
-      if (!occPassesFilters(occ)) return;
-      const ev = EVENTS_BY_ID.get(occ.event_id)||{};
-      lAddMarker(occ, ev);
-      rendered++;
-    });
+occsToRender.forEach(occ=>{
+  if (occ.lat==null || occ.lng==null) return;
+  if (bounds && !contains(occ.lat,occ.lng)) return;
+  if (!occPassesFilters(occ)) return;
+  const ev = EVENTS_BY_ID.get(occ.event_id)||{};
+  try {
+    lAddMarker(occ, ev);
+    rendered++;
+  } catch (e) {
+    console.error('Errore rendering marker per occ', occ, e);
+  }
+});    
     updateCounter();
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
       const all = computeAllBounds();
