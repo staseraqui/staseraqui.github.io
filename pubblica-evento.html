@@ -104,9 +104,19 @@
         <input id="prezzo" placeholder="Es. Gratis / 10€ con drink">
       </div>
       <div>
-        <label for="locandina">Locandina/Foto (JPG/PNG)*</label>
-        <input id="locandina" type="file" accept="image/png,image/jpeg" required>
+        <label for="locandina">Locandina/Foto (JPG/PNG/WebP)*</label>
+        <input id="locandina" type="file" accept="image/png,image/jpeg,image/webp" required>
       </div>
+    </div>
+
+    <!-- 🔗 SITO WEB (opzionale) -->
+    <div class="grid">
+      <div>
+        <label for="sito_web">Sito web ufficiale (opzionale)</label>
+        <input id="sito_web" type="url" placeholder="Es. https://www.miosito.it/evento">
+        <div class="help-inline">Se non hai un sito, puoi lasciare vuoto.</div>
+      </div>
+      <div></div>
     </div>
 
     <!-- CONTATTI -->
@@ -217,6 +227,7 @@
     <div class="small">
       <div><b>Titolo:</b> <span id="pv_titolo"></span></div>
       <div><b>Categorie:</b> <span id="pv_cats"></span></div>
+      <div id="pv_site_wrap" style="display:none"><b>Sito web:</b> <a id="pv_site" href="#" target="_blank" rel="noopener"></a></div>
     </div>
     <p id="pv_descr" style="margin-top:8px"></p>
     <div><b class="small">Occorrenze:</b> <span id="pv_occ"></span></div>
@@ -373,6 +384,14 @@
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
   function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
 
+  // Normalizza URL "sito web"
+  function normalizeUrl(u){
+    u = (u||'').trim();
+    if (!u) return '';
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    try { const _ = new URL(u); return u; } catch(_){ return ''; }
+  }
+
   // NON convertire più in UTC: le stringhe YYYY-MM-DD restano come sono
   function toISO(d){
     return (typeof d==='string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) ? d : d;
@@ -470,6 +489,8 @@
     err.textContent='';
     const titolo=clean(document.getElementById('titolo').value);
     const descr =clean(document.getElementById('descrizione').value);
+    const rawSite=document.getElementById('sito_web').value||'';
+    const site = normalizeUrl(rawSite);
     const file  =(document.getElementById('locandina').files||[])[0];
     const anyCat=(document.getElementById('catBadges').children.length>0);
     const occ=collectOcc();
@@ -489,6 +510,16 @@
     document.getElementById('pv_cats').textContent=badgesToArray().join(', ');
     document.getElementById('pv_descr').textContent=descr;
     document.getElementById('pv_occ').textContent=expanded.length+' occorrenza/e';
+
+    // sito nell’anteprima
+    const wrap = document.getElementById('pv_site_wrap');
+    const a = document.getElementById('pv_site');
+    if (site){
+      a.href = site; a.textContent = site.replace(/^https?:\/\//i,'');
+      wrap.style.display='block';
+    } else {
+      wrap.style.display='none';
+    }
 
     const ul=document.createElement('ul');
     occ.forEach(o=>{
@@ -515,7 +546,7 @@
   const cartBar   = document.getElementById('cartBar');
   const cartList  = document.getElementById('cartList');
   const cartCount = document.getElementById('cartCount');
-  const CART = []; // [{titolo, descr, prezzo, cats[], locandina_url, occ:[...] }]
+  const CART = []; // [{titolo, descr, prezzo, sito, cats[], locandina_url, occ:[...] }]
 
   function refreshCartUI(){
     cartCount.textContent = CART.length;
@@ -543,17 +574,21 @@
       const titolo=clean(document.getElementById('titolo').value);
       const descr =clean(document.getElementById('descrizione').value);
       const prezzo=(document.getElementById('prezzo').value||'').trim();
+      const sito_raw=(document.getElementById('sito_web').value||'').trim();
+      const sito = normalizeUrl(sito_raw);
       const catsArr=badgesToArray();
       const file  =(document.getElementById('locandina').files||[])[0];
       const occ   =collectOcc();
       if(!titolo||!descr||!file||!occ||!catsArr.length){
         err.textContent='Compila Titolo, Descrizione, Locandina, almeno 1 Categoria e tutte le occorrenze (luogo/indirizzo/città e date).'; return;
       }
+      if (sito_raw && !sito){ err.textContent='URL del sito non valido. Correggilo o lascia vuoto.'; return; }
 
       // Upload locandina
       const stamp = new Date().toISOString().replace(/[:.]/g,'-');
       const rand = Math.random().toString(36).slice(2,10);
-      const fname = `events/${stamp}_${rand}.${file.type==='image/png'?'png':'jpg'}`;
+      const ext  = (file.type==='image/png'?'png':(file.type==='image/webp'?'webp':'jpg'));
+      const fname = `events/${stamp}_${rand}.${ext}`;
       const up = await sb.storage.from('event-images').upload(fname, file, { upsert:false, contentType:file.type });
       if(up.error){ err.textContent='Upload immagine fallito: '+up.error.message; return; }
       const pub = sb.storage.from('event-images').getPublicUrl(fname);
@@ -573,13 +608,14 @@
           });
         }
       }
-      const eventObj = { titolo, descr, prezzo, cats: catsArr, locandina_url, occ: occExpanded };
+      const eventObj = { titolo, descr, prezzo, sito, cats: catsArr, locandina_url, occ: occExpanded };
       CART.push(eventObj);
       refreshCartUI();
 
       // Reset campi evento
       document.getElementById('titolo').value='';
       document.getElementById('prezzo').value='';
+      document.getElementById('sito_web').value='';
       document.getElementById('descrizione').value='';
       document.getElementById('locandina').value='';
       document.getElementById('catBadges').innerHTML='';
@@ -666,6 +702,7 @@
           descr: (ev.descr||'').slice(0,180),
           prezzo: (ev.prezzo||'').slice(0,40),
           locandina_url: ev.locandina_url,
+          website: (ev.sito||'').slice(0,200),
           cats: catsStr,
           occ: occStr,
           submitter_email: email.slice(0,120),
