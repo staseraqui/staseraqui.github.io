@@ -104,17 +104,26 @@
         <input id="prezzo" placeholder="Es. Gratis / 10€ con drink">
       </div>
       <div>
-        <label for="locandina">Locandina/Foto (JPG/PNG/WebP)*</label>
-        <input id="locandina" type="file" accept="image/png,image/jpeg,image/webp" required>
+        <!-- ⚠️ NON obbligatoria se fornisci un link all’evento -->
+        <label for="locandina">Locandina/Foto (JPG/PNG/WebP)</label>
+        <input id="locandina" type="file" accept="image/png,image/jpeg,image/webp">
+        <div class="help-inline">
+          Puoi caricare una foto nei formati <b>JPG</b>, <b>PNG</b> o <b>WebP</b>.
+          <b>WebP</b> è un formato moderno con file più leggeri (consigliato).<br>
+          Se non hai una locandina, va bene anche inserire solo il <b>link all’evento</b> qui sotto.
+        </div>
       </div>
     </div>
 
-    <!-- 🔗 SITO WEB (opzionale) -->
+    <!-- 🔗 LINK ALL'EVENTO (opzionale, ma richiesto se non carichi una locandina) -->
     <div class="grid">
       <div>
-        <label for="sito_web">Sito web ufficiale (opzionale)</label>
-        <input id="sito_web" type="url" placeholder="Es. https://www.miosito.it/evento">
-        <div class="help-inline">Se non hai un sito, puoi lasciare vuoto.</div>
+        <label for="sito_web">Link all’evento (opzionale)</label>
+        <input id="sito_web" type="url" placeholder="Es. https://www.miosito.it/evento o pagina Facebook/Eventbrite">
+        <div class="help-inline">
+          Inserisci una <b>pagina pubblica</b> con i dettagli: sito dell’organizzatore, pagina evento Facebook, Eventbrite/TicketOne,
+          pagina del Comune, ecc. (obbligatorio se non carichi una locandina).
+        </div>
       </div>
       <div></div>
     </div>
@@ -227,7 +236,7 @@
     <div class="small">
       <div><b>Titolo:</b> <span id="pv_titolo"></span></div>
       <div><b>Categorie:</b> <span id="pv_cats"></span></div>
-      <div id="pv_site_wrap" style="display:none"><b>Sito web:</b> <a id="pv_site" href="#" target="_blank" rel="noopener"></a></div>
+      <div id="pv_site_wrap" style="display:none"><b>Link all’evento:</b> <a id="pv_site" href="#" target="_blank" rel="noopener"></a></div>
     </div>
     <p id="pv_descr" style="margin-top:8px"></p>
     <div><b class="small">Occorrenze:</b> <span id="pv_occ"></span></div>
@@ -384,7 +393,7 @@
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
   function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
 
-  // Normalizza URL "sito web"
+  // Normalizza URL "sito web" / link all'evento
   function normalizeUrl(u){
     u = (u||'').trim();
     if (!u) return '';
@@ -494,8 +503,11 @@
     const file  =(document.getElementById('locandina').files||[])[0];
     const anyCat=(document.getElementById('catBadges').children.length>0);
     const occ=collectOcc();
-    if(!titolo||!descr||!file||!anyCat||!occ){
-      err.textContent='Controlla: Titolo*, Descrizione*, Locandina*, almeno 1 Categoria* e completa tutte le occorrenze (luogo/indirizzo/città e date).'; return;
+
+    if (rawSite && !site){ err.textContent='URL del link all’evento non valido. Correggilo o lascia vuoto.'; return; }
+    if(!titolo||!descr||(!file && !site)||!anyCat||!occ){
+      err.textContent='Controlla: Titolo*, Descrizione*, almeno 1 tra Locandina e Link all’evento*, almeno 1 Categoria*, e completa tutte le occorrenze (luogo/indirizzo/città e date).';
+      return;
     }
 
     // espandi le date dei periodi
@@ -511,7 +523,7 @@
     document.getElementById('pv_descr').textContent=descr;
     document.getElementById('pv_occ').textContent=expanded.length+' occorrenza/e';
 
-    // sito nell’anteprima
+    // link nell’anteprima
     const wrap = document.getElementById('pv_site_wrap');
     const a = document.getElementById('pv_site');
     if (site){
@@ -579,20 +591,25 @@
       const catsArr=badgesToArray();
       const file  =(document.getElementById('locandina').files||[])[0];
       const occ   =collectOcc();
-      if(!titolo||!descr||!file||!occ||!catsArr.length){
-        err.textContent='Compila Titolo, Descrizione, Locandina, almeno 1 Categoria e tutte le occorrenze (luogo/indirizzo/città e date).'; return;
-      }
-      if (sito_raw && !sito){ err.textContent='URL del sito non valido. Correggilo o lascia vuoto.'; return; }
 
-      // Upload locandina
-      const stamp = new Date().toISOString().replace(/[:.]/g,'-');
-      const rand = Math.random().toString(36).slice(2,10);
-      const ext  = (file.type==='image/png'?'png':(file.type==='image/webp'?'webp':'jpg'));
-      const fname = `events/${stamp}_${rand}.${ext}`;
-      const up = await sb.storage.from('event-images').upload(fname, file, { upsert:false, contentType:file.type });
-      if(up.error){ err.textContent='Upload immagine fallito: '+up.error.message; return; }
-      const pub = sb.storage.from('event-images').getPublicUrl(fname);
-      const locandina_url = pub?.data?.publicUrl || '';
+      if (sito_raw && !sito){ err.textContent='URL del link all’evento non valido. Correggilo o lascia vuoto.'; return; }
+      if(!titolo||!descr||(!file && !sito)||!occ||!catsArr.length){
+        err.textContent='Compila Titolo, Descrizione, almeno 1 tra Locandina e Link all’evento, almeno 1 Categoria e tutte le occorrenze (luogo/indirizzo/città e date).';
+        return;
+      }
+
+      // Upload locandina (solo se presente)
+      let locandina_url = '';
+      if (file){
+        const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+        const rand = Math.random().toString(36).slice(2,10);
+        const ext  = (file.type==='image/png'?'png':(file.type==='image/webp'?'webp':'jpg'));
+        const fname = `events/${stamp}_${rand}.${ext}`;
+        const up = await sb.storage.from('event-images').upload(fname, file, { upsert:false, contentType:file.type });
+        if(up.error){ err.textContent='Upload immagine fallito: '+up.error.message; return; }
+        const pub = sb.storage.from('event-images').getPublicUrl(fname);
+        locandina_url = pub?.data?.publicUrl || '';
+      }
 
       // Geocoding per ogni occorrenza + espansione periodi a giorni
       const occExpanded=[];
@@ -701,7 +718,7 @@
           titolo: (ev.titolo||'').slice(0,80),
           descr: (ev.descr||'').slice(0,180),
           prezzo: (ev.prezzo||'').slice(0,40),
-          locandina_url: ev.locandina_url,
+          locandina_url: ev.locandina_url || '',
           website: (ev.sito||'').slice(0,200),
           cats: catsStr,
           occ: occStr,
