@@ -348,6 +348,68 @@ function pickFirstUrl(...fields){
     return '';
   }
 
+// Estrae il PRIMO URL da testo/HTML (href, http/https, //, www., dominio nudo)
+function extractFirstUrlFromText(t){
+  if (!t) return '';
+  const s = String(t);
+
+  // <a href="...">
+  const mHref = s.match(/href\s*=\s*["']([^"']+)["']/i);
+  if (mHref){
+    const u = safeUrl(mHref[1]);
+    if (u) return u;
+  }
+
+  // http/https diretto
+  const mHttp = s.match(/https?:\/\/[^\s<>"']+/i);
+  if (mHttp){
+    const u = safeUrl(mHttp[0]);
+    if (u) return u;
+  }
+
+  // protocol-relative: //example.com/...
+  const mProto = s.match(/(^|\s)(\/\/[^\s<>"']+)/i);
+  if (mProto){
+    const u = safeUrl(mProto[2]);
+    if (u) return u;
+  }
+
+  // dominio nudo o www.
+  const mDom = s.match(/\b(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s<>"']*)?/i);
+  if (mDom){
+    const u = safeUrl(mDom[0]);
+    if (u) return u;
+  }
+  return '';
+}
+
+// Estrae la PRIMA immagine (src/img http/https o file .jpg/.png/.webp...)
+function extractFirstImageUrlFromText(t){
+  if (!t) return '';
+  const s = String(t);
+
+  // <img src="...">
+  const mImg = s.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (mImg){
+    const u = safeUrl(mImg[1]);
+    if (u) return u;
+  }
+
+  // link diretto a file immagine
+  const mFile = s.match(/https?:\/\/[^\s<>"']+\.(?:png|jpe?g|webp|gif)(\?[^\s<>"']*)?/i);
+  if (mFile){
+    const u = safeUrl(mFile[0]);
+    if (u) return u;
+  }
+
+  // dominio+file immagine senza schema
+  const mDomFile = s.match(/\b(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}[^\s<>"']+\.(?:png|jpe?g|webp|gif)\b/i);
+  if (mDomFile){
+    const u = safeUrl(mDomFile[0]);
+    if (u) return u;
+  }
+  return '';
+}  
   // ======= GOOGLE: loader unico (Places + Geometry) =======
   let _gmapsLoading = null;
   async function ensureGoogleLoaded(){
@@ -644,27 +706,60 @@ function pickFirstUrl(...fields){
     const theDescr = ev.description||ev.descrizione||'';
     
 // —— URL sito + locandina (robusto) ——
-const website = pickFirstUrl(
+// 1) Campi comuni lato EVENTO
+let website = pickFirstUrl(
   ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
   ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
   ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
-  ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
+  ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale,
+  ev.source_url, ev.fonte_url, ev.fonte, ev.sorgente_url, ev.origin_url
 );
 
+// 2) Campi alternativi lato OCCORRENZA (se presenti)
+if (!website){
+  website = pickFirstUrl(
+    occ.website, occ.link, occ.url, occ.sito, occ.sito_web, occ.link_evento, occ.url_evento
+  );
+}
+
+// 3) Fallback: estrai da descrizioni/testi HTML
+if (!website){
+  website = pickFirstUrl(
+    extractFirstUrlFromText(ev.description || ev.descrizione || ''),
+    extractFirstUrlFromText(ev.note || ev.notes || ev.content || ev.testo || ev.html || ''),
+    extractFirstUrlFromText(occ.note || occ.notes || '')
+  );
+}
+
+// ——— LOCANDINA ———
 let locandinaUrl = pickFirstUrl(
   ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
   ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
   ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
 );
 
-// Ultima chance: se la “locandina” è un percorso relativo, trasformalo in assoluto per sicurezza
-if (locandinaUrl && locandinaUrl.startsWith('/')) {
+// Campi lato OCCORRENZA per la locandina
+if (!locandinaUrl){
+  locandinaUrl = pickFirstUrl(
+    occ.locandina_url, occ.poster_url, occ.image_url, occ.img
+  );
+}
+
+// Fallback: cerca immagini dentro descrizioni/testi HTML
+if (!locandinaUrl){
+  locandinaUrl = pickFirstUrl(
+    extractFirstImageUrlFromText(ev.description || ev.descrizione || ''),
+    extractFirstImageUrlFromText(ev.note || ev.notes || ev.content || ev.testo || ev.html || '')
+  );
+}
+
+// Percorso relativo → assolutizza
+if (locandinaUrl && locandinaUrl.startsWith('/')){
   try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
 }
 
 const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
-    
+const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';    
     // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
     const today = todayISO();
     const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
