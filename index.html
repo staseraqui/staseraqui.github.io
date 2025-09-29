@@ -292,6 +292,13 @@
     if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
     try { new URL(u); return u; } catch(_){ return ''; }
   }
+  function firstNonEmpty(...vals){
+    for (const v of vals){
+      const s = (v ?? '').toString().trim();
+      if (s) return s;
+    }
+    return '';
+  }
 
   // ======= GOOGLE: loader unico (Places + Geometry) =======
   let _gmapsLoading = null;
@@ -589,9 +596,11 @@
     const cats  = (ev._cats||[]).join(', ');
     const theDescr = ev.description||ev.descrizione||'';
 
-    const websiteRaw = ev.website || ev.sito || ev.sito_web || ev.link || '';
+    // —— URL sito + locandina (robusto) ——
+    const websiteRaw = firstNonEmpty(ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale);
     const website = safeUrl(websiteRaw);
-    const locandinaUrl = ev.locandina_url || '';
+    const posterRaw = firstNonEmpty(ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover);
+    const locandinaUrl = safeUrl(posterRaw);
 
     const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
     const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
@@ -859,8 +868,7 @@
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
     let rendered = 0;
 
-    // Ordina per data/ora DESC: aggiungiamo prima le date lontane e per ultime
-    // le più vicine, così restano "sopra" e sono quelle che vedi al click.
+    // Ordina per data/ora DESC
     const occsToRender = OCCS.slice().sort((a,b)=>{
       const ad = a.data || '', bd = b.data || '';
       if (ad !== bd) return ad > bd ? -1 : 1; // DESC per data
@@ -892,22 +900,22 @@
     // EVENTS: prendi solo quelli NON cestinati; "published" true o null (compat. vecchi dati)
     const { data: evs, error: evErr } = await sb.from('events')
       .select('*')
-      .is('deleted_at', null); // ⬅️ esclude eventi nel cestino
+      .is('deleted_at', null);
     if (evErr) { console.error('ERR events:', evErr); return; }
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
     EVENTS = EVENTS_ALL
-      .filter(e => !('published' in e) || isTruthyPub(e.published)) // published:true o assente
+      .filter(e => !('published' in e) || isTruthyPub(e.published))
       .map(e => ({ ...e, _cats: normCats(e) }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
-    // OCCURRENCES: solo NON cestinate (il filtro "future" lo facciamo lato client su data||date)
+    // OCCURRENCES: solo NON cestinate
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city, deleted_at')
-      .is('deleted_at', null);  // ⬅️ rimosso .gte('data', today)
+      .is('deleted_at', null);
     if (occErr) { console.error('ERR occs:', occErr); return; }
 
-    const validEventIds = new Set(EVENTS.map(e => e.id)); // occ legate a eventi attivi
+    const validEventIds = new Set(EVENTS.map(e => e.id));
     const norm = (occsRaw || [])
       .filter(o => validEventIds.has(o.event_id))
       .map(o => ({
@@ -921,7 +929,7 @@
         indirizzo: o.indirizzo || o.address || '',
         citta: o.citta || o.city || ''
       }))
-      .filter(o => o.data); // sicurezza: deve avere la data
+      .filter(o => o.data);
     OCCS = norm.filter(o => o.lat != null && o.lng != null);
 
     console.info('Loaded EVENTS:', EVENTS.length, 'OCCS:', OCCS.length);
