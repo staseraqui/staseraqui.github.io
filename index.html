@@ -274,10 +274,15 @@
   // ===== Helpers robusti =====
   const isTruthyPub = v => (v===true || v===1 || v==='1' || v==='t' || v==='true' || v==='T' || v==='TRUE');
   function normCats(raw){
-    const c = (raw?.categories ?? raw?.categorie ?? []);
+    // 🔧 Estrae categorie da più possibili campi: categories, categorie, cats (pipe o lista)
+    const c = (raw?.categories ?? raw?.categorie ?? raw?.cats ?? []);
     if (Array.isArray(c)) return c.filter(Boolean).map(String);
+
     if (c == null) return [];
+
     if (typeof c === 'string'){
+      // riconosci sia pipe '|' sia virgole
+      if (c.includes('|')) return c.split('|').map(s=>s.trim()).filter(Boolean);
       try{
         const j = JSON.parse(c);
         if (Array.isArray(j)) return j.filter(Boolean).map(String);
@@ -288,7 +293,7 @@
     return [];
   }
 
-  // === NEW: normalizzazione URL sicura + estrazione link evento (compatibile con più nomi colonna) ===
+  // === normalizzazione URL + estrazione link evento ===
   function safeUrl(u){
     if (!u || typeof u !== 'string') return '';
     let href = u.trim();
@@ -607,13 +612,13 @@
   const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
   const when  = occ.ora ? `${fmtIT(occ.data)} ore ${occ.ora}` : `${fmtIT(occ.data)}`;
   const cats  = (ev._cats||[]).join(', ');
-  const theDescr = ev.description||ev.descrizione||'';
+  const theDescr = ev.description || ev.descrizione || ev.descr || '';
 
   const posterHTML = ev.locandina_url
     ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
     : '';
 
-  // NEW: link sito evento (se presente)
+  // Link sito evento (se presente)
   const eventURL = getEventLink(ev);
   const linkHTML = eventURL
     ? `<a class="btn" target="_blank" rel="noopener nofollow" href="${eventURL}">Sito evento</a>`
@@ -637,7 +642,7 @@
     ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
     : '';
 
-  // Lista "Altre date" (cliccabili per filtrare la mappa a quella data)
+  // Lista "Altre date"
   const listHtml = otherDates.length
     ? `<div style="margin-top:6px">
          <b>Altre date:</b>
@@ -676,10 +681,8 @@
         state.customDate = d;
         state.day = null;
         allowAutoFit = false;
-        // aggiorna badge data se presente
         const badge = document.getElementById('dateBadge');
         if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
-        // chiudo il popup e rendo visibile quella data
         LEAF.map.closePopup();
         renderMarkers();
       });
@@ -848,7 +851,7 @@
   if (state.day === 'oggi'   && occ.data !== today) return false;
   if (state.day === 'domani' && occ.data !== addDays(today, 1)) return false;
 
-  // Weekend = SOLO il prossimo sabato/domenica (quelli mostrati nel badge)
+  // Weekend = SOLO il prossimo sabato/domenica
   if (state.day === 'weekend'){
     const now = new Date();
     const sat = addDays(today, (6 - now.getDay() + 7) % 7);
@@ -884,13 +887,12 @@
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
         let rendered = 0;
 
-    // Ordina per data/ora DESC: aggiungiamo prima le date lontane e per ultime
-    // le più vicine, così restano "sopra" e sono quelle che vedi al click.
+    // Ordina per data/ora DESC
     const occsToRender = OCCS.slice().sort((a,b)=>{
       const ad = a.data || '', bd = b.data || '';
-      if (ad !== bd) return ad > bd ? -1 : 1; // DESC per data
+      if (ad !== bd) return ad > bd ? -1 : 1;
       const at = a.ora || '', bt = b.ora || '';
-      return at > bt ? -1 : (at < bt ? 1 : 0); // DESC per ora
+      return at > bt ? -1 : (at < bt ? 1 : 0);
     });
 
     occsToRender.forEach(occ=>{
@@ -911,17 +913,17 @@
     }
   }
 
-    // ===== DATI =====
+  // ===== DATI =====
   async function loadData(){
-    // EVENTS: prendi tutto per compatibilità con possibili nuovi campi (es. link evento)
+    // EVENTS: prendi tutto per compatibilità (link/website, ecc.)
     const { data: evs, error: evErr } = await sb.from('events')
       .select('*')
-      .is('deleted_at', null); // ⬅️ esclude eventi nel cestino
+      .is('deleted_at', null);
     if (evErr) { console.error('ERR events:', evErr); return; }
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
     EVENTS = EVENTS_ALL
-      .filter(e => !('published' in e) || isTruthyPub(e.published)) // published:true o assente
+      .filter(e => !('published' in e) || isTruthyPub(e.published))
       .map(e => ({ ...e, _cats: normCats(e) }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
@@ -929,11 +931,11 @@
     const today = todayISO();
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city, deleted_at')
-      .is('deleted_at', null)  // ⬅️ esclude occorrenze nel cestino
-      .gte('data', today);     // ⬅️ solo future (coerente con UI)
+      .is('deleted_at', null)
+      .gte('data', today);
     if (occErr) { console.error('ERR occs:', occErr); return; }
 
-    const validEventIds = new Set(EVENTS.map(e => e.id)); // occ legate a eventi attivi
+    const validEventIds = new Set(EVENTS.map(e => e.id));
     const norm = (occsRaw || [])
       .filter(o => validEventIds.has(o.event_id))
       .map(o => ({
@@ -947,7 +949,7 @@
         indirizzo: o.indirizzo || o.address || '',
         citta: o.citta || o.city || ''
       }))
-      .filter(o => o.data); // sicurezza: deve avere la data
+      .filter(o => o.data);
     OCCS = norm.filter(o => o.lat != null && o.lng != null);
 
     console.info('Loaded EVENTS:', EVENTS.length, 'OCCS:', OCCS.length);
@@ -955,7 +957,7 @@
     renderMarkers();
   }
   
-  // ===== CONDIVIDI (solo bottone giallo) =====
+  // ===== CONDIVIDI =====
   (function(){
     const SHARE_URL  = 'https://www.staseraqui.it/';
     const SHARE_TEXT = 'Scopri cosa fare stasera vicino a te su Stasera Qui';
@@ -975,7 +977,7 @@
     btnNative.addEventListener('click', async ()=>{
       if (navigator.share){
         try{ await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: SHARE_URL }); }
-        catch(_){ /* utente ha annullato o errore → ignora */ }
+        catch(_){ /* utente ha annullato */ }
       } else {
         const ok = await copyToClipboard(SHARE_URL);
         if (ok) alert('Link copiato! Incollalo dove vuoi.');
