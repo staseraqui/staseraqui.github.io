@@ -99,8 +99,8 @@
 
   /* Barra condividi */
   .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
-.leaflet-popup-content .popup-actions .btn{display:inline-block}
-.leaflet-popup-content a.btn{text-decoration:none}  
+  .leaflet-popup-content .popup-actions .btn{display:inline-block}
+  .leaflet-popup-content a.btn{text-decoration:none}  
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -289,61 +289,82 @@
     }
     return [];
   }
-function safeUrl(u){
-  // Accetta: stringhe, array, oggetti con {url|href|link|src}, data:image, //, /percorso, www., domini senza protocollo
-  if (u == null) return '';
-  if (Array.isArray(u)){
-    for (const item of u){
-      const s = safeUrl(item);
+
+  function safeUrl(u){
+    // Accetta: stringhe, array, oggetti con {url|href|link|src}, data:image, //, /percorso, www., domini senza protocollo
+    if (u == null) return '';
+    if (Array.isArray(u)){
+      for (const item of u){
+        const s = safeUrl(item);
+        if (s) return s;
+      }
+      return '';
+    }
+    if (typeof u === 'object'){
+      const candidates = [u.url, u.href, u.link, u.src];
+      for (const c of candidates){
+        const s = safeUrl(c);
+        if (s) return s;
+      }
+      return '';
+    }
+    let s = String(u).trim();
+    if (!s) return '';
+
+    // data URL immagini
+    if (/^data:image\//i.test(s)) return s;
+
+    // protocol-relative → aggiungi https:
+    if (/^\/\//.test(s)) s = 'https:' + s;
+
+    // percorso relativo al sito
+    if (/^\//.test(s)) return s;
+
+    // www. o dominio senza schema → aggiungi https://
+    if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
+
+    try { new URL(s); return s; } catch(_){ return ''; }
+  }
+
+  function pickFirstUrl(...fields){
+    for (const f of fields){
+      const s = safeUrl(f);
       if (s) return s;
+      // Se la stringa è JSON (es. '{"url":"..."}' o '["..."]') prova a parsare
+      if (typeof f === 'string'){
+        try{
+          const j = JSON.parse(f);
+          const s2 = safeUrl(j);
+          if (s2) return s2;
+        }catch(_){}
+      }
     }
     return '';
   }
-  if (typeof u === 'object'){
-    const candidates = [u.url, u.href, u.link, u.src];
-    for (const c of candidates){
-      const s = safeUrl(c);
-      if (s) return s;
+
+  // 👉 NEW: pesca dentro metadata (object o JSON string)
+  function getFromMeta(ev, ...keys){
+    const raw = ev?.metadata ?? ev?.meta ?? ev?.data; // compatibilità eventuale
+    if (!raw) return '';
+    let obj = null;
+    if (typeof raw === 'string'){
+      try{ obj = JSON.parse(raw); }catch(_){ obj = null; }
+    } else if (typeof raw === 'object'){
+      obj = raw;
     }
-    return '';
-  }
-  let s = String(u).trim();
-  if (!s) return '';
-
-  // data URL immagini
-  if (/^data:image\//i.test(s)) return s;
-
-  // protocol-relative → aggiungi https:
-  if (/^\/\//.test(s)) s = 'https:' + s;
-
-  // percorso relativo al sito
-  if (/^\//.test(s)) return s;
-
-  // www. o dominio senza schema → aggiungi https://
-  if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
-
-  try { new URL(s); return s; } catch(_){ return ''; }
-}
-
-function pickFirstUrl(...fields){
-  for (const f of fields){
-    const s = safeUrl(f);
-    if (s) return s;
-    // Se la stringa è JSON (es. '{"url":"..."}' o '["..."]') prova a parsare
-    if (typeof f === 'string'){
-      try{
-        const j = JSON.parse(f);
-        const s2 = safeUrl(j);
-        if (s2) return s2;
-      }catch(_){}
-    }
-  }
-  return '';
-}  
-  function firstNonEmpty(...vals){
-    for (const v of vals){
-      const s = (v ?? '').toString().trim();
+    if (!obj) return '';
+    for (const k of keys){
+      const v = obj?.[k];
+      const s = safeUrl(v);
       if (s) return s;
+      // se è stringa JSON annidata
+      if (typeof v === 'string'){
+        try{
+          const j = JSON.parse(v);
+          const s2 = safeUrl(j);
+          if (s2) return s2;
+        }catch(_){}
+      }
     }
     return '';
   }
@@ -643,27 +664,34 @@ function pickFirstUrl(...fields){
     const cats  = (ev._cats||[]).join(', ');
     const theDescr = ev.description||ev.descrizione||'';
     
-// —— URL sito + locandina (robusto) ——
-const website = pickFirstUrl(
-  ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
-  ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
-  ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
-  ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
-);
+    // —— URL sito + locandina (robusto) ——
+    // 1) prova campi diretti e alias
+    let website = pickFirstUrl(
+      ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
+      ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
+      ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
+      ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
+    );
+    // 2) fallback dentro metadata
+    if (!website){
+      website = getFromMeta(ev, 'website','sito','sito_web','official_url','link_ufficiale','url','link');
+    }
 
-let locandinaUrl = pickFirstUrl(
-  ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
-  ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
-  ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
-);
+    let locandinaUrl = pickFirstUrl(
+      ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
+      ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
+      ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
+    );
+    if (!locandinaUrl){
+      locandinaUrl = getFromMeta(ev, 'locandina_url','poster_url','image','image_url','cover','cover_url','banner_url','img','thumb','thumbnail');
+    }
+    // Ultima chance: se la “locandina” è un percorso relativo, trasformalo in assoluto
+    if (locandinaUrl && locandinaUrl.startsWith('/')) {
+      try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
+    }
 
-// Ultima chance: se la “locandina” è un percorso relativo, trasformalo in assoluto per sicurezza
-if (locandinaUrl && locandinaUrl.startsWith('/')) {
-  try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
-}
-
-const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
+    const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+    const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
     
     // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
     const today = todayISO();
@@ -679,39 +707,41 @@ const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="no
       .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
 
     // === RIGA DATE DAL–AL (con orari se presenti) ===
-let dateLine = '';
-if (allDates.length > 1) {
-  const start = allDates[0];
-  const end   = allDates[allDates.length - 1];
-  const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
-  const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
-  dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
-} else {
-  const only = allDates[0] || occ;
-  dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
-}    
+    let dateLine = '';
+    if (allDates.length > 1) {
+      const start = allDates[0];
+      const end   = allDates[allDates.length - 1];
+      const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
+      const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
+      dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
+    } else {
+      const only = allDates[0] || occ;
+      dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
+    }
+
     const otherDates = allDates.filter(o => o.id !== occ.id);
     const multiBadge = allDates.length > 1
       ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
       : '';
 
-    // Lista "Altre date" (versione sicura, niente template annidati)
-let listHtml = '';
-if (otherDates.length) {
-  const items = otherDates.slice(0,8).map(o => {
-    const oraTxt = o.ora ? (' ore ' + o.ora) : '';
-    return '<li><a href="#" class="sq-date" data-date="' + o.data + '">' + fmtIT(o.data) + oraTxt + '</a></li>';
-  }).join('');
-  const more = (otherDates.length > 8)
-    ? '<div class="small" style="opacity:.8">…e altre ' + (otherDates.length-8) + '</div>'
-    : '';
-  listHtml =
-    '<div style="margin-top:6px">' +
-      '<b>Altre date:</b>' +
-      '<ul style="margin:6px 0 0 18px">' + items + '</ul>' +
-      more +
-    '</div>';
-}
+    // Lista "Altre date"
+    let listHtml = '';
+    if (otherDates.length) {
+      const items = otherDates.slice(0,8).map(o => {
+        const oraTxt = o.ora ? (' ore ' + o.ora) : '';
+        return '<li><a href="#" class="sq-date" data-date="' + o.data + '">' + fmtIT(o.data) + oraTxt + '</a></li>';
+      }).join('');
+      const more = (otherDates.length > 8)
+        ? '<div class="small" style="opacity:.8">…e altre ' + (otherDates.length-8) + '</div>'
+        : '';
+      listHtml =
+        '<div style="margin-top:6px">' +
+          '<b>Altre date:</b>' +
+          '<ul style="margin:6px 0 0 18px">' + items + '</ul>' +
+          more +
+        '</div>';
+    }
+
     const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:320px">
         <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
@@ -952,18 +982,18 @@ if (otherDates.length) {
       return at > bt ? -1 : (at < bt ? 1 : 0); // DESC per ora
     });
 
-occsToRender.forEach(occ=>{
-  if (occ.lat==null || occ.lng==null) return;
-  if (bounds && !contains(occ.lat,occ.lng)) return;
-  if (!occPassesFilters(occ)) return;
-  const ev = EVENTS_BY_ID.get(occ.event_id)||{};
-  try {
-    lAddMarker(occ, ev);
-    rendered++;
-  } catch (e) {
-    console.error('Errore rendering marker per occ', occ, e);
-  }
-});    
+    occsToRender.forEach(occ=>{
+      if (occ.lat==null || occ.lng==null) return;
+      if (bounds && !contains(occ.lat,occ.lng)) return;
+      if (!occPassesFilters(occ)) return;
+      const ev = EVENTS_BY_ID.get(occ.event_id)||{};
+      try {
+        lAddMarker(occ, ev);
+        rendered++;
+      } catch (e) {
+        console.error('Errore rendering marker per occ', occ, e);
+      }
+    });
     updateCounter();
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
       const all = computeAllBounds();
