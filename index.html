@@ -369,6 +369,44 @@
     return '';
   }
 
+<script>
+// === URL helpers ultra-robusti ===
+const URL_KEYS_SITE = ['website','sito','sito_web','official_url','link_ufficiale','website_url','sitoUfficiale','sitoEvento','url','link'];
+const URL_KEYS_IMG  = ['locandina_url','poster_url','image_url','img_url','cover_url','cover_image','image','img','locandina','foto_locandina','flyer','flyer_url','banner','banner_url','thumbnail','thumb'];
+
+// Cerca la PRIMA URL valida in profondità (object/array/string/JSON string)
+function deepFindUrl(obj, keys, depth=4){
+  if (!obj || depth < 0) return '';
+  if (typeof obj === 'string'){
+    // prova come URL diretta
+    const s1 = safeUrl(obj); if (s1) return s1;
+    // prova a parsare JSON
+    try { return deepFindUrl(JSON.parse(obj), keys, depth-1); } catch(_){ return ''; }
+  }
+  if (Array.isArray(obj)){
+    for (const it of obj){
+      const s = deepFindUrl(it, keys, depth-1);
+      if (s) return s;
+    }
+    return '';
+  }
+  if (typeof obj === 'object'){
+    // 1) chiavi dirette
+    for (const k of Object.keys(obj)){
+      if (keys.includes(k)){
+        const s = safeUrl(obj[k]);
+        if (s) return s;
+      }
+    }
+    // 2) ricorsione
+    for (const k of Object.keys(obj)){
+      const s = deepFindUrl(obj[k], keys, depth-1);
+      if (s) return s;
+    }
+  }
+  return '';
+}
+</script>  
   // ======= GOOGLE: loader unico (Places + Geometry) =======
   let _gmapsLoading = null;
   async function ensureGoogleLoaded(){
@@ -664,35 +702,32 @@
     const cats  = (ev._cats||[]).join(', ');
     const theDescr = ev.description||ev.descrizione||'';
     
-    // —— URL sito + locandina (robusto) ——
-    // 1) prova campi diretti e alias
-    let website = pickFirstUrl(
-      ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
-      ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
-      ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
-      ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
-    );
-    // 2) fallback dentro metadata
-    if (!website){
-      website = getFromMeta(ev, 'website','sito','sito_web','official_url','link_ufficiale','url','link');
-    }
+    // —— URL sito + locandina (ancora più robusto) ——
+// Primo tentativo: campi piatti + alias
+let website = pickFirstUrl(
+  ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
+  ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
+  ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
+  ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
+);
+// Secondo: scava dentro metadata / oggetti annidati / JSON string
+if (!website) website = deepFindUrl(ev.metadata ?? ev.meta ?? ev.data ?? ev, URL_KEYS_SITE);
 
-    let locandinaUrl = pickFirstUrl(
-      ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
-      ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
-      ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
-    );
-    if (!locandinaUrl){
-      locandinaUrl = getFromMeta(ev, 'locandina_url','poster_url','image','image_url','cover','cover_url','banner_url','img','thumb','thumbnail');
-    }
-    // Ultima chance: se la “locandina” è un percorso relativo, trasformalo in assoluto
-    if (locandinaUrl && locandinaUrl.startsWith('/')) {
-      try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
-    }
+let locandinaUrl = pickFirstUrl(
+  ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
+  ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
+  ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
+);
+// Anche per la locandina scava a fondo se non trovata
+if (!locandinaUrl) locandinaUrl = deepFindUrl(ev.metadata ?? ev.meta ?? ev.data ?? ev, URL_KEYS_IMG);
 
-    const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-    const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
-    
+// Percorsi relativi → assolutizza
+if (locandinaUrl && locandinaUrl.startsWith('/')) {
+  try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
+}
+const btnSite   = website     ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
+          
     // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
     const today = todayISO();
     const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
