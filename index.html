@@ -99,8 +99,10 @@
 
   /* Barra condividi */
   .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
-.leaflet-popup-content .popup-actions .btn{display:inline-block}
-.leaflet-popup-content a.btn{text-decoration:none}  
+
+  /* Assicurati che i bottoni nel popup siano visibili */
+  .leaflet-popup-content .popup-actions .btn{display:inline-block}
+  .leaflet-popup-content a.btn{text-decoration:none}
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -289,57 +291,6 @@
     }
     return [];
   }
-function safeUrl(u){
-  // Accetta: stringhe, array, oggetti con {url|href|link|src}, data:image, //, /percorso, www., domini senza protocollo
-  if (u == null) return '';
-  if (Array.isArray(u)){
-    for (const item of u){
-      const s = safeUrl(item);
-      if (s) return s;
-    }
-    return '';
-  }
-  if (typeof u === 'object'){
-    const candidates = [u.url, u.href, u.link, u.src];
-    for (const c of candidates){
-      const s = safeUrl(c);
-      if (s) return s;
-    }
-    return '';
-  }
-  let s = String(u).trim();
-  if (!s) return '';
-
-  // data URL immagini
-  if (/^data:image\//i.test(s)) return s;
-
-  // protocol-relative → aggiungi https:
-  if (/^\/\//.test(s)) s = 'https:' + s;
-
-  // percorso relativo al sito
-  if (/^\//.test(s)) return s;
-
-  // www. o dominio senza schema → aggiungi https://
-  if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
-
-  try { new URL(s); return s; } catch(_){ return ''; }
-}
-
-function pickFirstUrl(...fields){
-  for (const f of fields){
-    const s = safeUrl(f);
-    if (s) return s;
-    // Se la stringa è JSON (es. '{"url":"..."}' o '["..."]') prova a parsare
-    if (typeof f === 'string'){
-      try{
-        const j = JSON.parse(f);
-        const s2 = safeUrl(j);
-        if (s2) return s2;
-      }catch(_){}
-    }
-  }
-  return '';
-}  
   function firstNonEmpty(...vals){
     for (const v of vals){
       const s = (v ?? '').toString().trim();
@@ -348,68 +299,61 @@ function pickFirstUrl(...fields){
     return '';
   }
 
-// Estrae il PRIMO URL da testo/HTML (href, http/https, //, www., dominio nudo)
-function extractFirstUrlFromText(t){
-  if (!t) return '';
-  const s = String(t);
-
-  // <a href="...">
-  const mHref = s.match(/href\s*=\s*["']([^"']+)["']/i);
-  if (mHref){
-    const u = safeUrl(mHref[1]);
-    if (u) return u;
+  // URL “tollerante” + pickFirstUrl + estrazione da testo/HTML
+  function safeUrl(u){
+    if (u == null) return '';
+    if (Array.isArray(u)){
+      for (const item of u){ const s = safeUrl(item); if (s) return s; }
+      return '';
+    }
+    if (typeof u === 'object'){
+      const candidates = [u.url, u.href, u.link, u.src];
+      for (const c of candidates){ const s = safeUrl(c); if (s) return s; }
+      return '';
+    }
+    let s = String(u).trim();
+    if (!s) return '';
+    if (/^data:image\//i.test(s)) return s;
+    if (/^\/\//.test(s)) s = 'https:' + s;
+    if (/^\//.test(s)) return s;
+    if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
+    try { new URL(s); return s; } catch(_){ return ''; }
+  }
+  function pickFirstUrl(...fields){
+    for (const f of fields){
+      const s = safeUrl(f);
+      if (s) return s;
+      if (typeof f === 'string'){
+        try{ const j = JSON.parse(f); const s2 = safeUrl(j); if (s2) return s2; }catch(_){}
+      }
+    }
+    return '';
+  }
+  function extractFirstUrlFromText(t){
+    if (!t) return '';
+    const s = String(t);
+    const mHref = s.match(/href\s*=\s*["']([^"']+)["']/i);
+    if (mHref){ const u = safeUrl(mHref[1]); if (u) return u; }
+    const mHttp = s.match(/https?:\/\/[^\s<>"']+/i);
+    if (mHttp){ const u = safeUrl(mHttp[0]); if (u) return u; }
+    const mProto = s.match(/(^|\s)(\/\/[^\s<>"']+)/i);
+    if (mProto){ const u = safeUrl(mProto[2]); if (u) return u; }
+    const mDom = s.match(/\b(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s<>"']*)?/i);
+    if (mDom){ const u = safeUrl(mDom[0]); if (u) return u; }
+    return '';
+  }
+  function extractFirstImageUrlFromText(t){
+    if (!t) return '';
+    const s = String(t);
+    const mImg = s.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (mImg){ const u = safeUrl(mImg[1]); if (u) return u; }
+    const mFile = s.match(/https?:\/\/[^\s<>"']+\.(?:png|jpe?g|webp|gif)(\?[^\s<>"']*)?/i);
+    if (mFile){ const u = safeUrl(mFile[0]); if (u) return u; }
+    const mDomFile = s.match(/\b(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}[^\s<>"']+\.(?:png|jpe?g|webp|gif)\b/i);
+    if (mDomFile){ const u = safeUrl(mDomFile[0]); if (u) return u; }
+    return '';
   }
 
-  // http/https diretto
-  const mHttp = s.match(/https?:\/\/[^\s<>"']+/i);
-  if (mHttp){
-    const u = safeUrl(mHttp[0]);
-    if (u) return u;
-  }
-
-  // protocol-relative: //example.com/...
-  const mProto = s.match(/(^|\s)(\/\/[^\s<>"']+)/i);
-  if (mProto){
-    const u = safeUrl(mProto[2]);
-    if (u) return u;
-  }
-
-  // dominio nudo o www.
-  const mDom = s.match(/\b(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s<>"']*)?/i);
-  if (mDom){
-    const u = safeUrl(mDom[0]);
-    if (u) return u;
-  }
-  return '';
-}
-
-// Estrae la PRIMA immagine (src/img http/https o file .jpg/.png/.webp...)
-function extractFirstImageUrlFromText(t){
-  if (!t) return '';
-  const s = String(t);
-
-  // <img src="...">
-  const mImg = s.match(/<img[^>]+src=["']([^"']+)["']/i);
-  if (mImg){
-    const u = safeUrl(mImg[1]);
-    if (u) return u;
-  }
-
-  // link diretto a file immagine
-  const mFile = s.match(/https?:\/\/[^\s<>"']+\.(?:png|jpe?g|webp|gif)(\?[^\s<>"']*)?/i);
-  if (mFile){
-    const u = safeUrl(mFile[0]);
-    if (u) return u;
-  }
-
-  // dominio+file immagine senza schema
-  const mDomFile = s.match(/\b(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}[^\s<>"']+\.(?:png|jpe?g|webp|gif)\b/i);
-  if (mDomFile){
-    const u = safeUrl(mDomFile[0]);
-    if (u) return u;
-  }
-  return '';
-}  
   // ======= GOOGLE: loader unico (Places + Geometry) =======
   let _gmapsLoading = null;
   async function ensureGoogleLoaded(){
@@ -704,63 +648,46 @@ function extractFirstImageUrlFromText(t){
     const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
     const cats  = (ev._cats||[]).join(', ');
     const theDescr = ev.description||ev.descrizione||'';
-    
-// —— URL sito + locandina (robusto) ——
-// 1) Campi comuni lato EVENTO
-let website = pickFirstUrl(
-  ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
-  ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
-  ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
-  ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale,
-  ev.source_url, ev.fonte_url, ev.fonte, ev.sorgente_url, ev.origin_url
-);
 
-// 2) Campi alternativi lato OCCORRENZA (se presenti)
-if (!website){
-  website = pickFirstUrl(
-    occ.website, occ.link, occ.url, occ.sito, occ.sito_web, occ.link_evento, occ.url_evento
-  );
-}
+    // —— URL sito + locandina (robusto) ——
+    let website = pickFirstUrl(
+      // Campi evento più comuni
+      ev.website, ev.sito, ev.sito_web, ev.sito_ufficiale, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
+      ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
+      ev.instagram_event, ev.instagram, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
+      ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale, ev.pagina_web, ev.page_url, ev.ref_url, ev.source_url
+    );
+    if (!website){
+      // Campi lato occorrenza
+      website = pickFirstUrl(occ.website, occ.sito, occ.sito_web, occ.sito_ufficiale, occ.link, occ.url, occ.link_evento, occ.url_evento);
+    }
+    if (!website){
+      // Estrarre da testo/HTML
+      website = pickFirstUrl(
+        extractFirstUrlFromText(ev.description || ev.descrizione || ''),
+        extractFirstUrlFromText(ev.note || ev.notes || ev.content || ev.testo || ev.html || ''),
+        extractFirstUrlFromText(occ.note || occ.notes || '')
+      );
+    }
 
-// 3) Fallback: estrai da descrizioni/testi HTML
-if (!website){
-  website = pickFirstUrl(
-    extractFirstUrlFromText(ev.description || ev.descrizione || ''),
-    extractFirstUrlFromText(ev.note || ev.notes || ev.content || ev.testo || ev.html || ''),
-    extractFirstUrlFromText(occ.note || occ.notes || '')
-  );
-}
+    let locandinaUrl = pickFirstUrl(
+      ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
+      ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
+      ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
+    );
+    if (!locandinaUrl){
+      locandinaUrl = pickFirstUrl(occ.locandina_url, occ.poster_url, occ.image_url, occ.img);
+    }
+    if (!locandinaUrl){
+      locandinaUrl = pickFirstUrl(
+        extractFirstImageUrlFromText(ev.description || ev.descrizione || ''),
+        extractFirstImageUrlFromText(ev.note || ev.notes || ev.content || ev.testo || ev.html || '')
+      );
+    }
+    if (locandinaUrl && locandinaUrl.startsWith('/')){
+      try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
+    }
 
-// ——— LOCANDINA ———
-let locandinaUrl = pickFirstUrl(
-  ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
-  ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
-  ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
-);
-
-// Campi lato OCCORRENZA per la locandina
-if (!locandinaUrl){
-  locandinaUrl = pickFirstUrl(
-    occ.locandina_url, occ.poster_url, occ.image_url, occ.img
-  );
-}
-
-// Fallback: cerca immagini dentro descrizioni/testi HTML
-if (!locandinaUrl){
-  locandinaUrl = pickFirstUrl(
-    extractFirstImageUrlFromText(ev.description || ev.descrizione || ''),
-    extractFirstImageUrlFromText(ev.note || ev.notes || ev.content || ev.testo || ev.html || '')
-  );
-}
-
-// Percorso relativo → assolutizza
-if (locandinaUrl && locandinaUrl.startsWith('/')){
-  try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
-}
-
-const btnSite   = website ? `<button class="btn" data-open="${website}">Apri sito evento</button>` : '';
-const btnPoster = locandinaUrl ? `<button class="btn primary" data-open="${locandinaUrl}">Apri locandina</button>` : '';
-    
     // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
     const today = todayISO();
     const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
@@ -774,22 +701,23 @@ const btnPoster = locandinaUrl ? `<button class="btn primary" data-open="${locan
       )
       .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
 
-    // === RIGA DATE DAL–AL (con orari se presenti) ===
-let dateLine = '';
-if (allDates.length > 1) {
-  const start = allDates[0];
-  const end   = allDates[allDates.length - 1];
-  const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
-  const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
-  dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
-} else {
-  const only = allDates[0] || occ;
-  dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
-}    
     const otherDates = allDates.filter(o => o.id !== occ.id);
     const multiBadge = allDates.length > 1
       ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
       : '';
+
+    // === RIGA DATE DAL–AL (con orari se presenti) ===
+    let dateLine = '';
+    if (allDates.length > 1) {
+      const start = allDates[0];
+      const end   = allDates[allDates.length - 1];
+      const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
+      const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
+      dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
+    } else {
+      const only = allDates[0] || occ;
+      dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
+    }
 
     // Lista "Altre date"
     const listHtml = otherDates.length
@@ -803,6 +731,9 @@ if (allDates.length > 1) {
            ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
          </div>`
       : '';
+
+    const btnSite   = website      ? `<button class="btn"         data-open="${website}">Apri sito evento</button>`      : '';
+    const btnPoster = locandinaUrl ? `<button class="btn primary" data-open="${locandinaUrl}">Apri locandina</button>` : '';
 
     const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:320px">
@@ -819,36 +750,37 @@ if (allDates.length > 1) {
       </div>`;
 
     m.bindPopup(html).on('popupopen', ()=>{
-  // 1) Percorso
-  const btnRoute = document.querySelector('button[data-calc="1"]');
-  if (btnRoute) btnRoute.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
+      // Percorso
+      const btnRoute = document.querySelector('button[data-calc="1"]');
+      if (btnRoute) btnRoute.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
 
-  // 2) Altre date → imposta filtro e ricarica marker
-  document.querySelectorAll('.sq-date').forEach(a=>{
-    a.addEventListener('click', (e)=>{
-      e.preventDefault();
-      const d = a.getAttribute('data-date');
-      state.customDate = d;
-      state.day = null;
-      allowAutoFit = false;
-      const badge = document.getElementById('dateBadge');
-      if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
-      LEAF.map.closePopup();
-      renderMarkers();
-    });
-  });
+      // Altre date → filtra
+      document.querySelectorAll('.sq-date').forEach(a=>{
+        a.addEventListener('click', (e)=>{
+          e.preventDefault();
+          const d = a.getAttribute('data-date');
+          state.customDate = d;
+          state.day = null;
+          allowAutoFit = false;
+          const badge = document.getElementById('dateBadge');
+          if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
+          LEAF.map.closePopup();
+          renderMarkers();
+        });
+      });
 
-  // 3) Sito/Locandina → apri in nuova scheda
-  document.querySelectorAll('button[data-open]').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const href = b.getAttribute('data-open');
-      if (href) window.open(href, '_blank', 'noopener');
+      // Sito/Locandina → apri in nuova scheda
+      document.querySelectorAll('button[data-open]').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const href = b.getAttribute('data-open');
+          if (href) window.open(href, '_blank', 'noopener');
+        });
+      });
     });
-  });
-});
 
     markers.push(m);
   }
+
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
@@ -1088,7 +1020,7 @@ if (allDates.length > 1) {
 
     // OCCURRENCES: solo NON cestinate
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
-      .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city, deleted_at')
+      .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city, deleted_at, note')
       .is('deleted_at', null);
     if (occErr) { console.error('ERR occs:', occErr); return; }
 
@@ -1104,7 +1036,8 @@ if (allDates.length > 1) {
         ora:  (o.ora  || o.time || ''),
         luogo: o.luogo || o.venue || '',
         indirizzo: o.indirizzo || o.address || '',
-        citta: o.citta || o.city || ''
+        citta: o.citta || o.city || '',
+        note: o.note || ''
       }))
       .filter(o => o.data);
     OCCS = norm.filter(o => o.lat != null && o.lng != null);
