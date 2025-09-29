@@ -99,8 +99,8 @@
 
   /* Barra condividi */
   .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
-  .leaflet-popup-content .popup-actions .btn{display:inline-block}
-  .leaflet-popup-content a.btn{text-decoration:none}  
+.leaflet-popup-content .popup-actions .btn{display:inline-block}
+.leaflet-popup-content a.btn{text-decoration:none}  
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -289,124 +289,65 @@
     }
     return [];
   }
-
-  function safeUrl(u){
-    // Accetta: stringhe, array, oggetti con {url|href|link|src}, data:image, //, /percorso, www., domini senza protocollo
-    if (u == null) return '';
-    if (Array.isArray(u)){
-      for (const item of u){
-        const s = safeUrl(item);
-        if (s) return s;
-      }
-      return '';
-    }
-    if (typeof u === 'object'){
-      const candidates = [u.url, u.href, u.link, u.src];
-      for (const c of candidates){
-        const s = safeUrl(c);
-        if (s) return s;
-      }
-      return '';
-    }
-    let s = String(u).trim();
-    if (!s) return '';
-
-    // data URL immagini
-    if (/^data:image\//i.test(s)) return s;
-
-    // protocol-relative → aggiungi https:
-    if (/^\/\//.test(s)) s = 'https:' + s;
-
-    // percorso relativo al sito
-    if (/^\//.test(s)) return s;
-
-    // www. o dominio senza schema → aggiungi https://
-    if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
-
-    try { new URL(s); return s; } catch(_){ return ''; }
-  }
-
-  function pickFirstUrl(...fields){
-    for (const f of fields){
-      const s = safeUrl(f);
-      if (s) return s;
-      // Se la stringa è JSON (es. '{"url":"..."}' o '["..."]') prova a parsare
-      if (typeof f === 'string'){
-        try{
-          const j = JSON.parse(f);
-          const s2 = safeUrl(j);
-          if (s2) return s2;
-        }catch(_){}
-      }
-    }
-    return '';
-  }
-
-  // 👉 NEW: pesca dentro metadata (object o JSON string)
-  function getFromMeta(ev, ...keys){
-    const raw = ev?.metadata ?? ev?.meta ?? ev?.data; // compatibilità eventuale
-    if (!raw) return '';
-    let obj = null;
-    if (typeof raw === 'string'){
-      try{ obj = JSON.parse(raw); }catch(_){ obj = null; }
-    } else if (typeof raw === 'object'){
-      obj = raw;
-    }
-    if (!obj) return '';
-    for (const k of keys){
-      const v = obj?.[k];
-      const s = safeUrl(v);
-      if (s) return s;
-      // se è stringa JSON annidata
-      if (typeof v === 'string'){
-        try{
-          const j = JSON.parse(v);
-          const s2 = safeUrl(j);
-          if (s2) return s2;
-        }catch(_){}
-      }
-    }
-    return '';
-  }
-
-<script>
-// === URL helpers ultra-robusti ===
-const URL_KEYS_SITE = ['website','sito','sito_web','official_url','link_ufficiale','website_url','sitoUfficiale','sitoEvento','url','link'];
-const URL_KEYS_IMG  = ['locandina_url','poster_url','image_url','img_url','cover_url','cover_image','image','img','locandina','foto_locandina','flyer','flyer_url','banner','banner_url','thumbnail','thumb'];
-
-// Cerca la PRIMA URL valida in profondità (object/array/string/JSON string)
-function deepFindUrl(obj, keys, depth=4){
-  if (!obj || depth < 0) return '';
-  if (typeof obj === 'string'){
-    // prova come URL diretta
-    const s1 = safeUrl(obj); if (s1) return s1;
-    // prova a parsare JSON
-    try { return deepFindUrl(JSON.parse(obj), keys, depth-1); } catch(_){ return ''; }
-  }
-  if (Array.isArray(obj)){
-    for (const it of obj){
-      const s = deepFindUrl(it, keys, depth-1);
+function safeUrl(u){
+  // Accetta: stringhe, array, oggetti con {url|href|link|src}, data:image, //, /percorso, www., domini senza protocollo
+  if (u == null) return '';
+  if (Array.isArray(u)){
+    for (const item of u){
+      const s = safeUrl(item);
       if (s) return s;
     }
     return '';
   }
-  if (typeof obj === 'object'){
-    // 1) chiavi dirette
-    for (const k of Object.keys(obj)){
-      if (keys.includes(k)){
-        const s = safeUrl(obj[k]);
-        if (s) return s;
-      }
-    }
-    // 2) ricorsione
-    for (const k of Object.keys(obj)){
-      const s = deepFindUrl(obj[k], keys, depth-1);
+  if (typeof u === 'object'){
+    const candidates = [u.url, u.href, u.link, u.src];
+    for (const c of candidates){
+      const s = safeUrl(c);
       if (s) return s;
+    }
+    return '';
+  }
+  let s = String(u).trim();
+  if (!s) return '';
+
+  // data URL immagini
+  if (/^data:image\//i.test(s)) return s;
+
+  // protocol-relative → aggiungi https:
+  if (/^\/\//.test(s)) s = 'https:' + s;
+
+  // percorso relativo al sito
+  if (/^\//.test(s)) return s;
+
+  // www. o dominio senza schema → aggiungi https://
+  if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
+
+  try { new URL(s); return s; } catch(_){ return ''; }
+}
+
+function pickFirstUrl(...fields){
+  for (const f of fields){
+    const s = safeUrl(f);
+    if (s) return s;
+    // Se la stringa è JSON (es. '{"url":"..."}' o '["..."]') prova a parsare
+    if (typeof f === 'string'){
+      try{
+        const j = JSON.parse(f);
+        const s2 = safeUrl(j);
+        if (s2) return s2;
+      }catch(_){}
     }
   }
   return '';
-}
-</script>  
+}  
+  function firstNonEmpty(...vals){
+    for (const v of vals){
+      const s = (v ?? '').toString().trim();
+      if (s) return s;
+    }
+    return '';
+  }
+
   // ======= GOOGLE: loader unico (Places + Geometry) =======
   let _gmapsLoading = null;
   async function ensureGoogleLoaded(){
@@ -702,32 +643,28 @@ function deepFindUrl(obj, keys, depth=4){
     const cats  = (ev._cats||[]).join(', ');
     const theDescr = ev.description||ev.descrizione||'';
     
-    // —— URL sito + locandina (ancora più robusto) ——
-// Primo tentativo: campi piatti + alias
-let website = pickFirstUrl(
+// —— URL sito + locandina (robusto) ——
+const website = pickFirstUrl(
   ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
   ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
   ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
   ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
 );
-// Secondo: scava dentro metadata / oggetti annidati / JSON string
-if (!website) website = deepFindUrl(ev.metadata ?? ev.meta ?? ev.data ?? ev, URL_KEYS_SITE);
 
 let locandinaUrl = pickFirstUrl(
   ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
   ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
   ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
 );
-// Anche per la locandina scava a fondo se non trovata
-if (!locandinaUrl) locandinaUrl = deepFindUrl(ev.metadata ?? ev.meta ?? ev.data ?? ev, URL_KEYS_IMG);
 
-// Percorsi relativi → assolutizza
+// Ultima chance: se la “locandina” è un percorso relativo, trasformalo in assoluto per sicurezza
 if (locandinaUrl && locandinaUrl.startsWith('/')) {
   try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
 }
-const btnSite   = website     ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
-          
+
+const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
+    
     // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
     const today = todayISO();
     const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
@@ -742,40 +679,34 @@ const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noo
       .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
 
     // === RIGA DATE DAL–AL (con orari se presenti) ===
-    let dateLine = '';
-    if (allDates.length > 1) {
-      const start = allDates[0];
-      const end   = allDates[allDates.length - 1];
-      const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
-      const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
-      dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
-    } else {
-      const only = allDates[0] || occ;
-      dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
-    }
-
+let dateLine = '';
+if (allDates.length > 1) {
+  const start = allDates[0];
+  const end   = allDates[allDates.length - 1];
+  const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
+  const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
+  dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
+} else {
+  const only = allDates[0] || occ;
+  dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
+}    
     const otherDates = allDates.filter(o => o.id !== occ.id);
     const multiBadge = allDates.length > 1
       ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
       : '';
 
     // Lista "Altre date"
-    let listHtml = '';
-    if (otherDates.length) {
-      const items = otherDates.slice(0,8).map(o => {
-        const oraTxt = o.ora ? (' ore ' + o.ora) : '';
-        return '<li><a href="#" class="sq-date" data-date="' + o.data + '">' + fmtIT(o.data) + oraTxt + '</a></li>';
-      }).join('');
-      const more = (otherDates.length > 8)
-        ? '<div class="small" style="opacity:.8">…e altre ' + (otherDates.length-8) + '</div>'
-        : '';
-      listHtml =
-        '<div style="margin-top:6px">' +
-          '<b>Altre date:</b>' +
-          '<ul style="margin:6px 0 0 18px">' + items + '</ul>' +
-          more +
-        '</div>';
-    }
+    const listHtml = otherDates.length
+      ? `<div style="margin-top:6px">
+           <b>Altre date:</b>
+           <ul style="margin:6px 0 0 18px">
+             ${otherDates.slice(0,8).map(o =>
+               `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
+             ).join('')}
+           </ul>
+           ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
+         </div>`
+      : '';
 
     const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
     const html = `<div style="color:#081421;max-width:320px">
@@ -1022,12 +953,8 @@ const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noo
       if (bounds && !contains(occ.lat,occ.lng)) return;
       if (!occPassesFilters(occ)) return;
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
-      try {
-        lAddMarker(occ, ev);
-        rendered++;
-      } catch (e) {
-        console.error('Errore rendering marker per occ', occ, e);
-      }
+      lAddMarker(occ, ev);
+      rendered++;
     });
     updateCounter();
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
