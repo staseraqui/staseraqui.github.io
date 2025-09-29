@@ -644,41 +644,25 @@ function pickFirstUrl(...fields){
     const theDescr = ev.description||ev.descrizione||'';
     
 // —— URL sito + locandina (robusto) ——
-// Website: prova prima campi noti (evento + occorrenza), poi estrai dalla descrizione
-let website = pickFirstUrl(
-  // Campi lato EVENTO (copriamo molte varianti)
-  ev.website, ev.sito, ev.sito_web, ev.sito_ufficiale, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
+const website = pickFirstUrl(
+  ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
   ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
-  ev.instagram_event, ev.instagram, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
-  ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale, ev.pagina_web, ev.page_url, ev.ref_url, ev.source_url
-) || pickFirstUrl(
-  // Campi lato OCCORRENZA (se presenti)
-  occ.website, occ.sito, occ.sito_web, occ.sito_ufficiale, occ.link, occ.url, occ.link_evento, occ.url_evento
-) || pickFirstUrl(
-  // Fallback: URL scritti nella descrizione/testo HTML
-  extractFirstUrlFromText(ev.description || ev.descrizione || '')
+  ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
+  ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
 );
 
-// Locandina: campi noti → fallback a immagine nella descrizione
 let locandinaUrl = pickFirstUrl(
   ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
   ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
   ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
-) || pickFirstUrl(
-  // Campi lato occorrenza (se esistono)
-  occ.locandina_url, occ.poster_url, occ.image_url, occ.img
-) || pickFirstUrl(
-  // Fallback: prima immagine rintracciata nella descrizione/testo HTML
-  extractFirstImageUrlFromText(ev.description || ev.descrizione || '')
 );
 
-// Se la locandina è un percorso relativo → rendila assoluta
+// Ultima chance: se la “locandina” è un percorso relativo, trasformalo in assoluto per sicurezza
 if (locandinaUrl && locandinaUrl.startsWith('/')) {
   try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
 }
 
-// Bottoni (lasciamo <a> così non servono handler JS aggiuntivi)
-const btnSite   = website      ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>`      : '';
+const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
 const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
     
     // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
