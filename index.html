@@ -288,6 +288,31 @@
     return [];
   }
 
+  // === NEW: normalizzazione URL sicura + estrazione link evento (compatibile con più nomi colonna) ===
+  function safeUrl(u){
+    if (!u || typeof u !== 'string') return '';
+    let href = u.trim();
+    if (!href) return '';
+    if (!/^https?:\/\//i.test(href)) href = 'https://' + href;
+    try{
+      const url = new URL(href);
+      if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+    }catch(_){}
+    return '';
+  }
+  function getEventLink(ev){
+    if (!ev || typeof ev !== 'object') return null;
+    const candidates = [
+      ev.event_link, ev.link_evento, ev.link, ev.sito_evento,
+      ev.sito, ev.website, ev.event_url, ev.url, ev.link_url
+    ];
+    for (const c of candidates){
+      const s = safeUrl(c);
+      if (s) return s;
+    }
+    return null;
+  }
+
   // ======= GOOGLE: loader unico (Places + Geometry) =======
   let _gmapsLoading = null;
   async function ensureGoogleLoaded(){
@@ -583,8 +608,15 @@
   const when  = occ.ora ? `${fmtIT(occ.data)} ore ${occ.ora}` : `${fmtIT(occ.data)}`;
   const cats  = (ev._cats||[]).join(', ');
   const theDescr = ev.description||ev.descrizione||'';
+
   const posterHTML = ev.locandina_url
     ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
+    : '';
+
+  // NEW: link sito evento (se presente)
+  const eventURL = getEventLink(ev);
+  const linkHTML = eventURL
+    ? `<a class="btn" target="_blank" rel="noopener nofollow" href="${eventURL}">Sito evento</a>`
     : '';
 
   // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
@@ -627,6 +659,7 @@
       ${listHtml}
       <div class="popup-actions">
         <button class="btn accent" data-calc="1">Calcola percorso</button>
+        ${linkHTML}
         ${posterHTML}
       </div>
     </div>`;
@@ -880,9 +913,9 @@
 
     // ===== DATI =====
   async function loadData(){
-    // EVENTS: prendi solo quelli NON cestinati; "published" true o null (compat. vecchi dati)
+    // EVENTS: prendi tutto per compatibilità con possibili nuovi campi (es. link evento)
     const { data: evs, error: evErr } = await sb.from('events')
-      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at')
+      .select('*')
       .is('deleted_at', null); // ⬅️ esclude eventi nel cestino
     if (evErr) { console.error('ERR events:', evErr); return; }
 
