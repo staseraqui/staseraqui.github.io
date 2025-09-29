@@ -274,15 +274,10 @@
   // ===== Helpers robusti =====
   const isTruthyPub = v => (v===true || v===1 || v==='1' || v==='t' || v==='true' || v==='T' || v==='TRUE');
   function normCats(raw){
-    // 🔧 Estrae categorie da più possibili campi: categories, categorie, cats (pipe o lista)
-    const c = (raw?.categories ?? raw?.categorie ?? raw?.cats ?? []);
+    const c = (raw?.categories ?? raw?.categorie ?? []);
     if (Array.isArray(c)) return c.filter(Boolean).map(String);
-
     if (c == null) return [];
-
     if (typeof c === 'string'){
-      // riconosci sia pipe '|' sia virgole
-      if (c.includes('|')) return c.split('|').map(s=>s.trim()).filter(Boolean);
       try{
         const j = JSON.parse(c);
         if (Array.isArray(j)) return j.filter(Boolean).map(String);
@@ -292,30 +287,10 @@
     }
     return [];
   }
-
-  // === normalizzazione URL + estrazione link evento ===
   function safeUrl(u){
-    if (!u || typeof u !== 'string') return '';
-    let href = u.trim();
-    if (!href) return '';
-    if (!/^https?:\/\//i.test(href)) href = 'https://' + href;
-    try{
-      const url = new URL(href);
-      if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
-    }catch(_){}
-    return '';
-  }
-  function getEventLink(ev){
-    if (!ev || typeof ev !== 'object') return null;
-    const candidates = [
-      ev.event_link, ev.link_evento, ev.link, ev.sito_evento,
-      ev.sito, ev.website, ev.event_url, ev.url, ev.link_url
-    ];
-    for (const c of candidates){
-      const s = safeUrl(c);
-      if (s) return s;
-    }
-    return null;
+    u = (u||'').trim(); if(!u) return '';
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    try { new URL(u); return u; } catch(_){ return ''; }
   }
 
   // ======= GOOGLE: loader unico (Places + Geometry) =======
@@ -609,88 +584,85 @@
   }
 
   function lAddMarker(occ, ev){
-  const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
-  const when  = occ.ora ? `${fmtIT(occ.data)} ore ${occ.ora}` : `${fmtIT(occ.data)}`;
-  const cats  = (ev._cats||[]).join(', ');
-  const theDescr = ev.description || ev.descrizione || ev.descr || '';
+    const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
+    const when  = occ.ora ? `${fmtIT(occ.data)} ore ${occ.ora}` : `${fmtIT(occ.data)}`;
+    const cats  = (ev._cats||[]).join(', ');
+    const theDescr = ev.description||ev.descrizione||'';
 
-  const posterHTML = ev.locandina_url
-    ? `<a class="btn primary" target="_blank" rel="noopener" href="${ev.locandina_url}">Apri locandina</a>`
-    : '';
+    const websiteRaw = ev.website || ev.sito || ev.sito_web || ev.link || '';
+    const website = safeUrl(websiteRaw);
+    const locandinaUrl = ev.locandina_url || '';
 
-  // Link sito evento (se presente)
-  const eventURL = getEventLink(ev);
-  const linkHTML = eventURL
-    ? `<a class="btn" target="_blank" rel="noopener nofollow" href="${eventURL}">Sito evento</a>`
-    : '';
+    const btnSite   = website ? `<a class="btn" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+    const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-  // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
-  const today = todayISO();
-  const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
-  const latKey = round5(occ.lat), lngKey = round5(occ.lng);
+    // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
+    const today = todayISO();
+    const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
+    const latKey = round5(occ.lat), lngKey = round5(occ.lng);
 
-  const allDates = OCCS
-    .filter(o =>
-      o.event_id === occ.event_id &&
-      o.data && o.data >= today &&
-      round5(o.lat) === latKey && round5(o.lng) === lngKey
-    )
-    .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
+    const allDates = OCCS
+      .filter(o =>
+        o.event_id === occ.event_id &&
+        o.data && o.data >= today &&
+        round5(o.lat) === latKey && round5(o.lng) === lngKey
+      )
+      .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
 
-  const otherDates = allDates.filter(o => o.id !== occ.id);
-  const multiBadge = allDates.length > 1
-    ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
-    : '';
+    const otherDates = allDates.filter(o => o.id !== occ.id);
+    const multiBadge = allDates.length > 1
+      ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
+      : '';
 
-  // Lista "Altre date"
-  const listHtml = otherDates.length
-    ? `<div style="margin-top:6px">
-         <b>Altre date:</b>
-         <ul style="margin:6px 0 0 18px">
-           ${otherDates.slice(0,8).map(o =>
-             `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
-           ).join('')}
-         </ul>
-         ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
-       </div>`
-    : '';
+    // Lista "Altre date"
+    const listHtml = otherDates.length
+      ? `<div style="margin-top:6px">
+           <b>Altre date:</b>
+           <ul style="margin:6px 0 0 18px">
+             ${otherDates.slice(0,8).map(o =>
+               `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
+             ).join('')}
+           </ul>
+           ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
+         </div>`
+      : '';
 
-  const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
-  const html = `<div style="color:#081421;max-width:320px">
-      <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
-      <small>${cats||''}</small><br>
-      ${when}<br>${where}
-      ${theDescr ? `<br><br>${theDescr}` : ''}
-      ${listHtml}
-      <div class="popup-actions">
-        <button class="btn accent" data-calc="1">Calcola percorso</button>
-        ${linkHTML}
-        ${posterHTML}
-      </div>
-    </div>`;
+    const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
+    const html = `<div style="color:#081421;max-width:320px">
+        <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
+        <small>${cats||''}</small><br>
+        ${when}<br>${where}
+        ${theDescr ? `<br><br>${theDescr}` : ''}
+        ${listHtml}
+        <div class="popup-actions">
+          <button class="btn accent" data-calc="1">Calcola percorso</button>
+          ${btnSite}
+          ${btnPoster}
+        </div>
+      </div>`;
 
-  m.bindPopup(html).on('popupopen', ()=>{
-    const btn = document.querySelector('button[data-calc="1"]');
-    if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
+    m.bindPopup(html).on('popupopen', ()=>{
+      const btn = document.querySelector('button[data-calc="1"]');
+      if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
 
-    // Tap su una data → imposta il filtro per quella data e ricarica i marker
-    document.querySelectorAll('.sq-date').forEach(a=>{
-      a.addEventListener('click', (e)=>{
-        e.preventDefault();
-        const d = a.getAttribute('data-date');
-        state.customDate = d;
-        state.day = null;
-        allowAutoFit = false;
-        const badge = document.getElementById('dateBadge');
-        if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
-        LEAF.map.closePopup();
-        renderMarkers();
+      // Tap su una data → imposta il filtro per quella data e ricarica i marker
+      document.querySelectorAll('.sq-date').forEach(a=>{
+        a.addEventListener('click', (e)=>{
+          e.preventDefault();
+          const d = a.getAttribute('data-date');
+          state.customDate = d;
+          state.day = null;
+          allowAutoFit = false;
+          const badge = document.getElementById('dateBadge');
+          if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
+          LEAF.map.closePopup();
+          renderMarkers();
+        });
       });
     });
-  });
 
-  markers.push(m);
-}
+    markers.push(m);
+  }
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
@@ -839,35 +811,35 @@
 
   // ===== FILTRI LOGICA =====
   function occPassesFilters(occ){
-  const today = todayISO();
+    const today = todayISO();
 
-  // Escludi passato
-  if (occ.data && occ.data < today) return false;
+    // Escludi passato
+    if (occ.data && occ.data < today) return false;
 
-  // Se è stata scelta una data specifica, ha la precedenza
-  if (state.customDate && occ.data !== state.customDate) return false;
+    // Se è stata scelta una data specifica, ha la precedenza
+    if (state.customDate && occ.data !== state.customDate) return false;
 
-  // Giorni rapidi
-  if (state.day === 'oggi'   && occ.data !== today) return false;
-  if (state.day === 'domani' && occ.data !== addDays(today, 1)) return false;
+    // Giorni rapidi
+    if (state.day === 'oggi'   && occ.data !== today) return false;
+    if (state.day === 'domani' && occ.data !== addDays(today, 1)) return false;
 
-  // Weekend = SOLO il prossimo sabato/domenica
-  if (state.day === 'weekend'){
-    const now = new Date();
-    const sat = addDays(today, (6 - now.getDay() + 7) % 7);
-    const sun = addDays(today, (7 - now.getDay() + 7) % 7);
-    if (occ.data !== sat && occ.data !== sun) return false;
+    // Weekend = SOLO il prossimo sabato/domenica (quelli mostrati nel badge)
+    if (state.day === 'weekend'){
+      const now = new Date();
+      const sat = addDays(today, (6 - now.getDay() + 7) % 7);
+      const sun = addDays(today, (7 - now.getDay() + 7) % 7);
+      if (occ.data !== sat && occ.data !== sun) return false;
+    }
+
+    // Categorie
+    if (state.cats.size > 0){
+      const ev = EVENTS_BY_ID.get(occ.event_id);
+      const evCats = (ev?._cats || []);
+      if (!evCats.some(c => state.cats.has(c))) return false;
+    }
+
+    return true;
   }
-
-  // Categorie
-  if (state.cats.size > 0){
-    const ev = EVENTS_BY_ID.get(occ.event_id);
-    const evCats = (ev?._cats || []);
-    if (!evCats.some(c => state.cats.has(c))) return false;
-  }
-
-  return true;
-}
   function updateCounter(){
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
@@ -885,14 +857,15 @@
     lClearMarkers();
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
-        let rendered = 0;
+    let rendered = 0;
 
-    // Ordina per data/ora DESC
+    // Ordina per data/ora DESC: aggiungiamo prima le date lontane e per ultime
+    // le più vicine, così restano "sopra" e sono quelle che vedi al click.
     const occsToRender = OCCS.slice().sort((a,b)=>{
       const ad = a.data || '', bd = b.data || '';
-      if (ad !== bd) return ad > bd ? -1 : 1;
+      if (ad !== bd) return ad > bd ? -1 : 1; // DESC per data
       const at = a.ora || '', bt = b.ora || '';
-      return at > bt ? -1 : (at < bt ? 1 : 0);
+      return at > bt ? -1 : (at < bt ? 1 : 0); // DESC per ora
     });
 
     occsToRender.forEach(occ=>{
@@ -902,7 +875,8 @@
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
       lAddMarker(occ, ev);
       rendered++;
-    });    updateCounter();
+    });
+    updateCounter();
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
       const all = computeAllBounds();
       if (all){
@@ -915,27 +889,25 @@
 
   // ===== DATI =====
   async function loadData(){
-    // EVENTS: prendi tutto per compatibilità (link/website, ecc.)
+    // EVENTS: prendi solo quelli NON cestinati; "published" true o null (compat. vecchi dati)
     const { data: evs, error: evErr } = await sb.from('events')
       .select('*')
-      .is('deleted_at', null);
+      .is('deleted_at', null); // ⬅️ esclude eventi nel cestino
     if (evErr) { console.error('ERR events:', evErr); return; }
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
     EVENTS = EVENTS_ALL
-      .filter(e => !('published' in e) || isTruthyPub(e.published))
+      .filter(e => !('published' in e) || isTruthyPub(e.published)) // published:true o assente
       .map(e => ({ ...e, _cats: normCats(e) }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
-    // OCCURRENCES: solo NON cestinate e dal "today" in poi
-    const today = todayISO();
+    // OCCURRENCES: solo NON cestinate (il filtro "future" lo facciamo lato client su data||date)
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city, deleted_at')
-      .is('deleted_at', null)
-      .gte('data', today);
+      .is('deleted_at', null);  // ⬅️ rimosso .gte('data', today)
     if (occErr) { console.error('ERR occs:', occErr); return; }
 
-    const validEventIds = new Set(EVENTS.map(e => e.id));
+    const validEventIds = new Set(EVENTS.map(e => e.id)); // occ legate a eventi attivi
     const norm = (occsRaw || [])
       .filter(o => validEventIds.has(o.event_id))
       .map(o => ({
@@ -943,13 +915,13 @@
         event_id: o.event_id,
         lat: o.lat,
         lng: o.lng,
-        data: o.data || o.date || null,
-        ora: o.ora || o.time || '',
+        data: (o.data || o.date || null),
+        ora:  (o.ora  || o.time || ''),
         luogo: o.luogo || o.venue || '',
         indirizzo: o.indirizzo || o.address || '',
         citta: o.citta || o.city || ''
       }))
-      .filter(o => o.data);
+      .filter(o => o.data); // sicurezza: deve avere la data
     OCCS = norm.filter(o => o.lat != null && o.lng != null);
 
     console.info('Loaded EVENTS:', EVENTS.length, 'OCCS:', OCCS.length);
@@ -957,7 +929,7 @@
     renderMarkers();
   }
   
-  // ===== CONDIVIDI =====
+  // ===== CONDIVIDI (solo bottone giallo) =====
   (function(){
     const SHARE_URL  = 'https://www.staseraqui.it/';
     const SHARE_TEXT = 'Scopri cosa fare stasera vicino a te su Stasera Qui';
@@ -977,7 +949,7 @@
     btnNative.addEventListener('click', async ()=>{
       if (navigator.share){
         try{ await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: SHARE_URL }); }
-        catch(_){ /* utente ha annullato */ }
+        catch(_){ /* utente ha annullato o errore → ignora */ }
       } else {
         const ok = await copyToClipboard(SHARE_URL);
         if (ok) alert('Link copiato! Incollalo dove vuoi.');
