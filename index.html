@@ -289,57 +289,45 @@
     }
     return [];
   }
-function safeUrl(u){
-  // Accetta: stringhe, array, oggetti con {url|href|link|src}, data:image, //, /percorso, www., domini senza protocollo
-  if (u == null) return '';
-  if (Array.isArray(u)){
-    for (const item of u){
-      const s = safeUrl(item);
+  function safeUrl(u){
+    if (u == null) return '';
+    if (Array.isArray(u)){
+      for (const item of u){
+        const s = safeUrl(item);
+        if (s) return s;
+      }
+      return '';
+    }
+    if (typeof u === 'object'){
+      const candidates = [u.url, u.href, u.link, u.src];
+      for (const c of candidates){
+        const s = safeUrl(c);
+        if (s) return s;
+      }
+      return '';
+    }
+    let s = String(u).trim();
+    if (!s) return '';
+    if (/^data:image\//i.test(s)) return s;
+    if (/^\/\//.test(s)) s = 'https:' + s;
+    if (/^\//.test(s)) return s;
+    if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
+    try { new URL(s); return s; } catch(_){ return ''; }
+  }
+  function pickFirstUrl(...fields){
+    for (const f of fields){
+      const s = safeUrl(f);
       if (s) return s;
+      if (typeof f === 'string'){
+        try{
+          const j = JSON.parse(f);
+          const s2 = safeUrl(j);
+          if (s2) return s2;
+        }catch(_){}
+      }
     }
     return '';
-  }
-  if (typeof u === 'object'){
-    const candidates = [u.url, u.href, u.link, u.src];
-    for (const c of candidates){
-      const s = safeUrl(c);
-      if (s) return s;
-    }
-    return '';
-  }
-  let s = String(u).trim();
-  if (!s) return '';
-
-  // data URL immagini
-  if (/^data:image\//i.test(s)) return s;
-
-  // protocol-relative → aggiungi https:
-  if (/^\/\//.test(s)) s = 'https:' + s;
-
-  // percorso relativo al sito
-  if (/^\//.test(s)) return s;
-
-  // www. o dominio senza schema → aggiungi https://
-  if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
-
-  try { new URL(s); return s; } catch(_){ return ''; }
-}
-
-function pickFirstUrl(...fields){
-  for (const f of fields){
-    const s = safeUrl(f);
-    if (s) return s;
-    // Se la stringa è JSON (es. '{"url":"..."}' o '["..."]') prova a parsare
-    if (typeof f === 'string'){
-      try{
-        const j = JSON.parse(f);
-        const s2 = safeUrl(j);
-        if (s2) return s2;
-      }catch(_){}
-    }
-  }
-  return '';
-}  
+  }  
   function firstNonEmpty(...vals){
     for (const v of vals){
       const s = (v ?? '').toString().trim();
@@ -347,6 +335,8 @@ function pickFirstUrl(...fields){
     }
     return '';
   }
+  // 🔹 arrotondamento stabile per raggruppare posizioni (5 decimali ~ 1 m)
+  const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
 
   // ======= GOOGLE: loader unico (Places + Geometry) =======
   let _gmapsLoading = null;
@@ -643,31 +633,29 @@ function pickFirstUrl(...fields){
     const cats  = (ev._cats||[]).join(', ');
     const theDescr = ev.description||ev.descrizione||'';
     
-// —— URL sito + locandina (robusto) ——
-const website = pickFirstUrl(
-  ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
-  ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
-  ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
-  ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
-);
+    // —— URL sito + locandina (robusto) ——
+    const website = pickFirstUrl(
+      ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
+      ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
+      ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
+      ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
+    );
 
-let locandinaUrl = pickFirstUrl(
-  ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
-  ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
-  ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
-);
+    let locandinaUrl = pickFirstUrl(
+      ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
+      ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
+      ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
+    );
 
-// Ultima chance: se la “locandina” è un percorso relativo, trasformalo in assoluto per sicurezza
-if (locandinaUrl && locandinaUrl.startsWith('/')) {
-  try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
-}
+    if (locandinaUrl && locandinaUrl.startsWith('/')) {
+      try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
+    }
 
-const btnSite   = website ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+    const btnSite   = website ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
     const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
     
     // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
     const today = todayISO();
-    const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
     const latKey = round5(occ.lat), lngKey = round5(occ.lng);
 
     const allDates = OCCS
@@ -679,23 +667,23 @@ const btnSite   = website ? `<a class="btn primary" target="_blank" rel="noopene
       .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
 
     // === RIGA DATE DAL–AL (con orari se presenti) ===
-let dateLine = '';
-if (allDates.length > 1) {
-  const start = allDates[0];
-  const end   = allDates[allDates.length - 1];
-  const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
-  const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
-  dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
-} else {
-  const only = allDates[0] || occ;
-  dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
-}    
+    let dateLine = '';
+    if (allDates.length > 1) {
+      const start = allDates[0];
+      const end   = allDates[allDates.length - 1];
+      const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
+      const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
+      dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
+    } else {
+      const only = allDates[0] || occ;
+      dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
+    }
+
     const otherDates = allDates.filter(o => o.id !== occ.id);
     const multiBadge = allDates.length > 1
       ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
       : '';
 
-    // Lista "Altre date"
     const listHtml = otherDates.length
       ? `<div style="margin-top:6px">
            <b>Altre date:</b>
@@ -726,7 +714,6 @@ if (allDates.length > 1) {
       const btn = document.querySelector('button[data-calc="1"]');
       if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
 
-      // Tap su una data → imposta il filtro per quella data e ricarica i marker
       document.querySelectorAll('.sq-date').forEach(a=>{
         a.addEventListener('click', (e)=>{
           e.preventDefault();
@@ -921,10 +908,21 @@ if (allDates.length > 1) {
 
     return true;
   }
+
+  // ✅ CONTATORE: numero di pin (evento+posizione) visibili, non occorrenze
   function updateCounter(){
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
-    const count = OCCS.filter(o => o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o)).length;
+    const visibleKeys = new Set();
+
+    OCCS.forEach(o=>{
+      if (o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o)){
+        const key = `${o.event_id}|${round5(o.lat)},${round5(o.lng)}`;
+        visibleKeys.add(key);
+      }
+    });
+
+    const count = visibleKeys.size;
     $('#counter').textContent = count===1 ? '1 evento visibile sulla mappa' : `${count} eventi visibili sulla mappa`;
   }
 
@@ -934,29 +932,40 @@ if (allDates.length > 1) {
     return L.latLngBounds(pts.map(o => [o.lat, o.lng]));
   }
 
+  // ✅ MARKER: deduplica per (evento + posizione)
   function renderMarkers(){
     lClearMarkers();
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
     let rendered = 0;
 
-    // Ordina per data/ora DESC
-    const occsToRender = OCCS.slice().sort((a,b)=>{
+    // Ordina per data/ora DESC (non critico: scegliamo il primo occ del gruppo)
+    const occsToScan = OCCS.slice().sort((a,b)=>{
       const ad = a.data || '', bd = b.data || '';
-      if (ad !== bd) return ad > bd ? -1 : 1; // DESC per data
+      if (ad !== bd) return ad > bd ? -1 : 1;
       const at = a.ora || '', bt = b.ora || '';
-      return at > bt ? -1 : (at < bt ? 1 : 0); // DESC per ora
+      return at > bt ? -1 : (at < bt ? 1 : 0);
     });
 
-    occsToRender.forEach(occ=>{
+    // Raggruppo occorrenze filtrate per chiave (evento+pos)
+    const groups = new Map();
+    occsToScan.forEach(occ=>{
       if (occ.lat==null || occ.lng==null) return;
       if (bounds && !contains(occ.lat,occ.lng)) return;
       if (!occPassesFilters(occ)) return;
+      const key = `${occ.event_id}|${round5(occ.lat)},${round5(occ.lng)}`;
+      if (!groups.has(key)) groups.set(key, occ); // prendi il primo valido
+    });
+
+    // Disegno un solo pin per gruppo
+    for (const occ of groups.values()){
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
       lAddMarker(occ, ev);
       rendered++;
-    });
+    }
+
     updateCounter();
+
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
       const all = computeAllBounds();
       if (all){
@@ -969,7 +978,6 @@ if (allDates.length > 1) {
 
   // ===== DATI =====
   async function loadData(){
-    // EVENTS: prendi solo quelli NON cestinati; "published" true o null (compat. vecchi dati)
     const { data: evs, error: evErr } = await sb.from('events')
       .select('*')
       .is('deleted_at', null);
@@ -981,7 +989,6 @@ if (allDates.length > 1) {
       .map(e => ({ ...e, _cats: normCats(e) }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
-    // OCCURRENCES: solo NON cestinate
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city, deleted_at')
       .is('deleted_at', null);
