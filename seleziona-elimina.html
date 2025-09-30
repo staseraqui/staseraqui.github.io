@@ -1053,15 +1053,15 @@
           data: o.data, time: o.ora, ora: o.ora,
           lat: o.lat, lng: o.lng
         };
-        const r = await sb.from('occurrences').update(up).eq('id', o.id).eq('event_id', eventId);
-        if (r.error){ edErr.textContent='Errore update occorrenza: '+(r.error.message||String(r.error)); return false; }
+const r = await sb.from('occurrences').update(up).eq('id', o.id).select('id').single();
+if (r.error){ edErr.textContent='Errore update occorrenza: '+(r.error.message||String(r.error)); return false; }        
         keepIds.push(String(o.id));
 
         // tenta colonne specifiche per orari feriale/festivo (ignora 42703)
-        async function tryUpdateOccColumn(set){
-          const rX = await sb.from('occurrences').update(set).eq('id', o.id).eq('event_id', eventId);
-          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
-        }
+async function tryUpdateOccColumn(set){
+  const rX = await sb.from('occurrences').update(set).eq('id', o.id);
+  if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
+}        
         if (o.ora_feriale){
           try { await tryUpdateOccColumn({ ora_feriale: o.ora_feriale }); } catch(_){}
           try { await tryUpdateOccColumn({ time_weekday: o.ora_feriale }); } catch(_){}
@@ -1091,10 +1091,10 @@
 
         // update aggiuntivi per le nuove righe (colonne opzionali)
         const occId = String(r.data.id);
-        async function tryUpdateOccColumnNew(set){
-          const rX = await sb.from('occurrences').update(set).eq('id', occId).eq('event_id', eventId);
-          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
-        }
+async function tryUpdateOccColumnNew(set){
+  const rX = await sb.from('occurrences').update(set).eq('id', occId);
+  if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
+}        
         if (o.ora_feriale){
           try { await tryUpdateOccColumnNew({ ora_feriale: o.ora_feriale }); } catch(_){}
           try { await tryUpdateOccColumnNew({ time_weekday: o.ora_feriale }); } catch(_){}
@@ -1105,7 +1105,7 @@
         }
         if (!o.ora && (o.ora_feriale || o.ora_festivo)){
           const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
-          const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', occId).eq('event_id', eventId);
+const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', o.id);          
           if (rF.error){ edErr.textContent='Errore salvataggio orario combinato: '+(rF.error.message||String(rF.error)); return false; }
         }
       }
@@ -1117,7 +1117,8 @@
       .filter(x=> !keepIds.includes(String(x.id)))
       .map(x=> String(x.id));
     if (toDelete.length){
-      const r = await sb.from('occurrences').update({ deleted_at: new Date().toISOString() }).in('id', toDelete).eq('event_id', eventId);
+
+      const r = await sb.from('occurrences').update({ deleted_at: new Date().toISOString() }).in('id', toDelete);
       if (r.error && String(r.error.code)!=='42703'){ edErr.textContent='Errore delete occorrenze: '+(r.error.message||String(r.error)); return false; }
     }
 
