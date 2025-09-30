@@ -303,9 +303,16 @@
   const GMAPS_KEY = CFG.GOOGLE_MAPS_API_KEY;
   const hasGoogleKey = GMAPS_KEY && !/^INSERISCI_/.test(GMAPS_KEY);
 
-  if (!SB_URL || !SB_ANON) alert('Configurazione Supabase mancante (assets/app-config.js).');
-  const sb = supabase.createClient(SB_URL, SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } });
+    if (!SB_URL || !SB_ANON) {
+    alert('Configurazione Supabase mancante (assets/app-config.js). La mappa compare, ma non potrai caricare/modificare i dati finché non sistemi la config.');
+  }
 
+  let sb = null;
+  try {
+    sb = supabase.createClient(SB_URL, SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } });
+  } catch(e) {
+    alert('Errore inizializzazione Supabase: ' + (e && e.message ? e.message : String(e)));
+  }
   // ====== LOGIN SOLO PASSWORD ======
   const AUTH_EMAIL_WHITELIST = ['andrea.cordero@staseraqui.it']; // aggiungi eventuali altri admin
   async function requireLogin(){
@@ -369,6 +376,8 @@
   // ====== MAPPE: Leaflet (semplice) ======
   let LEAF  = { map:null, pinIcon:null, markers:new Map() };
   function initLeaf(){
+    if (typeof L === 'undefined') { alert('Leaflet non caricato. Controlla la rete/CDN.'); return; }
+    if (!document.getElementById('map')) { alert('Contenitore #map non trovato.'); return; }
     LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
     L.control.attribution({prefix:false}).addTo(LEAF.map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(LEAF.map);
@@ -1029,11 +1038,22 @@ window.notifyEventsChanged();
   });
 
   // ====== AVVIO ======
+  // 1) Inizializzo SUBITO la mappa: così è visibile anche se altro codice fallisce dopo.
+  try {
+    initLeaf();
+  } catch (e) {
+    alert('Errore Leaflet: ' + (e && e.message ? e.message : String(e)));
+  }
+
+  // 2) Poi gestisco il login e SOLO dopo carico i dati
   const ok = await requireLogin();
   if (ok){
-    initLeaf();
-    setTimeout(()=> loadData(), 300);
-  }
+    setTimeout(()=> {
+      loadData().catch(err => {
+        alert('Errore caricamento dati: ' + (err && err.message ? err.message : String(err)));
+      });
+    }, 300);
+  }  
 })();
 </script>
 
