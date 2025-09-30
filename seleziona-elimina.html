@@ -1022,5 +1022,15 @@
 </script>
 
 <footer class="page-footer"><a class="btn" href="index.html">← Torna alla mappa</a></footer>
+<script>
+  // Funzione globale: posso chiamarla da qualsiasi altro script in questa pagina
+  window.notifyEventsChanged = function () {
+    try {
+      localStorage.setItem('sq-last-change', String(Date.now()));
+    } catch (e) {
+      console.error('notifyEventsChanged error', e);
+    }
+  };
+</script>  
 </body>
 </html>
