@@ -425,11 +425,11 @@
   // ====== CARICA DATI ======
   async function loadData(){
     const { data: evs, error: evErr } = await sb.from('events')
-      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, approved, deleted, deleted_at, is_extended, extended, evento_diffuso, diffuso');
+  .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at');
     if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
 
     const { data: occs, error: ocErr } = await sb.from('occurrences')
-      .select('id, event_id, lat, lng, data, ora, ora_feriale, ora_festivo, time, time_weekday, time_weekend, luogo, indirizzo, citta, city, address, venue, deleted_at');
+  .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, city, address, time, venue, deleted_at');
     if (ocErr){ console.error(ocErr); alert('Errore lettura occorrenze'); return; }
 
     EVENTS.clear();
