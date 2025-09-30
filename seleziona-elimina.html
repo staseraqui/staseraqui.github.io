@@ -303,16 +303,9 @@
   const GMAPS_KEY = CFG.GOOGLE_MAPS_API_KEY;
   const hasGoogleKey = GMAPS_KEY && !/^INSERISCI_/.test(GMAPS_KEY);
 
-    if (!SB_URL || !SB_ANON) {
-    alert('Configurazione Supabase mancante (assets/app-config.js). La mappa compare, ma non potrai caricare/modificare i dati finché non sistemi la config.');
-  }
+  if (!SB_URL || !SB_ANON) alert('Configurazione Supabase mancante (assets/app-config.js).');
+  const sb = supabase.createClient(SB_URL, SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } });
 
-  let sb = null;
-  try {
-    sb = supabase.createClient(SB_URL, SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } });
-  } catch(e) {
-    alert('Errore inizializzazione Supabase: ' + (e && e.message ? e.message : String(e)));
-  }
   // ====== LOGIN SOLO PASSWORD ======
   const AUTH_EMAIL_WHITELIST = ['andrea.cordero@staseraqui.it']; // aggiungi eventuali altri admin
   async function requireLogin(){
@@ -376,8 +369,6 @@
   // ====== MAPPE: Leaflet (semplice) ======
   let LEAF  = { map:null, pinIcon:null, markers:new Map() };
   function initLeaf(){
-    if (typeof L === 'undefined') { alert('Leaflet non caricato. Controlla la rete/CDN.'); return; }
-    if (!document.getElementById('map')) { alert('Contenitore #map non trovato.'); return; }
     LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
     L.control.attribution({prefix:false}).addTo(LEAF.map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(LEAF.map);
@@ -502,11 +493,10 @@
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
     const ids = [...SELECTED];
-    const { published:false, approved:false } = await sb.from('events').update({ published:false }).in('id', ids);
+    const { error } = await sb.from('events').update({ published:false }).in('id', ids);
     if (error){ alert('Errore: '+(error.message||String(error))); return; }
     ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.published=false; } });
     drawMarkers();
-window.notifyEventsChanged();    
     $('#lastAction').textContent = 'Fatto: eventi nascosti.';
   }
   async function hardDelete(){
@@ -516,12 +506,11 @@ window.notifyEventsChanged();
     const nowIso = new Date().toISOString();
     const r1 = await sb.from('occurrences').update({ deleted_at: nowIso }).in('event_id', ids);
     if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore occorrenze: '+(r1.error.message||String(r1.error))); return; }
-    const r2 = await sb.from('events').update({ deleted_at: nowIso, published:false, approved:false, deleted:true }).in('id', ids);
+    const r2 = await sb.from('events').update({ deleted_at: nowIso, published:false }).in('id', ids);
     if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore eventi: '+(r2.error.message||String(r2.error))); return; }
     ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.deleted_at=nowIso; e.raw.published=false; } });
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nel cestino.';
-window.notifyEventsChanged();    
   }
   $('#btnSoft').addEventListener('click', softHide);
   $('#btnHard').addEventListener('click', hardDelete);
@@ -579,11 +568,10 @@ window.notifyEventsChanged();
     $$('#hResults [data-restore-hidden]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-hidden');
-        const r = await sb.from('events').update({ published:true, approved:true }).eq('id', id);
+        const r = await sb.from('events').update({ published:true }).eq('id', id);
         if (r.error){ alert('Errore ripristino: '+(r.error.message||String(r.error))); return; }
         $('#lastAction').textContent = 'Evento ripristinato.';
         await loadData(); renderHidden();
-window.notifyEventsChanged();        
       });
     });
   }
@@ -646,11 +634,10 @@ window.notifyEventsChanged();
         const id = b.getAttribute('data-restore-deleted');
         const r1 = await sb.from('occurrences').update({ deleted_at:null }).eq('event_id', id);
         if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
-        const r2 = await sb.from('events').update({ deleted_at:null, published:true, approved:true, deleted:false }).eq('id', id);
+        const r2 = await sb.from('events').update({ deleted_at:null, published:true }).eq('id', id);
         if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
         $('#lastAction').textContent = 'Evento ripristinato dal cestino.';
-        await loadData(); renderDeleted();   
-window.notifyEventsChanged();        
+        await loadData(); renderDeleted();
       });
     });
 
@@ -961,24 +948,13 @@ window.notifyEventsChanged();
     }
 
     // --- Salvataggio evento
-const payloadEvent = {
-  // titolo/descrizione su entrambe le colonne per compatibilità
-  title: titolo,
-  titolo: titolo,
-  description: descr,
-  descrizione: descr,
-
-  // categorie su entrambi i campi
-  categories: cats,
-  categorie: cats,
-
-  // locandina
-  locandina_url: locUrl,
-
-  // stato (allineo anche approved, molte mappe lo usano)
-  published: pub,
-  approved: pub
-};
+    const payloadEvent = {
+      title: titolo, titolo,
+      description: descr, descrizione: descr,
+      categories: cats, categorie: cats,
+      locandina_url: locUrl,
+      published: pub
+    };
     const rEv = await sb.from('events').update(payloadEvent).eq('id', eventId).select('id').single();
     if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
 
@@ -1025,7 +1001,6 @@ const payloadEvent = {
     // Aggiorna snapshot locale + mappa
     $('#lastAction').textContent = 'Salvato.';
     await loadData();
-window.notifyEventsChanged();    
     return true;
   }
 
@@ -1038,35 +1013,14 @@ window.notifyEventsChanged();
   });
 
   // ====== AVVIO ======
-  // 1) Inizializzo SUBITO la mappa: così è visibile anche se altro codice fallisce dopo.
-  try {
-    initLeaf();
-  } catch (e) {
-    alert('Errore Leaflet: ' + (e && e.message ? e.message : String(e)));
-  }
-
-  // 2) Poi gestisco il login e SOLO dopo carico i dati
   const ok = await requireLogin();
   if (ok){
-    setTimeout(()=> {
-      loadData().catch(err => {
-        alert('Errore caricamento dati: ' + (err && err.message ? err.message : String(err)));
-      });
-    }, 300);
-  }  
+    initLeaf();
+    setTimeout(()=> loadData(), 300);
+  }
 })();
 </script>
 
 <footer class="page-footer"><a class="btn" href="index.html">← Torna alla mappa</a></footer>
-<script>
-  // Funzione globale: posso chiamarla da qualsiasi altro script in questa pagina
-  window.notifyEventsChanged = function () {
-    try {
-      localStorage.setItem('sq-last-change', String(Date.now()));
-    } catch (e) {
-      console.error('notifyEventsChanged error', e);
-    }
-  };
-</script>  
 </body>
 </html>
