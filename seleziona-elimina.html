@@ -493,10 +493,11 @@
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
     const ids = [...SELECTED];
-    const { error } = await sb.from('events').update({ published:false }).in('id', ids);
+    const { published:false, approved:false } = await sb.from('events').update({ published:false }).in('id', ids);
     if (error){ alert('Errore: '+(error.message||String(error))); return; }
     ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.published=false; } });
     drawMarkers();
+window.notifyEventsChanged();    
     $('#lastAction').textContent = 'Fatto: eventi nascosti.';
   }
   async function hardDelete(){
@@ -506,11 +507,12 @@
     const nowIso = new Date().toISOString();
     const r1 = await sb.from('occurrences').update({ deleted_at: nowIso }).in('event_id', ids);
     if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore occorrenze: '+(r1.error.message||String(r1.error))); return; }
-    const r2 = await sb.from('events').update({ deleted_at: nowIso, published:false }).in('id', ids);
+    const r2 = await sb.from('events').update({ deleted_at: nowIso, published:false, approved:false, deleted:true }).in('id', ids);
     if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore eventi: '+(r2.error.message||String(r2.error))); return; }
     ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.deleted_at=nowIso; e.raw.published=false; } });
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nel cestino.';
+window.notifyEventsChanged();    
   }
   $('#btnSoft').addEventListener('click', softHide);
   $('#btnHard').addEventListener('click', hardDelete);
@@ -568,10 +570,11 @@
     $$('#hResults [data-restore-hidden]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-hidden');
-        const r = await sb.from('events').update({ published:true }).eq('id', id);
+        const r = await sb.from('events').update({ published:true, approved:true }).eq('id', id);
         if (r.error){ alert('Errore ripristino: '+(r.error.message||String(r.error))); return; }
         $('#lastAction').textContent = 'Evento ripristinato.';
         await loadData(); renderHidden();
+window.notifyEventsChanged();        
       });
     });
   }
@@ -634,10 +637,11 @@
         const id = b.getAttribute('data-restore-deleted');
         const r1 = await sb.from('occurrences').update({ deleted_at:null }).eq('event_id', id);
         if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
-        const r2 = await sb.from('events').update({ deleted_at:null, published:true }).eq('id', id);
+        const r2 = await sb.from('events').update({ deleted_at:null, published:true, approved:true, deleted:false }).eq('id', id);
         if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
         $('#lastAction').textContent = 'Evento ripristinato dal cestino.';
-        await loadData(); renderDeleted();
+        await loadData(); renderDeleted();   
+window.notifyEventsChanged();        
       });
     });
 
@@ -948,13 +952,24 @@
     }
 
     // --- Salvataggio evento
-    const payloadEvent = {
-      title: titolo, titolo,
-      description: descr, descrizione: descr,
-      categories: cats, categorie: cats,
-      locandina_url: locUrl,
-      published: pub
-    };
+const payloadEvent = {
+  // Titolo/descrizione su entrambe le colonne (IT/EN) per compatibilità
+  title: titolo,
+  titolo: titolo,
+  description: descr,
+  descrizione: descr,
+
+  // Categorie sia in 'categories' che in 'categorie'
+  categories: cats,
+  categorie: cats,
+
+  // Locandina
+  locandina_url: locUrl,
+
+  // Stato pubblicazione + flag usato dalla mappa
+  published: pub,
+  approved: pub
+};    
     const rEv = await sb.from('events').update(payloadEvent).eq('id', eventId).select('id').single();
     if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
 
@@ -1001,6 +1016,7 @@
     // Aggiorna snapshot locale + mappa
     $('#lastAction').textContent = 'Salvato.';
     await loadData();
+window.notifyEventsChanged();    
     return true;
   }
 
