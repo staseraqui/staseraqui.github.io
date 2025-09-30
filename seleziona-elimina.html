@@ -953,23 +953,23 @@ window.notifyEventsChanged();
 
     // --- Salvataggio evento
 const payloadEvent = {
-  // Titolo/descrizione su entrambe le colonne (IT/EN) per compatibilità
+  // titolo/descrizione su entrambe le colonne per compatibilità
   title: titolo,
   titolo: titolo,
   description: descr,
   descrizione: descr,
 
-  // Categorie sia in 'categories' che in 'categorie'
+  // categorie su entrambi i campi
   categories: cats,
   categorie: cats,
 
-  // Locandina
+  // locandina
   locandina_url: locUrl,
 
-  // Stato pubblicazione + flag usato dalla mappa
+  // stato (allineo anche approved, molte mappe lo usano)
   published: pub,
   approved: pub
-};    
+};
     const rEv = await sb.from('events').update(payloadEvent).eq('id', eventId).select('id').single();
     if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
 
