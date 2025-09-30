@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=12">
 
-  <!-- Leaflet (fallback) -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
@@ -66,7 +66,7 @@
     .err{color:#ffb4b4;min-height:18px;margin-top:6px}
     .ok{color:#b8ffc2}
 
-    /* Chip categorie: TESTO BIANCO (patch richiesta) */
+    /* Chip categorie */
     .chip{color:#fff !important}
 
     /* Badge categorie selezionate */
@@ -77,7 +77,7 @@
     .posterRow input[type="text"]{flex:1;min-width:260px}
   </style>
 
-  <!-- GA4 (coerente con altre pagine) -->
+  <!-- GA4 -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-SDBGY51C46"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -208,9 +208,7 @@
       <h3 style="margin:0">Categorie (multi)</h3>
       <button class="btn" id="catClose" type="button">Chiudi</button>
     </div>
-    <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 6px">
-      <!-- chips generate via JS -->
-    </div>
+    <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn secondary" id="catClear" type="button">Azzera</button>
       <button class="btn primary" id="catOk" type="button">Conferma</button>
@@ -320,7 +318,7 @@
   const sb = supabase.createClient(SB_URL, SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } });
 
   // ====== LOGIN SOLO PASSWORD ======
-  const AUTH_EMAIL_WHITELIST = ['andrea.cordero@staseraqui.it']; // aggiungi eventuali altri admin
+  const AUTH_EMAIL_WHITELIST = ['andrea.cordero@staseraqui.it'];
   async function requireLogin(){
     const { data:{ session } } = await sb.auth.getSession();
     if (session && AUTH_EMAIL_WHITELIST.includes(session.user.email)) {
@@ -368,6 +366,19 @@
   const safeParseCats = s => { try{ const j=JSON.parse(s); return Array.isArray(j)?j:[]; }catch(_){ return (s||'').split(',').map(x=>x.trim()).filter(Boolean); } };
   const uniqueId = ()=> Math.random().toString(36).slice(2,10);
 
+  // helper: aggiorna 1 colonna evento ma ignora se la colonna non esiste
+  async function tryUpdateEventColumn(id, set){
+    const r = await sb.from('events').update(set).eq('id', id);
+    // se la colonna non esiste, supabase può dare un errore generico:
+    // lo ignoriamo sempre qui per evitare blocchi lato UI
+    return !!r.error ? false : true;
+  }
+  // helper: aggiorna 1 colonna occorrenza ma ignora se la colonna non esiste
+  async function tryUpdateOccColumn(occId, eventId, set){
+    const r = await sb.from('occurrences').update(set).eq('id', occId).eq('event_id', eventId);
+    return !!r.error ? false : true;
+  }
+
   function pinSvgUrl(color = '#22b3f0', outline = '#ffffff'){
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z"
@@ -379,7 +390,7 @@
   const ICON_NORMAL   = pinSvgUrl('#22b3f0', '#ffffff');
   const ICON_SELECTED = pinSvgUrl('#22b3f0', '#ffd24d');
 
-  // ====== MAPPE: Leaflet (semplice) ======
+  // ====== MAPPE: Leaflet ======
   let LEAF  = { map:null, pinIcon:null, markers:new Map() };
   function initLeaf(){
     LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
@@ -425,20 +436,16 @@
   // ====== CARICA DATI ======
   async function loadData(){
     const { data: evs, error: evErr } = await sb.from('events')
-  .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at');
+      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at');
     if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
 
     const { data: occs, error: ocErr } = await sb.from('occurrences')
-  .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, city, address, time, venue, deleted_at');
+      .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, city, address, time, venue, deleted_at');
     if (ocErr){ console.error(ocErr); alert('Errore lettura occorrenze'); return; }
 
     EVENTS.clear();
     (evs||[]).forEach(e=>{
-      EVENTS.set(e.id, {
-        id: e.id,
-        title: getTitle(e),
-        raw: e, // mantieni originale per editing
-      });
+      EVENTS.set(e.id, { id: e.id, title: getTitle(e), raw: e });
     });
 
     OCCS_BY_EVENT.clear();
@@ -447,7 +454,6 @@
       if (!ALL_OCCS_BY_EVENT.has(o.event_id)) ALL_OCCS_BY_EVENT.set(o.event_id, []);
       ALL_OCCS_BY_EVENT.get(o.event_id).push(o);
 
-      // mappa: solo future, non cestinate, con coordinate
       if (o.deleted_at) return;
       if (o.data && o.data < todayISO()) return;
       if (o.lat==null || o.lng==null) return;
@@ -506,9 +512,9 @@
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
     const ids = [...SELECTED];
-    const { error } = await sb.from('events').update({ published:false, approved:false }).in('id', ids);
-    if (error){ alert('Errore: '+(error.message||String(error))); return; }
-    ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.published=false; e.raw.approved=false; } });
+    const r = await sb.from('events').update({ published:false }).in('id', ids);
+    if (r.error){ alert('Errore: '+(r.error.message||String(r.error))); return; }
+    ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.published=false; } });
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nascosti.';
     window.notifyEventsChanged();
@@ -519,10 +525,10 @@
     const ids = [...SELECTED];
     const nowIso = new Date().toISOString();
     const r1 = await sb.from('occurrences').update({ deleted_at: nowIso }).in('event_id', ids);
-    if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore occorrenze: '+(r1.error.message||String(r1.error))); return; }
-    const r2 = await sb.from('events').update({ deleted_at: nowIso, published:false, approved:false, deleted:true }).in('id', ids);
-    if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore eventi: '+(r2.error.message||String(r2.error))); return; }
-    ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.deleted_at=nowIso; e.raw.published=false; e.raw.approved=false; e.raw.deleted=true; } });
+    if (r1.error){ alert('Errore occorrenze: '+(r1.error.message||String(r1.error))); return; }
+    const r2 = await sb.from('events').update({ deleted_at: nowIso, published:false }).in('id', ids);
+    if (r2.error){ alert('Errore eventi: '+(r2.error.message||String(r2.error))); return; }
+    ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.deleted_at=nowIso; e.raw.published=false; } });
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nel cestino.';
     window.notifyEventsChanged();
@@ -545,7 +551,7 @@
     const cat  = $('#hCat').value || '';
 
     const { data: evs, error } = await sb.from('events')
-      .select('id, title, titolo, categories, categorie, published, approved, deleted_at')
+      .select('id, title, titolo, categories, categorie, published, deleted_at')
       .eq('published', false).is('deleted_at', null);
     if (error){ $('#hResults').innerHTML = `<div class="small">Errore: ${error.message}</div>`; return; }
 
@@ -582,7 +588,7 @@
     $$('#hResults [data-restore-hidden]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-hidden');
-        const r = await sb.from('events').update({ published:true, approved:true }).eq('id', id);
+        const r = await sb.from('events').update({ published:true }).eq('id', id);
         if (r.error){ alert('Errore ripristino: '+(r.error.message||String(r.error))); return; }
         $('#lastAction').textContent = 'Evento ripristinato.';
         await loadData(); renderHidden();
@@ -648,9 +654,9 @@
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-deleted');
         const r1 = await sb.from('occurrences').update({ deleted_at:null }).eq('event_id', id);
-        if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
-        const r2 = await sb.from('events').update({ deleted_at:null, published:true, approved:true, deleted:false }).eq('id', id);
-        if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
+        if (r1.error){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
+        const r2 = await sb.from('events').update({ deleted_at:null, published:true }).eq('id', id);
+        if (r2.error){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
         $('#lastAction').textContent = 'Evento ripristinato dal cestino.';
         await loadData(); renderDeleted();
         window.notifyEventsChanged();
@@ -755,7 +761,7 @@
 
   // Occorrenze UI
   function occRow(o){
-    // o può essere {id, luogo, indirizzo, citta, data, ora, ora_feriale, ora_festivo, lat, lng}
+    // o: {id, luogo, indirizzo, citta, data, ora, ora_feriale, ora_festivo, lat, lng}
     const occId = o?.id || '';
     const rid = 'occ_' + uniqueId();
     return `<div class="occ" data-occ="${rid}">
@@ -886,7 +892,7 @@
     ePublished.value = String(ev?.published!==false);
     eLocUrl.value = ev?.locandina_url || '';
 
-    // Extended flag: prova più nomi
+    // Extended flag (supporto più nomi colonna)
     const extVal = (ev?.is_extended ?? ev?.extended ?? ev?.evento_diffuso ?? ev?.diffuso) ? 'true' : 'false';
     eExtended.value = extVal;
 
@@ -983,7 +989,7 @@
       occReady.push({ ...o, lat, lng });
     }
 
-    // --- Salvataggio evento (campi doppi + approved)
+    // --- Salvataggio evento (SOLO campi sicuri)
     const payloadEvent = {
       title: titolo,
       titolo: titolo,
@@ -992,23 +998,18 @@
       categories: cats,
       categorie: cats,
       locandina_url: locUrl,
-      published: pub,
-      approved: pub
+      published: pub
     };
     const rEv = await sb.from('events').update(payloadEvent).eq('id', eventId).select('id').single();
     if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
 
-    // Aggiorna "evento diffuso" provando più nomi di colonna (ignora 42703 = colonna inesistente)
-    async function tryUpdateExtended(colName){
-      const r = await sb.from('events').update({ [colName]: isExtended }).eq('id', eventId);
-      if (r.error && String(r.error.code) !== '42703') { throw r.error; }
-    }
-    try { await tryUpdateExtended('is_extended'); } catch(_){}
-    try { await tryUpdateExtended('extended'); } catch(_){}
-    try { await tryUpdateExtended('evento_diffuso'); } catch(_){}
-    try { await tryUpdateExtended('diffuso'); } catch(_){}
+    // Prova ad aggiornare "evento diffuso" su eventuali nomi di colonna (ignora se non esistono)
+    await tryUpdateEventColumn(eventId, { is_extended: isExtended });
+    await tryUpdateEventColumn(eventId, { extended: isExtended });
+    await tryUpdateEventColumn(eventId, { evento_diffuso: isExtended });
+    await tryUpdateEventColumn(eventId, { diffuso: isExtended });
 
-    // --- Gestione occorrenze: upsert/soft-delete mancanti + orari feriale/festivo
+    // --- Gestione occorrenze: upsert/soft-delete + orari feriale/festivo
     const nowIso = new Date().toISOString();
     const keepIds = [];
     for (const o of occReady){
@@ -1024,19 +1025,9 @@
         if (r.error){ edErr.textContent='Errore update occorrenza: '+(r.error.message||String(r.error)); return false; }
         keepIds.push(String(o.id));
 
-        // tenta colonne specifiche per orari feriale/festivo (ignora 42703)
-        async function tryUpdateOccColumn(set){
-          const rX = await sb.from('occurrences').update(set).eq('id', o.id).eq('event_id', eventId);
-          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
-        }
-        if (o.ora_feriale){
-          try { await tryUpdateOccColumn({ ora_feriale: o.ora_feriale }); } catch(_){}
-          try { await tryUpdateOccColumn({ time_weekday: o.ora_feriale }); } catch(_){}
-        }
-        if (o.ora_festivo){
-          try { await tryUpdateOccColumn({ ora_festivo: o.ora_festivo }); } catch(_){}
-          try { await tryUpdateOccColumn({ time_weekend: o.ora_festivo }); } catch(_){}
-        }
+        // tentativi colonne opzionali (ignorati se non esistono)
+        if (o.ora_feriale) { await tryUpdateOccColumn(o.id, eventId, { ora_feriale: o.ora_feriale }); await tryUpdateOccColumn(o.id, eventId, { time_weekday: o.ora_feriale }); }
+        if (o.ora_festivo) { await tryUpdateOccColumn(o.id, eventId, { ora_festivo: o.ora_festivo }); await tryUpdateOccColumn(o.id, eventId, { time_weekend: o.ora_festivo }); }
         if (!o.ora && (o.ora_feriale || o.ora_festivo)){
           const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
           const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', o.id).eq('event_id', eventId);
@@ -1053,39 +1044,28 @@
           lat: o.lat, lng: o.lng
         };
         const r = await sb.from('occurrences').insert(row).select('id').single();
-        if (r.error){ edErr.textContent='Errore inserimento occorrenza: '+(r.error.message||String(r.error)); return false; }
-        keepIds.push(String(r.data.id));
-
-        // update aggiuntivi per le nuove righe (colonne opzionali)
+        if (r.error){ edErr.textContent='Errore inserimento occorrenza: '+(r.error.message||String(r.error))); return false; }
         const occId = String(r.data.id);
-        async function tryUpdateOccColumnNew(set){
-          const rX = await sb.from('occurrences').update(set).eq('id', occId).eq('event_id', eventId);
-          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
-        }
-        if (o.ora_feriale){
-          try { await tryUpdateOccColumnNew({ ora_feriale: o.ora_feriale }); } catch(_){}
-          try { await tryUpdateOccColumnNew({ time_weekday: o.ora_feriale }); } catch(_){}
-        }
-        if (o.ora_festivo){
-          try { await tryUpdateOccColumnNew({ ora_festivo: o.ora_festivo }); } catch(_){}
-          try { await tryUpdateOccColumnNew({ time_weekend: o.ora_festivo }); } catch(_){}
-        }
+        keepIds.push(occId);
+
+        if (o.ora_feriale) { await tryUpdateOccColumn(occId, eventId, { ora_feriale: o.ora_feriale }); await tryUpdateOccColumn(occId, eventId, { time_weekday: o.ora_feriale }); }
+        if (o.ora_festivo) { await tryUpdateOccColumn(occId, eventId, { ora_festivo: o.ora_festivo }); await tryUpdateOccColumn(occId, eventId, { time_weekend: o.ora_festivo }); }
         if (!o.ora && (o.ora_feriale || o.ora_festivo)){
           const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
           const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', occId).eq('event_id', eventId);
-          if (rF.error){ edErr.textContent='Errore salvataggio orario combinato: '+(rF.error.message||String(rF.error)); return false; }
+          if (rF.error){ edErr.textContent='Errore salvataggio orario combinato: '+(rF.error.message||String(rF.error))); return false; }
         }
       }
     }
 
-    // Soft-delete occorrenze rimosse dall'editor (solo quelle non già cestinate)
+    // Soft-delete occorrenze rimosse dall'editor
     const toDelete = CUR_OCCS
       .filter(x=> !x.deleted_at)
       .filter(x=> !keepIds.includes(String(x.id)))
       .map(x=> String(x.id));
     if (toDelete.length){
       const r = await sb.from('occurrences').update({ deleted_at: nowIso }).in('id', toDelete).eq('event_id', eventId);
-      if (r.error && String(r.error.code)!=='42703'){ edErr.textContent='Errore delete occorrenze: '+(r.error.message||String(r.error)); return false; }
+      if (r.error){ edErr.textContent='Errore delete occorrenze: '+(r.error.message||String(r.error))); return false; }
     }
 
     // Aggiorna snapshot locale + mappa
