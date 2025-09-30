@@ -208,7 +208,9 @@
       <h3 style="margin:0">Categorie (multi)</h3>
       <button class="btn" id="catClose" type="button">Chiudi</button>
     </div>
-    <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 6px"></div>
+    <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 6px">
+      <!-- chips generate via JS -->
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn secondary" id="catClear" type="button">Azzera</button>
       <button class="btn primary" id="catOk" type="button">Conferma</button>
@@ -366,17 +368,14 @@
   const safeParseCats = s => { try{ const j=JSON.parse(s); return Array.isArray(j)?j:[]; }catch(_){ return (s||'').split(',').map(x=>x.trim()).filter(Boolean); } };
   const uniqueId = ()=> Math.random().toString(36).slice(2,10);
 
-  // helper: aggiorna 1 colonna evento ma ignora se la colonna non esiste
-  async function tryUpdateEventColumn(id, set){
+  // aggiornamenti opzionali (ignorano la colonna inesistente: errore 42703)
+  async function updateEventOptional(id, set){
     const r = await sb.from('events').update(set).eq('id', id);
-    // se la colonna non esiste, supabase può dare un errore generico:
-    // lo ignoriamo sempre qui per evitare blocchi lato UI
-    return !!r.error ? false : true;
+    if (r.error && String(r.error.code) !== '42703') throw r.error;
   }
-  // helper: aggiorna 1 colonna occorrenza ma ignora se la colonna non esiste
-  async function tryUpdateOccColumn(occId, eventId, set){
-    const r = await sb.from('occurrences').update(set).eq('id', occId).eq('event_id', eventId);
-    return !!r.error ? false : true;
+  async function updateEventsOptional(ids, set){
+    const r = await sb.from('events').update(set).in('id', ids);
+    if (r.error && String(r.error.code) !== '42703') throw r.error;
   }
 
   function pinSvgUrl(color = '#22b3f0', outline = '#ffffff'){
@@ -512,22 +511,37 @@
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
     const ids = [...SELECTED];
+
+    // Update sicuro
     const r = await sb.from('events').update({ published:false }).in('id', ids);
     if (r.error){ alert('Errore: '+(r.error.message||String(r.error))); return; }
+
+    // Update opzionale (se la colonna esiste)
+    try { await updateEventsOptional(ids, { approved:false }); } catch(_){}
+
     ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.published=false; } });
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nascosti.';
     window.notifyEventsChanged();
   }
+
   async function hardDelete(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Spostare nel CESTINO ${SELECTED.size} evento/i?`)) return;
     const ids = [...SELECTED];
     const nowIso = new Date().toISOString();
+
     const r1 = await sb.from('occurrences').update({ deleted_at: nowIso }).in('event_id', ids);
-    if (r1.error){ alert('Errore occorrenze: '+(r1.error.message||String(r1.error))); return; }
+    if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore occorrenze: '+(r1.error.message||String(r1.error))); return; }
+
+    // Update sicuro
     const r2 = await sb.from('events').update({ deleted_at: nowIso, published:false }).in('id', ids);
-    if (r2.error){ alert('Errore eventi: '+(r2.error.message||String(r2.error))); return; }
+    if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore eventi: '+(r2.error.message||String(r2.error))); return; }
+
+    // Update opzionali
+    try { await updateEventsOptional(ids, { approved:false }); } catch(_){}
+    try { await updateEventsOptional(ids, { deleted:true }); } catch(_){}
+
     ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.deleted_at=nowIso; e.raw.published=false; } });
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nel cestino.';
@@ -588,8 +602,14 @@
     $$('#hResults [data-restore-hidden]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-hidden');
+
+        // Update sicuro
         const r = await sb.from('events').update({ published:true }).eq('id', id);
         if (r.error){ alert('Errore ripristino: '+(r.error.message||String(r.error))); return; }
+
+        // Update opzionale
+        try { await updateEventOptional(id, { approved:true }); } catch(_){}
+
         $('#lastAction').textContent = 'Evento ripristinato.';
         await loadData(); renderHidden();
         window.notifyEventsChanged();
@@ -653,10 +673,17 @@
     $$('#dResults [data-restore-deleted]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-deleted');
+
+        // Update sicuro
         const r1 = await sb.from('occurrences').update({ deleted_at:null }).eq('event_id', id);
-        if (r1.error){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
+        if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
         const r2 = await sb.from('events').update({ deleted_at:null, published:true }).eq('id', id);
-        if (r2.error){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
+        if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
+
+        // Update opzionali
+        try { await updateEventOptional(id, { approved:true }); } catch(_){}
+        try { await updateEventOptional(id, { deleted:false }); } catch(_){}
+
         $('#lastAction').textContent = 'Evento ripristinato dal cestino.';
         await loadData(); renderDeleted();
         window.notifyEventsChanged();
@@ -989,7 +1016,7 @@
       occReady.push({ ...o, lat, lng });
     }
 
-    // --- Salvataggio evento (SOLO campi sicuri)
+    // --- Salvataggio evento (campi doppi; niente 'approved' qui)
     const payloadEvent = {
       title: titolo,
       titolo: titolo,
@@ -1003,11 +1030,16 @@
     const rEv = await sb.from('events').update(payloadEvent).eq('id', eventId).select('id').single();
     if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
 
-    // Prova ad aggiornare "evento diffuso" su eventuali nomi di colonna (ignora se non esistono)
-    await tryUpdateEventColumn(eventId, { is_extended: isExtended });
-    await tryUpdateEventColumn(eventId, { extended: isExtended });
-    await tryUpdateEventColumn(eventId, { evento_diffuso: isExtended });
-    await tryUpdateEventColumn(eventId, { diffuso: isExtended });
+    // Aggiorna "approved" opzionale e "evento diffuso" su possibili nomi di colonna
+    try { await updateEventOptional(eventId, { approved: pub }); } catch(_){}
+    async function tryUpdateExtended(colName){
+      const r = await sb.from('events').update({ [colName]: isExtended }).eq('id', eventId);
+      if (r.error && String(r.error.code) !== '42703') { throw r.error; }
+    }
+    try { await tryUpdateExtended('is_extended'); } catch(_){}
+    try { await tryUpdateExtended('extended'); } catch(_){}
+    try { await tryUpdateExtended('evento_diffuso'); } catch(_){}
+    try { await tryUpdateExtended('diffuso'); } catch(_){}
 
     // --- Gestione occorrenze: upsert/soft-delete + orari feriale/festivo
     const nowIso = new Date().toISOString();
@@ -1025,9 +1057,19 @@
         if (r.error){ edErr.textContent='Errore update occorrenza: '+(r.error.message||String(r.error)); return false; }
         keepIds.push(String(o.id));
 
-        // tentativi colonne opzionali (ignorati se non esistono)
-        if (o.ora_feriale) { await tryUpdateOccColumn(o.id, eventId, { ora_feriale: o.ora_feriale }); await tryUpdateOccColumn(o.id, eventId, { time_weekday: o.ora_feriale }); }
-        if (o.ora_festivo) { await tryUpdateOccColumn(o.id, eventId, { ora_festivo: o.ora_festivo }); await tryUpdateOccColumn(o.id, eventId, { time_weekend: o.ora_festivo }); }
+        // tenta colonne specifiche per orari feriale/festivo (ignora 42703)
+        async function tryUpdateOccColumn(set){
+          const rX = await sb.from('occurrences').update(set).eq('id', o.id).eq('event_id', eventId);
+          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
+        }
+        if (o.ora_feriale){
+          try { await tryUpdateOccColumn({ ora_feriale: o.ora_feriale }); } catch(_){}
+          try { await tryUpdateOccColumn({ time_weekday: o.ora_feriale }); } catch(_){}
+        }
+        if (o.ora_festivo){
+          try { await tryUpdateOccColumn({ ora_festivo: o.ora_festivo }); } catch(_){}
+          try { await tryUpdateOccColumn({ time_weekend: o.ora_festivo }); } catch(_){}
+        }
         if (!o.ora && (o.ora_feriale || o.ora_festivo)){
           const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
           const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', o.id).eq('event_id', eventId);
@@ -1044,16 +1086,27 @@
           lat: o.lat, lng: o.lng
         };
         const r = await sb.from('occurrences').insert(row).select('id').single();
-        if (r.error){ edErr.textContent='Errore inserimento occorrenza: '+(r.error.message||String(r.error))); return false; }
-        const occId = String(r.data.id);
-        keepIds.push(occId);
+        if (r.error){ edErr.textContent='Errore inserimento occorrenza: '+(r.error.message||String(r.error)); return false; }
+        keepIds.push(String(r.data.id));
 
-        if (o.ora_feriale) { await tryUpdateOccColumn(occId, eventId, { ora_feriale: o.ora_feriale }); await tryUpdateOccColumn(occId, eventId, { time_weekday: o.ora_feriale }); }
-        if (o.ora_festivo) { await tryUpdateOccColumn(occId, eventId, { ora_festivo: o.ora_festivo }); await tryUpdateOccColumn(occId, eventId, { time_weekend: o.ora_festivo }); }
+        // update aggiuntivi per le nuove righe (colonne opzionali)
+        const occId = String(r.data.id);
+        async function tryUpdateOccColumnNew(set){
+          const rX = await sb.from('occurrences').update(set).eq('id', occId).eq('event_id', eventId);
+          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
+        }
+        if (o.ora_feriale){
+          try { await tryUpdateOccColumnNew({ ora_feriale: o.ora_feriale }); } catch(_){}
+          try { await tryUpdateOccColumnNew({ time_weekday: o.ora_feriale }); } catch(_){}
+        }
+        if (o.ora_festivo){
+          try { await tryUpdateOccColumnNew({ ora_festivo: o.ora_festivo }); } catch(_){}
+          try { await tryUpdateOccColumnNew({ time_weekend: o.ora_festivo }); } catch(_){}
+        }
         if (!o.ora && (o.ora_feriale || o.ora_festivo)){
           const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
           const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', occId).eq('event_id', eventId);
-          if (rF.error){ edErr.textContent='Errore salvataggio orario combinato: '+(rF.error.message||String(rF.error))); return false; }
+          if (rF.error){ edErr.textContent='Errore salvataggio orario combinato: '+(rF.error.message||String(rF.error)); return false; }
         }
       }
     }
@@ -1064,8 +1117,8 @@
       .filter(x=> !keepIds.includes(String(x.id)))
       .map(x=> String(x.id));
     if (toDelete.length){
-      const r = await sb.from('occurrences').update({ deleted_at: nowIso }).in('id', toDelete).eq('event_id', eventId);
-      if (r.error){ edErr.textContent='Errore delete occorrenze: '+(r.error.message||String(r.error))); return false; }
+      const r = await sb.from('occurrences').update({ deleted_at: new Date().toISOString() }).in('id', toDelete).eq('event_id', eventId);
+      if (r.error && String(r.error.code)!=='42703'){ edErr.textContent='Errore delete occorrenze: '+(r.error.message||String(r.error)); return false; }
     }
 
     // Aggiorna snapshot locale + mappa
