@@ -674,7 +674,7 @@ function lAddMarker(occ, ev){
     if (m) return m[0];
     return '';
   }
-  const prezzoIngresso = getPrice(evObj = ev);
+  const prezzoIngresso = getPrice(ev);
 
   // ===== SITO + LOCANDINA =====
   function safeUrl(u){
@@ -877,8 +877,7 @@ function lAddMarker(occ, ev){
   });
 
   markers.push(m);
-}
-  
+}  
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
