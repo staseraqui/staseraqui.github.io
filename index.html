@@ -645,56 +645,7 @@ function lAddMarker(occ, ev){
   const where = whereParts.join(', ');
   const cats  = (ev._cats||[]).join(', ');
   const theDescr = ev.description||ev.descrizione||'';
-  // ==== PREZZO (prende il testo lungo se presente) ====
-const prezzoIngresso = String(ev.price_text ?? ev.prezzo ?? ev.price ?? '').trim();
-const prezzoHtml = prezzoIngresso
-  ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
-  : '';
 
-// ==== REFERENTI (supporta JSON o campi piatti) ====
-function toArr(x){
-  if (!x) return [];
-  if (Array.isArray(x)) return x;
-  if (typeof x==='string' && x.trim().startsWith('[')) { try{ const j=JSON.parse(x); return Array.isArray(j)?j:[]; }catch(_){ return []; } }
-  return [];
-}
-function first(...vals){ for (const v of vals){ const s=(v??'').toString().trim(); if (s) return s; } return ''; }
-function telSan(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
-
-// 1) colonne JSON possibili (se esistono)
-const jsonRefs = []
-  .concat(toArr(ev.referenti), toArr(ev.contatti), toArr(ev.contacts))
-  .map(r=>{
-    if (!r || typeof r!=='object') return null;
-    const nome  = first(r.nome, r.name, r.referente, r.contatto, r.fullname);
-    const tel   = first(r.telefono, r.tel, r.numero, r.mobile, r.phone, r.cell);
-    const email = first(r.email, r.mail);
-    return (nome||tel||email) ? {nome, tel, email} : null;
-  })
-  .filter(Boolean);
-
-// 2) campi piatti singoli (se usati)
-const flatRefs = (()=>{
-  const nome  = first(ev.nome_referente, ev.referente_nome, ev.contatto_nome, ev.referente);
-  const tel   = first(ev.numero_referente, ev.referente_tel, ev.referente_telefono, ev.telefono, ev.cell, ev.mobile, ev.phone, ev.numero);
-  const email = first(ev.email_referente, ev.referente_email, ev.contatto_email, ev.email_evento, ev.email);
-  return (nome||tel||email) ? [{nome, tel, email}] : [];
-})();
-
-const referenti = [...jsonRefs, ...flatRefs];
-const refHtml = referenti.length ? `
-  <div class="small sq-ref" style="margin-top:6px">
-    <b>Referenti:</b>
-    <ul style="margin:6px 0 0 18px">
-      ${referenti.map(r=>{
-        const name = r.nome ? `<b>${r.nome}</b>` : '';
-        const tel  = r.tel  ? ` · <a href="tel:${telSan(r.tel)}">${r.tel}</a>` : '';
-        const mail = r.email? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
-        return `<li>${name}${tel}${mail}</li>`;
-      }).join('')}
-    </ul>
-  </div>` : '';
-  
   // ===== PREZZO/INGRESSO =====
   // Preferisci il campo lungo 'price_text' (visto nel tuo DB), poi 'prezzo' e infine 'price'
   const prezzoIngresso = [ev.price_text, ev.prezzo, ev.price]
