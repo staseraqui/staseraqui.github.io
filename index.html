@@ -105,10 +105,9 @@
 .leaflet-popup-content a.btn{text-decoration:none}
 
 /* Mantieni maiuscole/minuscole nel popup */
-.leaflet-popup-content,
-.leaflet-popup-content *,
-.sq-popup,
-.sq-popup * { text-transform: none !important; }  
+/* Allarga il popup per non tagliare i testi lunghi (es. prezzo) */
+.leaflet-popup-content-wrapper{ max-width: 480px !important; }
+.leaflet-popup-content{ max-width: 480px !important; white-space: normal !important; }  
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -637,28 +636,27 @@
   }
 
 function lAddMarker(occ, ev){
-  // Testi così come inseriti (niente forzature di lowercase)
+  // Testi così come inseriti (niente lowercase forzate)
   const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
     .map(s => (s||'').toString().trim()).filter(Boolean);
   const where = whereParts.join(', ');
   const cats  = (ev._cats||[]).join(', ');
   const theDescr = ev.description||ev.descrizione||'';
 
-  // ===== Prezzo/Ingresso: usa i campi REALI visti in Supabase =====
-  const prezzoIngresso = [ev.prezzo, ev.price, ev.price_text]
+  // ===== PREZZO/INGRESSO =====
+  // Preferisci il campo lungo 'price_text' (visto nel tuo DB), poi 'prezzo' e infine 'price'
+  const prezzoIngresso = [ev.price_text, ev.prezzo, ev.price]
     .map(v => (v??'').toString().trim())
     .find(Boolean) || '';
 
-  // ===== URL sito + locandina (usa i tuoi campi reali) =====
+  // ===== SITO + LOCANDINA (campi reali nel tuo DB + fallback robusti) =====
   const website = (ev.website_url || '').toString().trim() || pickFirstUrl(
     ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento
   );
 
   let locandinaUrl = (ev.locandina_url || ev.image_url || '').toString().trim();
   if (!locandinaUrl) {
-    locandinaUrl = pickFirstUrl(
-      ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb
-    );
+    locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb);
   }
   if (locandinaUrl && locandinaUrl.startsWith('/')) {
     try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
@@ -666,49 +664,66 @@ function lAddMarker(occ, ev){
   const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
   const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-  // ===== Referenti: JSONB (contatti/referenti) oppure campi flat/numerati =====
-  function toArray(x){
-    if (!x) return [];
-    if (Array.isArray(x)) return x;
-    try { const j = typeof x==='string' ? JSON.parse(x) : x; return Array.isArray(j) ? j : []; }
-    catch(_){ return []; }
-  }
+  // ===== REFERENTI =====
+  // Supporta: colonna JSONB (nome qualunque), array JSON in stringa, campi flat / numerati.
   function firstNonEmpty(...vals){
     for (const v of vals){ const s=(v??'').toString().trim(); if (s) return s; }
     return '';
   }
+  function toArray(x){
+    if (!x) return [];
+    if (Array.isArray(x)) return x;
+    if (typeof x === 'string' && x.trim().startsWith('[')) {
+      try { const j = JSON.parse(x); return Array.isArray(j) ? j : []; } catch(_){ return []; }
+    }
+    return [];
+  }
   function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
 
-  function extractReferenti(ev){
-    const out = [];
-
-    // JSON array (consigliato): contatti/referenti nel record evento
-    toArray(ev.contatti || ev.referenti || ev.contacts || ev.referents).forEach(r=>{
-      const nome  = firstNonEmpty(r.nome, r.name, r.referente, r.contatto, r.fullname);
-      const tel   = firstNonEmpty(r.numero, r.telefono, r.tel, r.cell, r.mobile, r.phone);
-      const email = firstNonEmpty(r.email, r.mail);
-      if (nome || tel || email) out.push({ nome, tel, email });
-    });
-
-    // Flat singolo (se esistono queste chiavi)
-    const nome0  = firstNonEmpty(ev.nome_referente, ev.referente_nome, ev.contatto_nome, ev.referente);
-    const tel0   = firstNonEmpty(ev.numero_referente, ev.referente_tel, ev.referente_telefono, ev.telefono, ev.cell, ev.mobile, ev.phone, ev.numero);
-    const email0 = firstNonEmpty(ev.email_referente, ev.referente_email, ev.contatto_email, ev.email_evento, ev.email);
-    if (nome0 || tel0 || email0) out.push({ nome:nome0, tel:tel0, email:email0 });
-
-    // Slot numerati (se presenti): nome/numero/email 1..10
-    for (let i=1;i<=10;i++){
-      const nome  = firstNonEmpty(ev[`nome_referente_${i}`], ev[`referente${i}_nome`], ev[`contatto${i}_nome`], ev[`referente${i}`]);
-      const tel   = firstNonEmpty(ev[`numero_referente_${i}`], ev[`referente${i}_tel`], ev[`referente${i}_telefono`], ev[`telefono${i}`], ev[`phone${i}`], ev[`cell${i}`]);
-      const email = firstNonEmpty(ev[`email_referente_${i}`], ev[`referente${i}_email`], ev[`email${i}`], ev[`mail${i}`]);
-      if (nome || tel || email) out.push({ nome, tel, email });
+  // 1) Scansiona eventuali colonne JSONB con array di contatti (nome/telefono/email), qualunque sia il nome della colonna
+  function scanForContacts(evObj){
+    const out=[];
+    for (const [key,val] of Object.entries(evObj||{})){
+      if (/^submitter/i.test(key)) continue;                 // non mostrare chi ha inserito l'evento
+      const arr = toArray(val);
+      if (!arr.length) continue;
+      arr.forEach(r=>{
+        if (!r || typeof r!=='object') return;
+        const nome  = firstNonEmpty(r.nome, r.name, r.referente, r.contatto, r.fullname);
+        const tel   = firstNonEmpty(r.numero, r.telefono, r.tel, r.cell, r.mobile, r.phone);
+        const email = firstNonEmpty(r.email, r.mail);
+        if (nome || tel || email) out.push({nome, tel, email});
+      });
     }
-
-    // NON usiamo i campi submitter_* (sono di chi ha inserito l'evento)
-    return out.filter(x => x.nome || x.tel || x.email);
+    return out;
   }
 
-  const referenti = extractReferenti(ev);
+  // 2) Campi piatti singoli (se presenti)
+  function flatContact(evObj){
+    const nome  = firstNonEmpty(evObj.nome_referente, evObj.referente_nome, evObj.contatto_nome, evObj.referente);
+    const tel   = firstNonEmpty(evObj.numero_referente, evObj.referente_tel, evObj.referente_telefono, evObj.telefono, evObj.cell, evObj.mobile, evObj.phone, evObj.numero);
+    const email = firstNonEmpty(evObj.email_referente, evObj.referente_email, evObj.contatto_email, evObj.email_evento, evObj.email);
+    return (nome || tel || email) ? [{nome, tel, email}] : [];
+  }
+
+  // 3) Slot numerati 1..10 (nome/numero/email)
+  function numberedContacts(evObj){
+    const out=[];
+    for (let i=1;i<=10;i++){
+      const nome  = firstNonEmpty(evObj[`nome_referente_${i}`], evObj[`referente${i}_nome`], evObj[`contatto${i}_nome`], evObj[`referente${i}`]);
+      const tel   = firstNonEmpty(evObj[`numero_referente_${i}`], evObj[`referente${i}_tel`], evObj[`referente${i}_telefono`], evObj[`telefono${i}`], evObj[`phone${i}`], evObj[`cell${i}`]);
+      const email = firstNonEmpty(evObj[`email_referente_${i}`], evObj[`referente${i}_email`], evObj[`email${i}`], evObj[`mail${i}`]);
+      if (nome || tel || email) out.push({nome, tel, email});
+    }
+    return out;
+  }
+
+  const referenti = [
+    ...scanForContacts(ev),     // qualunque colonna JSONB con array di oggetti
+    ...flatContact(ev),         // campi singoli
+    ...numberedContacts(ev)     // slot numerati
+  ].filter(x => x.nome || x.tel || x.email);
+
   const referentiHtml = referenti.length ? `
     <div class="small" style="margin-top:6px">
       <b>Referenti:</b>
@@ -762,7 +777,7 @@ function lAddMarker(occ, ev){
   const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
   const prezzoHtml = prezzoIngresso ? `<div class="small" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>` : '';
 
-  const html = `<div class="sq-popup" style="color:#081421;max-width:320px">
+  const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
       <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
       <small>${cats||''}</small><br>
       ${dateLine}<br>${where}
