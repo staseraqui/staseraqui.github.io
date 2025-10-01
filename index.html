@@ -102,12 +102,13 @@
 .leaflet-popup-content .popup-actions .btn{display:inline-block}
 .leaflet-popup-content a.btn{text-decoration:none}
 
-  <style id="sq-case-fix">
-  .leaflet-popup-content,
-  .leaflet-popup-content *,
-  .sq-popup,
-  .sq-popup * { text-transform: none !important; }
-</style>  
+.leaflet-popup-content a.btn{text-decoration:none}
+
+/* Mantieni maiuscole/minuscole nel popup */
+.leaflet-popup-content,
+.leaflet-popup-content *,
+.sq-popup,
+.sq-popup * { text-transform: none !important; }  
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -635,109 +636,161 @@
     loadData().then(requestInitialLocation);
   }
 
-  function lAddMarker(occ, ev){
-    const where = `${occ.luogo||''}, ${occ.indirizzo||''}, ${occ.citta||''}`;
-    const cats  = (ev._cats||[]).join(', ');
-    const theDescr = ev.description||ev.descrizione||'';
-    
-    // —— URL sito + locandina (robusto) ——
-    const website = pickFirstUrl(
-      ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
-      ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
-      ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
-      ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
-    );
+function lAddMarker(occ, ev){
+  // Mostra i testi così come sono stati inseriti
+  const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')].map(s => (s||'').toString().trim()).filter(Boolean);
+  const where = whereParts.join(', ');
+  const cats  = (ev._cats||[]).join(', ');
+  const theDescr = ev.description||ev.descrizione||'';
 
-    let locandinaUrl = pickFirstUrl(
-      ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
-      ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
-      ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
-    );
+  // —— URL sito + locandina (robusto) ——
+  const website = pickFirstUrl(
+    ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
+    ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
+    ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
+    ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
+  );
 
-    if (locandinaUrl && locandinaUrl.startsWith('/')) {
-      try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
-    }
+  let locandinaUrl = pickFirstUrl(
+    ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
+    ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
+    ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
+  );
+  if (locandinaUrl && locandinaUrl.startsWith('/')) {
+    try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
+  }
 
-    const btnSite   = website ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-    const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
-    
-    // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
-    const today = todayISO();
-    const latKey = round5(occ.lat), lngKey = round5(occ.lng);
+  const btnSite   = website ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+  const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-    const allDates = OCCS
-      .filter(o =>
-        o.event_id === occ.event_id &&
-        o.data && o.data >= today &&
-        round5(o.lat) === latKey && round5(o.lng) === lngKey
-      )
-      .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
+  // —— Referenti: estrai da più formati possibili (flat o JSON) ——
+  function toArray(x){
+    if (!x) return [];
+    if (Array.isArray(x)) return x;
+    try { const j = typeof x==='string' ? JSON.parse(x) : x; return Array.isArray(j) ? j : []; }
+    catch(_){ return []; }
+  }
+  function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
+  function extractReferenti(ev){
+    const out = [];
 
-    // === RIGA DATE DAL–AL (con orari se presenti) ===
-    let dateLine = '';
-    if (allDates.length > 1) {
-      const start = allDates[0];
-      const end   = allDates[allDates.length - 1];
-      const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
-      const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
-      dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
-    } else {
-      const only = allDates[0] || occ;
-      dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
-    }
-
-    const otherDates = allDates.filter(o => o.id !== occ.id);
-    const multiBadge = allDates.length > 1
-      ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
-      : '';
-
-    const listHtml = otherDates.length
-      ? `<div style="margin-top:6px">
-           <b>Altre date:</b>
-           <ul style="margin:6px 0 0 18px">
-             ${otherDates.slice(0,8).map(o =>
-               `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
-             ).join('')}
-           </ul>
-           ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
-         </div>`
-      : '';
-
-    const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
-    const html = `<div style="color:#081421;max-width:320px">
-        <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
-        <small>${cats||''}</small><br>
-        ${dateLine}<br>${where}
-        ${theDescr ? `<br><br>${theDescr}` : ''}
-        ${listHtml}
-        <div class="popup-actions">
-          <button class="btn accent" data-calc="1">Calcola percorso</button>
-          ${btnSite}
-          ${btnPoster}
-        </div>
-      </div>`;
-
-    m.bindPopup(html).on('popupopen', ()=>{
-      const btn = document.querySelector('button[data-calc="1"]');
-      if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
-
-      document.querySelectorAll('.sq-date').forEach(a=>{
-        a.addEventListener('click', (e)=>{
-          e.preventDefault();
-          const d = a.getAttribute('data-date');
-          state.customDate = d;
-          state.day = null;
-          allowAutoFit = false;
-          const badge = document.getElementById('dateBadge');
-          if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
-          LEAF.map.closePopup();
-          renderMarkers();
-        });
-      });
+    // JSON array: ev.referenti / ev.contatti / ev.contacts / ev.referents
+    toArray(ev.referenti || ev.contatti || ev.contacts || ev.referents).forEach(r=>{
+      const nome  = firstNonEmpty(r.nome, r.name, r.referente, r.contatto, r.fullname);
+      const tel   = firstNonEmpty(r.tel, r.telefono, r.phone, r.cell, r.cel, r.mobile);
+      const email = firstNonEmpty(r.email, r.mail);
+      if (nome || tel || email) out.push({ nome, tel, email });
     });
 
-    markers.push(m);
+    // Flat: fino a 3 slot
+    for (let i=1;i<=3;i++){
+      const nome  = firstNonEmpty(ev[`referente${i}_nome`], ev[`referente_nome_${i}`], ev[`ref${i}_nome`], ev[`contatto${i}_nome`], ev[`contatto_nome_${i}`], ev[`referente${i}`]);
+      const tel   = firstNonEmpty(ev[`referente${i}_tel`], ev[`referente${i}_telefono`], ev[`ref${i}_tel`], ev[`telefono${i}`], ev[`phone${i}`], ev[`cell${i}`]);
+      const email = firstNonEmpty(ev[`referente${i}_email`], ev[`ref${i}_email`], ev[`email${i}`], ev[`mail${i}`]);
+      if (nome || tel || email) out.push({ nome, tel, email });
+    }
+
+    // Flat singolo
+    const nome0  = firstNonEmpty(ev.referente_nome, ev.contatto_nome, ev.referente);
+    const tel0   = firstNonEmpty(ev.referente_tel, ev.referente_telefono, ev.contatto_tel, ev.telefono, ev.cell, ev.mobile, ev.phone);
+    const email0 = firstNonEmpty(ev.referente_email, ev.contatto_email, ev.email_evento, ev.email);
+    if (nome0 || tel0 || email0) out.unshift({ nome:nome0, tel:tel0, email:email0 });
+
+    return out.filter(x => x.nome || x.tel || x.email).slice(0,3);
   }
+
+  const referenti = extractReferenti(ev);
+  const referentiHtml = referenti.length ? `
+    <div class="small" style="margin-top:6px">
+      <b>Referenti:</b>
+      <ul style="margin:6px 0 0 18px">
+        ${referenti.map(r => {
+          const telPart   = r.tel   ? ` · <a href="tel:${sanitizeTel(r.tel)}">${r.tel}</a>` : '';
+          const emailPart = r.email ? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
+          const namePart  = r.nome  ? `<b>${r.nome}</b>` : '';
+          return `<li>${namePart}${telPart}${emailPart}</li>`;
+        }).join('')}
+      </ul>
+    </div>` : '';
+
+  // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
+  const today = todayISO();
+  const latKey = round5(occ.lat), lngKey = round5(occ.lng);
+  const allDates = OCCS
+    .filter(o =>
+      o.event_id === occ.event_id &&
+      o.data && o.data >= today &&
+      round5(o.lat) === latKey && round5(o.lng) === lngKey
+    )
+    .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
+
+  // === RIGA DATE DAL–AL (con orari se presenti) ===
+  let dateLine = '';
+  if (allDates.length > 1) {
+    const start = allDates[0];
+    const end   = allDates[allDates.length - 1];
+    const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
+    const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
+    dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
+  } else {
+    const only = allDates[0] || occ;
+    dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
+  }
+
+  const otherDates = allDates.filter(o => o.id !== occ.id);
+  const multiBadge = allDates.length > 1
+    ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
+    : '';
+
+  const listHtml = otherDates.length
+    ? `<div style="margin-top:6px">
+         <b>Altre date:</b>
+         <ul style="margin:6px 0 0 18px">
+           ${otherDates.slice(0,8).map(o =>
+             `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
+           ).join('')}
+         </ul>
+         ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
+       </div>`
+    : '';
+
+  const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
+
+  const html = `<div class="sq-popup" style="color:#081421;max-width:320px">
+      <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
+      <small>${cats||''}</small><br>
+      ${dateLine}<br>${where}
+      ${referentiHtml}
+      ${theDescr ? `<br><br>${theDescr}` : ''}
+      ${listHtml}
+      <div class="popup-actions">
+        <button class="btn accent" data-calc="1">Calcola percorso</button>
+        ${btnSite}
+        ${btnPoster}
+      </div>
+    </div>`;
+
+  m.bindPopup(html).on('popupopen', ()=>{
+    const btn = document.querySelector('button[data-calc="1"]');
+    if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
+
+    document.querySelectorAll('.sq-date').forEach(a=>{
+      a.addEventListener('click', (e)=>{
+        e.preventDefault();
+        const d = a.getAttribute('data-date');
+        state.customDate = d;
+        state.day = null;
+        allowAutoFit = false;
+        const badge = document.getElementById('dateBadge');
+        if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
+        LEAF.map.closePopup();
+        renderMarkers();
+      });
+    });
+  });
+
+  markers.push(m);
+}  
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
