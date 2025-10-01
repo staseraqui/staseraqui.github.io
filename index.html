@@ -105,9 +105,10 @@
 .leaflet-popup-content a.btn{text-decoration:none}
 
 /* Mantieni maiuscole/minuscole nel popup */
-/* Allarga il popup per non tagliare i testi lunghi (es. prezzo) */
-.leaflet-popup-content-wrapper{ max-width: 480px !important; }
-.leaflet-popup-content{ max-width: 480px !important; white-space: normal !important; }  
+.leaflet-popup-content,
+.leaflet-popup-content *,
+.sq-popup,
+.sq-popup * { text-transform: none !important; }  
 </style>
 
 <!-- Dati strutturati: Organization -->
