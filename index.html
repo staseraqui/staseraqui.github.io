@@ -728,7 +728,7 @@ function lAddMarker(occ, ev){
   ].filter(x => x.nome || x.tel || x.email);
 
   const referentiHtml = referenti.length ? `
-    <div class="small" style="margin-top:6px">
+    <div class="small sq-ref" style="margin-top:6px">
       <b>Referenti:</b>
       <ul style="margin:6px 0 0 18px">
         ${referenti.map(r => {
@@ -778,8 +778,7 @@ function lAddMarker(occ, ev){
 
   // Marker + popup
   const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
-  const prezzoHtml = prezzoIngresso ? `<div class="small" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>` : '';
-
+  const prezzoHtml = prezzoIngresso ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>` : '';
   const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
       <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
       <small>${cats||''}</small><br>
@@ -1100,6 +1099,40 @@ function lAddMarker(occ, ev){
     _refitTried = false;
     renderMarkers();
   }
+  <script>
+// === AUTO-REFRESH dopo modifiche da admin ===
+(function setupAutoRefresh(){
+  let _lastChangeSeen = localStorage.getItem('sq-last-change') || '0';
+
+  // Se un’altra tab/pagina (es. admin) scrive sq-last-change → ricarico i dati
+  window.addEventListener('storage', (e)=>{
+    if (e.key === 'sq-last-change') {
+      _lastChangeSeen = e.newValue || String(Date.now());
+      loadData();
+    }
+  });
+
+  // Se torno sulla tab e nel frattempo è cambiato qualcosa, ricarico
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.visibilityState === 'visible') {
+      const v = localStorage.getItem('sq-last-change') || '0';
+      if (v !== _lastChangeSeen) {
+        _lastChangeSeen = v;
+        loadData();
+      }
+    }
+  });
+
+  // (facoltativo) piccolo polling “gentile” ogni 90s per sicurezza
+  setInterval(()=>{
+    const v = localStorage.getItem('sq-last-change') || '0';
+    if (v !== _lastChangeSeen) {
+      _lastChangeSeen = v;
+      loadData();
+    }
+  }, 90000);
+})();
+</script>
   
   // ===== CONDIVIDI (solo bottone giallo) =====
   (function(){
