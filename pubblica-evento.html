@@ -407,7 +407,17 @@
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
   function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
-
+  // Raccoglie i referenti (nome/telefono) dal form
+function collectContactsFromForm(){
+  const out = [];
+  document.querySelectorAll('#contattiWrap .contact').forEach(row=>{
+    const name  = (row.querySelector('.ref_name')  ?.value || '').trim();
+    const phone = (row.querySelector('.ref_phone') ?.value || '').trim();
+    if (name || phone) out.push({ nome: name, tel: phone });
+  });
+  return out;
+}
+  
   // Normalizza URL "sito web"
   function normalizeUrl(u){
     u = (u||'').trim();
@@ -607,6 +617,7 @@
       const catsArr=badgesToArray();
       const file  =(document.getElementById('locandina').files||[])[0];
       const occ   =collectOcc();
+      const contacts = collectContactsFromForm();      
       if(!titolo||!descr||(!file && !sito)||!occ||!catsArr.length){
         err.textContent='Compila Titolo, Descrizione, almeno 1 Categoria e (Locandina OPPURE Sito ufficiale). Completa tutte le occorrenze (luogo/città e date).'; return;
       }
@@ -646,7 +657,8 @@
         }
       }
 
-      const eventObj = { titolo, descr, prezzo, sito, cats: catsArr, locandina_url, occ: occExpanded };
+
+      const eventObj = { titolo, descr, prezzo, sito, cats: catsArr, locandina_url, occ: occExpanded, contacts };
       CART.push(eventObj);
       refreshCartUI();
 
@@ -742,19 +754,21 @@
         if (actualDays > MAX_DAYS) {
           throw new Error(`Periodo troppo lungo: ${actualDays} giorni (limite ${MAX_DAYS}). Dividi il periodo in più annunci o contattaci: eventi@staseraqui.it`);
         }
-        const metadata = {
-          titolo: (ev.titolo||'').slice(0,80),
-          descr: (ev.descr||'').slice(0,180),
-          prezzo: (ev.prezzo||'').slice(0,40),
-          locandina_url: ev.locandina_url,
-          website: (ev.sito||'').slice(0,200),
-          cats: catsStr,
-          occ: occStr,
-          submitter_email: email.slice(0,120),
-          submitter_name: (`${nome} ${cognome}`).slice(0,80),
-          submitter_tel: (tel||'').slice(0,32),
-          partner: (partner||'').slice(0,12)
-        };
+        const contactsStr = JSON.stringify(ev.contacts || []).slice(0, 4000);
+const metadata = {
+  titolo: (ev.titolo||'').slice(0,80),
+  descr:  (ev.descr||'').slice(0,180),
+  prezzo: (ev.prezzo||'').slice(0,120),   // ← era 40, lo alzo a 120
+  locandina_url: ev.locandina_url,
+  website: (ev.sito||'').slice(0,200),
+  cats: catsStr,
+  occ:  occStr,
+  contacts: contactsStr,                   // ← NOVITÀ: referenti
+  submitter_email: email.slice(0,120),
+  submitter_name: (`${nome} ${cognome}`).slice(0,80),
+  submitter_tel: (tel||'').slice(0,32),
+  partner: (partner||'').slice(0,12)
+};
         const tipo = (ev.occ && ev.occ.length>1) ? 'multi' : 'single';
         return { tipo, metadata };
       });
