@@ -109,6 +109,8 @@
 .leaflet-popup-content *,
 .sq-popup,
 .sq-popup * { text-transform: none !important; }  
+/* Evita che prezzo/referenti vadano fuori o vengano troncati */
+.sq-price, .sq-ref { white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }  
 </style>
 
 <!-- Dati strutturati: Organization -->
