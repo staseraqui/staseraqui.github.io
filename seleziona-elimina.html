@@ -447,11 +447,25 @@
 
   // ====== CARICA DATI ======
   async function loadData(){
-    const { data: evs, error: evErr } = await sb.from('events')
-  .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at, price_text, prezzo, price, ingresso, contacts, referenti, contatti, nome_referente, numero_referente, email_referente, is_extended, extended, evento_diffuso, diffuso');
-    
-    if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
-
+    let evs = [];
+{
+  // Proviamo la select "ricca" (se qualche colonna non esiste, Supabase fallisce con 42703)
+  const colSel = 'id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at, price_text, prezzo, price, ingresso, contacts, referenti, contatti, nome_referente, numero_referente, email_referente, is_extended, extended, evento_diffuso, diffuso';
+  const r1 = await sb.from('events').select(colSel);
+  if (r1.error) {
+    console.warn('Select specific columns failed, fallback to *:', r1.error);
+    // Fallback robusto: prendiamo tutte le colonne così non rompiamo nulla se lo schema è diverso
+    const r2 = await sb.from('events').select('*');
+    if (r2.error) {
+      console.error(r2.error);
+      alert('Errore lettura events: ' + (r2.error.message || r2.error.code || 'sconosciuto'));
+      return;
+    }
+    evs = r2.data || [];
+  } else {
+    evs = r1.data || [];
+  }
+}
     const { data: occs, error: ocErr } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, city, address, time, venue, deleted_at');
     if (ocErr){ console.error(ocErr); alert('Errore lettura occorrenze'); return; }
