@@ -646,33 +646,28 @@ function lAddMarker(occ, ev){
   const cats  = (ev._cats||[]).join(', ');
   const theDescr = ev.description||ev.descrizione||'';
 
-// ===== PREZZO/INGRESSO (lettura robusta) =====
-function getPrice(evObj){
-  // prova campi comuni
-  const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso]
-    .map(v => (v ?? '').toString().trim()).find(Boolean);
-  if (direct) return direct;
+  // ===== PREZZO/INGRESSO =====
+  // Preferisci il campo lungo 'price_text' (visto nel tuo DB), poi 'prezzo' e infine 'price'
+  const prezzoIngresso = [ev.price_text, ev.prezzo, ev.price]
+    .map(v => (v??'').toString().trim())
+    .find(Boolean) || '';
 
-  // fallback: scansiona TUTTE le chiavi per qualcosa tipo “price/prezzo/ingresso”
-  for (const [k,v] of Object.entries(evObj||{})){
-    if (!/price|prezzo|ingresso/i.test(k)) continue;
-    const s = (v ?? '').toString().trim();
-    if (s) return s;
-    // JSON in stringa?
-    if (typeof v === 'string' && v.trim().startsWith('{')) {
-      try {
-        const j = JSON.parse(v);
-        const inner = [j.price_text, j.prezzo, j.price, j.ingresso]
-          .map(x => (x ?? '').toString().trim()).find(Boolean);
-        if (inner) return inner;
-      } catch(_) {}
-    }
+  // ===== SITO + LOCANDINA (campi reali nel tuo DB + fallback robusti) =====
+  const website = (ev.website_url || '').toString().trim() || pickFirstUrl(
+    ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento
+  );
+
+  let locandinaUrl = (ev.locandina_url || ev.image_url || '').toString().trim();
+  if (!locandinaUrl) {
+    locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb);
   }
-  return '';
-}
-const prezzoIngresso = getPrice(ev);
+  if (locandinaUrl && locandinaUrl.startsWith('/')) {
+    try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
+  }
+  const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+  const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-// ===== REFERENTI =====  
+  // ===== REFERENTI =====
   // Supporta: colonna JSONB (nome qualunque), array JSON in stringa, campi flat / numerati.
   function firstNonEmpty(...vals){
     for (const v of vals){ const s=(v??'').toString().trim(); if (s) return s; }
