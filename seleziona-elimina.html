@@ -448,7 +448,8 @@
   // ====== CARICA DATI ======
   async function loadData(){
     const { data: evs, error: evErr } = await sb.from('events')
-      .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at');
+  .select('id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at, price_text, prezzo, price, ingresso, contacts, referenti, contatti, nome_referente, numero_referente, email_referente, is_extended, extended, evento_diffuso, diffuso');
+    
     if (evErr){ console.error(evErr); alert('Errore lettura events'); return; }
 
     const { data: occs, error: ocErr } = await sb.from('occurrences')
@@ -786,30 +787,39 @@ function collectContactsFromEditor(){
   return out;
 }
 function extractContactsFromEvent(ev){
-  // prova JSONB (contacts/referenti/contatti) oppure flat 1..N, oppure singoli
-  const tryJson = (x)=> Array.isArray(x) ? x : (typeof x==='string' && x.trim().startsWith('[') ? (JSON.parse(x)||[]) : []);
-  const fromJson = [
-    ...tryJson(ev?.contacts),
-    ...tryJson(ev?.referenti),
-    ...tryJson(ev?.contatti)
-  ];
-  if (fromJson.length) return fromJson;
+  // scegli UNA sorgente array (in ordine): contacts → referenti → contatti
+  const pickArr = (v)=>{
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string' && v.trim().startsWith('[')){
+      try { const j=JSON.parse(v); return Array.isArray(j)?j:[]; } catch(_){ return []; }
+    }
+    return [];
+  };
+  let arr = pickArr(ev.contacts);
+  if (!arr.length) arr = pickArr(ev.referenti);
+  if (!arr.length) arr = pickArr(ev.contatti);
 
   const out = [];
-  for (let i=1;i<=10;i++){
-    const nome  = ev?.[`nome_referente_${i}`] || ev?.[`referente${i}_nome`] || ev?.[`contatto${i}_nome`] || '';
-    const tel   = ev?.[`numero_referente_${i}`] || ev?.[`referente${i}_tel`] || ev?.[`telefono${i}`] || '';
-    const email = ev?.[`email_referente_${i}`] || ev?.[`referente${i}_email`] || ev?.[`email${i}`] || '';
-    if (nome || tel || email) out.push({ nome, tel, email });
+  if (arr.length){
+    arr.forEach(x=> out.push({ nome: x?.nome||x?.name||'', tel: x?.tel||x?.telefono||x?.phone||'', email: x?.email||'' }));
+  } else {
+    const push=(n,t,e)=>{ if (n||t||e) out.push({nome:n||'', tel:t||'', email:e||''}); };
+    push(ev.nome_referente, ev.numero_referente, ev.email_referente);
+    for (let i=1;i<=10;i++){
+      push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
+    }
+    if (!out.length && typeof ev.referenti_text==='string'){
+      out.push({ nome: ev.referenti_text, tel:'', email:'' });
+    }
   }
-  if (out.length) return out;
-
-  const nome  = ev?.nome_referente || ev?.referente_nome || ev?.referente || '';
-  const tel   = ev?.numero_referente || ev?.referente_tel || ev?.telefono || '';
-  const email = ev?.email_referente || ev?.referente_email || '';
-  return (nome||tel||email) ? [{nome,tel,email}] : [];
-}
-  
+  // de-dup
+  const seen=new Set(), dedup=[];
+  out.forEach(c=>{
+    const key = [ (c.nome||'').trim().toLowerCase(), (c.tel||'').replace(/[^\d+]/g,''), (c.email||'').trim().toLowerCase() ].join('|');
+    if (!seen.has(key) && (c.nome||c.tel||c.email)) { seen.add(key); dedup.push(c); }
+  });
+  return dedup;
+}  
   let CURRENT_IDS = [];   // array di event_id selezionati
   let CUR_INDEX   = 0;    // indice corrente in CURRENT_IDS
   let CUR_EVENT   = null; // snapshot originale dell'evento corrente
@@ -1006,6 +1016,11 @@ function extractContactsFromEvent(ev){
     eDescr.value  = ev?.descrizione || ev?.description || '';
     ePublished.value = String(ev?.published!==false);
     eLocUrl.value = ev?.locandina_url || '';
+    if (typeof ePrezzo !== 'undefined') {
+  ePrezzo.value = ev?.price_text || ev?.prezzo || ev?.price || ev?.ingresso || '';
+}
+renderContactsUI( extractContactsFromEvent(ev||{}) );
+    
     // Prezzo/Ingresso
 ePrezzo.value = ev?.price_text || ev?.prezzo || ev?.price || ev?.ingresso || '';
 
@@ -1141,16 +1156,18 @@ try { await updateEventOptional(eventId, { prezzo: prezzo }); } catch(_){}
 try { await updateEventOptional(eventId, { price: prezzo }); } catch(_){}
 try { await updateEventOptional(eventId, { ingresso: prezzo }); } catch(_){}
 
-// Referenti su JSONB vari + fallback su flat (primo referente)
+/* Referenti: salva SOLO su 'contacts' (canonica) e pulisci alias per evitare duplicati */
 try { await updateEventOptional(eventId, { contacts: contactsArr }); } catch(_){}
-try { await updateEventOptional(eventId, { referenti: contactsArr }); } catch(_){}
-try { await updateEventOptional(eventId, { contatti: contactsArr }); } catch(_){}
+try { await updateEventOptional(eventId, { referenti: null }); } catch(_){}
+try { await updateEventOptional(eventId, { contatti: null }); } catch(_){}
+
+// compatibilità: primo referente anche sui campi piatti
 if (contactsArr[0]) {
   const c0 = contactsArr[0];
   try { await updateEventOptional(eventId, { nome_referente: c0.nome || null }); } catch(_){}
   try { await updateEventOptional(eventId, { numero_referente: c0.tel || null }); } catch(_){}
   try { await updateEventOptional(eventId, { email_referente: c0.email || null }); } catch(_){}
-}
+}    
     if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
 
     // Aggiorna "approved" opzionale e "evento diffuso" su possibili nomi di colonna
