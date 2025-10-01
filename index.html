@@ -638,22 +638,19 @@
     loadData().then(requestInitialLocation);
   }
 
-function lAddMarker(occ, ev){
-  // Testi così come inseriti (niente lowercase forzate)
+  function lAddMarker(occ, ev){
   const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
     .map(s => (s||'').toString().trim()).filter(Boolean);
   const where = whereParts.join(', ');
   const cats  = (ev._cats||[]).join(', ');
   const theDescr = ev.description||ev.descrizione||'';
 
-  // ===== PREZZO/INGRESSO — lettura robusta =====
+  // ===== PREZZO/INGRESSO (robusto) =====
   function getPrice(evObj){
     const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso]
       .map(v => (v ?? '').toString().trim())
       .find(Boolean);
     if (direct) return direct;
-
-    // Scansiona TUTTE le chiavi per nomi tipo prezzo/price/ingresso (incl. JSON in stringa)
     for (const [k,v] of Object.entries(evObj||{})){
       if (/price|prezzo|ingresso/i.test(k)){
         const s = (v ?? '').toString().trim();
@@ -668,26 +665,16 @@ function lAddMarker(occ, ev){
         }
       }
     }
-
-    // Ultimo fallback: prova a “catturare” prezzo da descrizione (es. “€ 10”, “10€”, “gratis”)
     const m = (theDescr||'').match(/\b(gratis|€\s?\d{1,3}(?:[.,]\d{1,2})?|\d{1,3}(?:[.,]\d{1,2})?\s?€)\b/i);
-    if (m) return m[0];
-    return '';
+    return m ? m[0] : '';
   }
   const prezzoIngresso = getPrice(ev);
 
-  // ===== SITO + LOCANDINA =====
+  // ===== URL utili =====
   function safeUrl(u){
     if (u == null) return '';
-    if (Array.isArray(u)){
-      for (const item of u){ const s = safeUrl(item); if (s) return s; }
-      return '';
-    }
-    if (typeof u === 'object'){
-      const candidates = [u.url, u.href, u.link, u.src];
-      for (const c of candidates){ const s = safeUrl(c); if (s) return s; }
-      return '';
-    }
+    if (Array.isArray(u)){ for (const item of u){ const s = safeUrl(item); if (s) return s; } return ''; }
+    if (typeof u === 'object'){ for (const c of [u.url,u.href,u.link,u.src]){ const s=safeUrl(c); if (s) return s; } return ''; }
     let s = String(u).trim();
     if (!s) return '';
     if (/^data:image\//i.test(s)) return s;
@@ -701,11 +688,7 @@ function lAddMarker(occ, ev){
       const s = safeUrl(f);
       if (s) return s;
       if (typeof f === 'string'){
-        try{
-          const j = JSON.parse(f);
-          const s2 = safeUrl(j);
-          if (s2) return s2;
-        }catch(_){}
+        try{ const j = JSON.parse(f); const s2 = safeUrl(j); if (s2) return s2; }catch(_){}
       }
     }
     return '';
@@ -721,70 +704,43 @@ function lAddMarker(occ, ev){
   const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
   const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-  // ===== REFERENTI — compatibile con tante forme =====
-  function toArray(x){
-    if (!x) return [];
-    if (Array.isArray(x)) return x;
-    if (typeof x === 'string'){
-      const s = x.trim();
-      if (s.startsWith('[')) { try { const j=JSON.parse(s); return Array.isArray(j)?j:[]; } catch(_){ return []; } }
-      return []; // testo libero lo tratto più sotto
+  // ===== REFERENTI — scegli UNA sorgente + dedup =====
+  function pickArray(val){
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string' && val.trim().startsWith('[')){
+      try { const j=JSON.parse(val); return Array.isArray(j) ? j : []; } catch(_){ return []; }
     }
     return [];
   }
-  function firstNonEmpty(...vals){ for (const v of vals){ const s=(v??'').toString().trim(); if (s) return s; } return ''; }
   function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
 
-  function scanForContacts(evObj){
-    const out=[];
-    for (const [key,val] of Object.entries(evObj||{})){
-      if (/^submitter/i.test(key)) continue; // non mostrare chi ha inserito
-      const arr = toArray(val);
-      if (!arr.length) continue;
-      arr.forEach(r=>{
-        if (!r || typeof r!=='object') return;
-        const nome  = firstNonEmpty(r.nome, r.name, r.referente, r.contatto, r.fullname);
-        const tel   = firstNonEmpty(r.numero, r.telefono, r.tel, r.cell, r.mobile, r.phone);
-        const email = firstNonEmpty(r.email, r.mail);
-        if (nome || tel || email) out.push({nome, tel, email});
-      });
-    }
-    return out;
-  }
-  function flatContact(evObj){
-    const nome  = firstNonEmpty(evObj.nome_referente, evObj.referente_nome, evObj.contatto_nome, evObj.referente);
-    const tel   = firstNonEmpty(evObj.numero_referente, evObj.referente_tel, evObj.referente_telefono, evObj.telefono, evObj.cell, evObj.mobile, evObj.phone, evObj.numero);
-    const email = firstNonEmpty(evObj.email_referente, evObj.referente_email, evObj.contatto_email, evObj.email_evento, evObj.email);
-    return (nome || tel || email) ? [{nome, tel, email}] : [];
-  }
-  function numberedContacts(evObj){
-    const out=[];
+  // 1) scegliamo una sola colonna array, in ordine di preferenza
+  let rawContacts = pickArray(ev.contacts);
+  if (!rawContacts.length) rawContacts = pickArray(ev.referenti);
+  if (!rawContacts.length) rawContacts = pickArray(ev.contatti);
+
+  // 2) se non c’è una colonna array, costruiamo da flat + numerati
+  if (!rawContacts.length){
+    const flat = [];
+    const push=(n,t,e)=>{ if (n||t||e) flat.push({nome:n||'', tel:t||'', email:e||''}); };
+    push(ev.nome_referente, ev.numero_referente, ev.email_referente);
     for (let i=1;i<=10;i++){
-      const nome  = firstNonEmpty(evObj[`nome_referente_${i}`], evObj[`referente${i}_nome`], evObj[`contatto${i}_nome`], evObj[`referente${i}`]);
-      const tel   = firstNonEmpty(evObj[`numero_referente_${i}`], evObj[`referente${i}_tel`], evObj[`referente${i}_telefono`], evObj[`telefono${i}`], evObj[`phone${i}`], evObj[`cell${i}`]);
-      const email = firstNonEmpty(evObj[`email_referente_${i}`], evObj[`referente${i}_email`], evObj[`email${i}`], evObj[`mail${i}`]);
-      if (nome || tel || email) out.push({nome, tel, email});
+      push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
     }
-    return out;
+    rawContacts = flat;
   }
-  function textContacts(evObj){
-    const txt = firstNonEmpty(evObj.referenti_text, evObj.contatti_text);
-    if (txt) return [{ nome: txt, tel: '', email:'' }];
-    const out=[];
-    ['contacts','referenti','contatti'].forEach(k=>{
-      if (typeof evObj[k]==='string' && !evObj[k].trim().startsWith('[')){
-        const s = evObj[k].trim();
-        if (s) out.push({ nome:s, tel:'', email:'' });
-      }
-    });
-    return out;
-  }
-  const referenti = [
-    ...scanForContacts(ev),
-    ...flatContact(ev),
-    ...numberedContacts(ev),
-    ...textContacts(ev)
-  ].filter(x => x && (x.nome || x.tel || x.email));
+
+  // 3) normalizza + dedup
+  const referenti = [];
+  const seen = new Set();
+  (rawContacts||[]).forEach(r=>{
+    const nome  = (r?.nome||r?.name||'').toString().trim();
+    const tel   = sanitizeTel(r?.tel||r?.telefono||r?.phone||'');
+    const email = (r?.email||'').toString().trim().toLowerCase();
+    if (!(nome||tel||email)) return;
+    const key = [nome.toLowerCase(), tel, email].join('|');
+    if (!seen.has(key)){ seen.add(key); referenti.push({nome, tel, email}); }
+  });
 
   const referentiHtml = referenti.length ? `
     <div class="small sq-ref" style="margin-top:6px">
@@ -792,20 +748,20 @@ function lAddMarker(occ, ev){
       <ul style="margin:6px 0 0 18px">
         ${referenti.map(r => {
           const name   = r.nome ? `<b>${r.nome}</b>` : '';
-          const tel    = r.tel  ? ` · <a href="tel:${sanitizeTel(r.tel)}">${r.tel}</a>` : '';
+          const tel    = r.tel  ? ` · <a href="tel:${r.tel}">${r.tel}</a>` : '';
           const email  = r.email? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
           return `<li>${name}${tel}${email}</li>`;
         }).join('')}
       </ul>
     </div>` : '';
 
-  // ===== Raggruppo date future stessa posizione =====
+  // ===== Raggruppo date stessa posizione (future) =====
   const today = todayISO();
   const latKey = round5(occ.lat), lngKey = round5(occ.lng);
   const allDates = OCCS
     .filter(o => o.event_id === occ.event_id && o.data && o.data >= today &&
                  round5(o.lat) === latKey && round5(o.lng) === lngKey)
-    .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC
+    .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora));
 
   let dateLine = '';
   if (allDates.length > 1) {
@@ -877,7 +833,8 @@ function lAddMarker(occ, ev){
   });
 
   markers.push(m);
-}  
+}
+  
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
