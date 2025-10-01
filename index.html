@@ -646,48 +646,99 @@ function lAddMarker(occ, ev){
   const cats  = (ev._cats||[]).join(', ');
   const theDescr = ev.description||ev.descrizione||'';
 
-  // ===== PREZZO/INGRESSO =====
-  // Preferisci il campo lungo 'price_text' (visto nel tuo DB), poi 'prezzo' e infine 'price'
-  const prezzoIngresso = [ev.price_text, ev.prezzo, ev.price]
-    .map(v => (v??'').toString().trim())
-    .find(Boolean) || '';
+  // ===== PREZZO/INGRESSO — lettura robusta =====
+  function getPrice(evObj){
+    const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso]
+      .map(v => (v ?? '').toString().trim())
+      .find(Boolean);
+    if (direct) return direct;
 
-  // ===== SITO + LOCANDINA (campi reali nel tuo DB + fallback robusti) =====
+    // Scansiona TUTTE le chiavi per nomi tipo prezzo/price/ingresso (incl. JSON in stringa)
+    for (const [k,v] of Object.entries(evObj||{})){
+      if (/price|prezzo|ingresso/i.test(k)){
+        const s = (v ?? '').toString().trim();
+        if (s) return s;
+        if (typeof v === 'string' && v.trim().startsWith('{')) {
+          try {
+            const j = JSON.parse(v);
+            const inner = [j.price_text, j.prezzo, j.price, j.ingresso]
+              .map(x => (x ?? '').toString().trim()).find(Boolean);
+            if (inner) return inner;
+          } catch(_){}
+        }
+      }
+    }
+
+    // Ultimo fallback: prova a “catturare” prezzo da descrizione (es. “€ 10”, “10€”, “gratis”)
+    const m = (theDescr||'').match(/\b(gratis|€\s?\d{1,3}(?:[.,]\d{1,2})?|\d{1,3}(?:[.,]\d{1,2})?\s?€)\b/i);
+    if (m) return m[0];
+    return '';
+  }
+  const prezzoIngresso = getPrice(evObj = ev);
+
+  // ===== SITO + LOCANDINA =====
+  function safeUrl(u){
+    if (u == null) return '';
+    if (Array.isArray(u)){
+      for (const item of u){ const s = safeUrl(item); if (s) return s; }
+      return '';
+    }
+    if (typeof u === 'object'){
+      const candidates = [u.url, u.href, u.link, u.src];
+      for (const c of candidates){ const s = safeUrl(c); if (s) return s; }
+      return '';
+    }
+    let s = String(u).trim();
+    if (!s) return '';
+    if (/^data:image\//i.test(s)) return s;
+    if (/^\/\//.test(s)) s = 'https:' + s;
+    if (/^\//.test(s)) return s;
+    if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
+    try { new URL(s); return s; } catch(_){ return ''; }
+  }
+  function pickFirstUrl(...fields){
+    for (const f of fields){
+      const s = safeUrl(f);
+      if (s) return s;
+      if (typeof f === 'string'){
+        try{
+          const j = JSON.parse(f);
+          const s2 = safeUrl(j);
+          if (s2) return s2;
+        }catch(_){}
+      }
+    }
+    return '';
+  }
   const website = (ev.website_url || '').toString().trim() || pickFirstUrl(
     ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento
   );
-
   let locandinaUrl = (ev.locandina_url || ev.image_url || '').toString().trim();
-  if (!locandinaUrl) {
-    locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb);
-  }
+  if (!locandinaUrl) locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb);
   if (locandinaUrl && locandinaUrl.startsWith('/')) {
     try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
   }
   const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
   const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-  // ===== REFERENTI =====
-  // Supporta: colonna JSONB (nome qualunque), array JSON in stringa, campi flat / numerati.
-  function firstNonEmpty(...vals){
-    for (const v of vals){ const s=(v??'').toString().trim(); if (s) return s; }
-    return '';
-  }
+  // ===== REFERENTI — compatibile con tante forme =====
   function toArray(x){
     if (!x) return [];
     if (Array.isArray(x)) return x;
-    if (typeof x === 'string' && x.trim().startsWith('[')) {
-      try { const j = JSON.parse(x); return Array.isArray(j) ? j : []; } catch(_){ return []; }
+    if (typeof x === 'string'){
+      const s = x.trim();
+      if (s.startsWith('[')) { try { const j=JSON.parse(s); return Array.isArray(j)?j:[]; } catch(_){ return []; } }
+      return []; // testo libero lo tratto più sotto
     }
     return [];
   }
+  function firstNonEmpty(...vals){ for (const v of vals){ const s=(v??'').toString().trim(); if (s) return s; } return ''; }
   function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
 
-  // 1) Scansiona eventuali colonne JSONB con array di contatti (nome/telefono/email), qualunque sia il nome della colonna
   function scanForContacts(evObj){
     const out=[];
     for (const [key,val] of Object.entries(evObj||{})){
-      if (/^submitter/i.test(key)) continue;                 // non mostrare chi ha inserito l'evento
+      if (/^submitter/i.test(key)) continue; // non mostrare chi ha inserito
       const arr = toArray(val);
       if (!arr.length) continue;
       arr.forEach(r=>{
@@ -700,16 +751,12 @@ function lAddMarker(occ, ev){
     }
     return out;
   }
-
-  // 2) Campi piatti singoli (se presenti)
   function flatContact(evObj){
     const nome  = firstNonEmpty(evObj.nome_referente, evObj.referente_nome, evObj.contatto_nome, evObj.referente);
     const tel   = firstNonEmpty(evObj.numero_referente, evObj.referente_tel, evObj.referente_telefono, evObj.telefono, evObj.cell, evObj.mobile, evObj.phone, evObj.numero);
     const email = firstNonEmpty(evObj.email_referente, evObj.referente_email, evObj.contatto_email, evObj.email_evento, evObj.email);
     return (nome || tel || email) ? [{nome, tel, email}] : [];
   }
-
-  // 3) Slot numerati 1..10 (nome/numero/email)
   function numberedContacts(evObj){
     const out=[];
     for (let i=1;i<=10;i++){
@@ -720,12 +767,24 @@ function lAddMarker(occ, ev){
     }
     return out;
   }
-
+  function textContacts(evObj){
+    const txt = firstNonEmpty(evObj.referenti_text, evObj.contatti_text);
+    if (txt) return [{ nome: txt, tel: '', email:'' }];
+    const out=[];
+    ['contacts','referenti','contatti'].forEach(k=>{
+      if (typeof evObj[k]==='string' && !evObj[k].trim().startsWith('[')){
+        const s = evObj[k].trim();
+        if (s) out.push({ nome:s, tel:'', email:'' });
+      }
+    });
+    return out;
+  }
   const referenti = [
-    ...scanForContacts(ev),     // qualunque colonna JSONB con array di oggetti
-    ...flatContact(ev),         // campi singoli
-    ...numberedContacts(ev)     // slot numerati
-  ].filter(x => x.nome || x.tel || x.email);
+    ...scanForContacts(ev),
+    ...flatContact(ev),
+    ...numberedContacts(ev),
+    ...textContacts(ev)
+  ].filter(x => x && (x.nome || x.tel || x.email));
 
   const referentiHtml = referenti.length ? `
     <div class="small sq-ref" style="margin-top:6px">
@@ -778,7 +837,11 @@ function lAddMarker(occ, ev){
 
   // Marker + popup
   const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
-  const prezzoHtml = prezzoIngresso ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>` : '';
+
+  const prezzoHtml = prezzoIngresso
+    ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
+    : '';
+
   const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
       <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
       <small>${cats||''}</small><br>
@@ -814,7 +877,8 @@ function lAddMarker(occ, ev){
   });
 
   markers.push(m);
-}  
+}
+  
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
