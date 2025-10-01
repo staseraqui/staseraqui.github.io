@@ -917,7 +917,20 @@ function extractContactsFromEvent(ev){
     });
     return gmLoadedPromise;
   }
+  async function geocodeOSM(indirizzo, citta){
+  const q = `${indirizzo}, ${citta}, Italia`.trim();
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q=' + encodeURIComponent(q);
+  const r = await fetch(url, { headers: { 'Accept-Language': 'it', 'User-Agent': 'StaseraQui-Admin/1.0' } });
+  const j = await r.json();
+  if (Array.isArray(j) && j.length){
+    return { lat: +(+j[0].lat).toFixed(6), lng: +(+j[0].lon).toFixed(6) };
+  }
+  throw new Error('OSM geocoding: nessun risultato');
+}
+  
   async function geocode(indirizzo, citta){
+  // 1) Prova Google se la chiave c'è
+  try{
     await loadGoogle();
     const geocoder = new google.maps.Geocoder();
     const tentativi = [
@@ -936,9 +949,13 @@ function extractContactsFromEvent(ev){
       });
       if (res.ok) return res;
     }
-    throw new Error('Geocoding fallito');
+    // se Google risponde ma senza risultati → prova OSM
+    return await geocodeOSM(indirizzo, citta);
+  }catch(_){
+    // 2) Se Google non carica proprio → prova OSM
+    return await geocodeOSM(indirizzo, citta);
   }
-
+}
   // ====== Upload locandina (Supabase Storage) ======
   const POSTERS_BUCKET = 'event-images';
   eLocBtn.addEventListener('click', ()=> eLocFile.click());
@@ -1071,29 +1088,41 @@ const contactsArr = collectContactsFromEditor();
 
     // Geocoding solo se indirizzo/città sono cambiati o se è una nuova occ
     const occReady = [];
-    for (const o of occUI){
-      let lat=null, lng=null;
-      if (o.id && origById.has(String(o.id))){
-        const prev = origById.get(String(o.id));
-        const sameAddr = (clean(prev.indirizzo||prev.address||'')===o.indirizzo) && (clean(prev.citta||prev.city||'')===o.citta);
-        if (sameAddr){
-          lat = +(+prev.lat||0).toFixed(6);
-          lng = +(+prev.lng||0).toFixed(6);
-        } else {
-          try{
-            const g = await geocode(o.indirizzo, o.citta);
-            lat = g.lat; lng = g.lng;
-          }catch(_){ edErr.textContent=`Indirizzo non trovato: ${o.indirizzo}, ${o.citta}`; return false; }
-        }
-      } else { // nuova
-        try{
-          const g = await geocode(o.indirizzo, o.citta);
-          lat = g.lat; lng = g.lng;
-        }catch(_){ edErr.textContent=`Indirizzo non trovato: ${o.indirizzo}, ${o.citta}`; return false; }
-      }
-      occReady.push({ ...o, lat, lng });
-    }
+    const _warnings = [];   // ← metti questa variabile subito PRIMA del for, una sola volta
 
+for (const o of occUI){
+  let lat=null, lng=null;
+  try{
+    if (o.id && origById.has(String(o.id))){
+      const prev = origById.get(String(o.id));
+      const sameAddr = (clean(prev.indirizzo||prev.address||'')===o.indirizzo) && (clean(prev.citta||prev.city||'')===o.citta);
+      if (sameAddr){
+        lat = +(+prev.lat||0).toFixed(6);
+        lng = +(+prev.lng||0).toFixed(6);
+      } else {
+        const g = await geocode(o.indirizzo, o.citta);
+        lat = g.lat; lng = g.lng;
+      }
+    } else {
+      const g = await geocode(o.indirizzo, o.citta);
+      lat = g.lat; lng = g.lng;
+    }
+  }catch(ex){
+    // Geocoding KO: salvo comunque i testi, mantenendo le vecchie coordinate se esistono
+    const prev = o.id && origById.get(String(o.id)) || null;
+    if (prev && prev.lat!=null && prev.lng!=null){
+      lat = +(+prev.lat).toFixed(6);
+      lng = +(+prev.lng).toFixed(6);
+      _warnings.push(`Geocoding non riuscito per "${o.indirizzo}, ${o.citta}". Coordinate precedenti mantenute.`);
+    } else {
+      edErr.textContent = `Indirizzo non trovato: ${o.indirizzo}, ${o.citta}`;
+      return false; // nessuna coord precedente su nuova occorrenza: non possiamo disegnare in mappa
+    }
+  }
+
+  occReady.push({ ...o, lat, lng });
+}
+    
     // --- Salvataggio evento (campi doppi; niente 'approved' qui)
     const payloadEvent = {
       title: titolo,
