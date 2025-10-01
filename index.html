@@ -644,31 +644,29 @@ function lAddMarker(occ, ev){
   const cats  = (ev._cats||[]).join(', ');
   const theDescr = ev.description||ev.descrizione||'';
 
-  // Prezzo/Ingresso: prova più chiavi comuni dal form
-  const prezzoIngresso = [ev.prezzo_ingresso, ev.prezzo, ev.ingresso, ev.entry_price, ev.price]
+  // ===== Prezzo/Ingresso: usa i campi REALI visti in Supabase =====
+  const prezzoIngresso = [ev.prezzo, ev.price, ev.price_text]
     .map(v => (v??'').toString().trim())
     .find(Boolean) || '';
 
-  // URL sito + locandina (robusto)
-  const website = pickFirstUrl(
-    ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
-    ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
-    ev.instagram_event, ev.eventbrite_url, ev.ticket_url, ev.prenotazione_url, ev.booking_url,
-    ev.sitoEvento, ev.website_url, ev.homepage, ev.link_ufficiale
+  // ===== URL sito + locandina (usa i tuoi campi reali) =====
+  const website = (ev.website_url || '').toString().trim() || pickFirstUrl(
+    ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento
   );
 
-  let locandinaUrl = pickFirstUrl(
-    ev.locandina_url, ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover,
-    ev.locandina, ev.image, ev.foto_locandina, ev.flyer, ev.flyer_url,
-    ev.banner, ev.banner_url, ev.thumbnail, ev.thumb, ev.cover_image, ev.img_url
-  );
+  let locandinaUrl = (ev.locandina_url || ev.image_url || '').toString().trim();
+  if (!locandinaUrl) {
+    locandinaUrl = pickFirstUrl(
+      ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb
+    );
+  }
   if (locandinaUrl && locandinaUrl.startsWith('/')) {
     try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
   }
   const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
   const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-  // ===== Referenti: array JSON o campi flat (mostra TUTTI)
+  // ===== Referenti: JSONB (contatti/referenti) oppure campi flat/numerati =====
   function toArray(x){
     if (!x) return [];
     if (Array.isArray(x)) return x;
@@ -684,7 +682,7 @@ function lAddMarker(occ, ev){
   function extractReferenti(ev){
     const out = [];
 
-    // JSON array (contatti/referenti)
+    // JSON array (consigliato): contatti/referenti nel record evento
     toArray(ev.contatti || ev.referenti || ev.contacts || ev.referents).forEach(r=>{
       const nome  = firstNonEmpty(r.nome, r.name, r.referente, r.contatto, r.fullname);
       const tel   = firstNonEmpty(r.numero, r.telefono, r.tel, r.cell, r.mobile, r.phone);
@@ -692,13 +690,13 @@ function lAddMarker(occ, ev){
       if (nome || tel || email) out.push({ nome, tel, email });
     });
 
-    // Campi flat singoli
+    // Flat singolo (se esistono queste chiavi)
     const nome0  = firstNonEmpty(ev.nome_referente, ev.referente_nome, ev.contatto_nome, ev.referente);
     const tel0   = firstNonEmpty(ev.numero_referente, ev.referente_tel, ev.referente_telefono, ev.telefono, ev.cell, ev.mobile, ev.phone, ev.numero);
     const email0 = firstNonEmpty(ev.email_referente, ev.referente_email, ev.contatto_email, ev.email_evento, ev.email);
     if (nome0 || tel0 || email0) out.push({ nome:nome0, tel:tel0, email:email0 });
 
-    // Slot numerati (nome/numero/email) fino a 10
+    // Slot numerati (se presenti): nome/numero/email 1..10
     for (let i=1;i<=10;i++){
       const nome  = firstNonEmpty(ev[`nome_referente_${i}`], ev[`referente${i}_nome`], ev[`contatto${i}_nome`], ev[`referente${i}`]);
       const tel   = firstNonEmpty(ev[`numero_referente_${i}`], ev[`referente${i}_tel`], ev[`referente${i}_telefono`], ev[`telefono${i}`], ev[`phone${i}`], ev[`cell${i}`]);
@@ -706,6 +704,7 @@ function lAddMarker(occ, ev){
       if (nome || tel || email) out.push({ nome, tel, email });
     }
 
+    // NON usiamo i campi submitter_* (sono di chi ha inserito l'evento)
     return out.filter(x => x.nome || x.tel || x.email);
   }
 
@@ -723,7 +722,7 @@ function lAddMarker(occ, ev){
       </ul>
     </div>` : '';
 
-  // ===== Raggruppo date future stessa posizione
+  // ===== Raggruppo date future stessa posizione =====
   const today = todayISO();
   const latKey = round5(occ.lat), lngKey = round5(occ.lng);
   const allDates = OCCS
@@ -759,6 +758,7 @@ function lAddMarker(occ, ev){
        </div>`
     : '';
 
+  // Marker + popup
   const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
   const prezzoHtml = prezzoIngresso ? `<div class="small" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>` : '';
 
