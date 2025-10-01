@@ -161,6 +161,19 @@
           <span class="small" id="e_loc_msg" style="opacity:.85"></span>
         </div>
       </div>
+      <div class="grid" style="margin-top:8px">
+  <div>
+    <label for="e_prezzo">Prezzo/Ingresso</label>
+    <input id="e_prezzo" placeholder="Es. Gratis / 10€ con drink">
+  </div>
+  <div>
+    <label>Referenti</label>
+    <div id="edContacts"></div>
+    <button class="btn secondary" id="edAddContact" type="button" style="margin-top:6px">Aggiungi referente</button>
+    <p class="smallmuted">Nome / numero / email (facoltativo). Saranno visibili nel popup.</p>
+  </div>
+</div>
+      
       <div>
         <label for="e_published">Pubblicato</label>
         <select id="e_published">
@@ -738,7 +751,65 @@
   const edClose   = $('#edClose');
   const edSave    = $('#edSave');
   const edSaveNext= $('#edSaveNext');
+  const ePrezzo      = $('#e_prezzo');
+  const edContacts   = $('#edContacts');
+  const edAddContact = $('#edAddContact');
+  function renderContactsUI(list){
+  edContacts.innerHTML = (list && list.length ? list : [{nome:'',tel:'',email:''}]).map(c => contactRow(c)).join('');
+}
+function contactRow(c){
+  const id = uniqueId();
+  return `<div class="grid" data-cid="${id}" style="margin-bottom:6px">
+    <div><label class="small">Nome</label><input class="c_name" value="${(c?.nome||c?.name||'')}" placeholder="Es. Laura Bianchi"></div>
+    <div><label class="small">Telefono</label><input class="c_tel"  value="${(c?.tel||c?.telefono||c?.phone||'')}" placeholder="+39 333 1234567"></div>
+    <div><label class="small">Email</label><input class="c_mail" value="${(c?.email||c?.mail||'')}" placeholder="es. info@evento.it"></div>
+    <div style="display:flex;align-items:flex-end"><button class="btn small del-contact" type="button">Rimuovi</button></div>
+  </div>`;
+}
+edContacts.addEventListener('click', (e)=>{
+  if (e.target.classList.contains('del-contact')) {
+    const box = e.target.closest('[data-cid]');
+    if (box) box.remove();
+  }
+});
+edAddContact.addEventListener('click', ()=>{
+  edContacts.insertAdjacentHTML('beforeend', contactRow({}));
+});
+function collectContactsFromEditor(){
+  const out=[];
+  edContacts.querySelectorAll('[data-cid]').forEach(row=>{
+    const nome  = (row.querySelector('.c_name')?.value || '').trim();
+    const tel   = (row.querySelector('.c_tel') ?.value || '').trim();
+    const email = (row.querySelector('.c_mail')?.value || '').trim();
+    if (nome || tel || email) out.push({ nome, tel, email });
+  });
+  return out;
+}
+function extractContactsFromEvent(ev){
+  // prova JSONB (contacts/referenti/contatti) oppure flat 1..N, oppure singoli
+  const tryJson = (x)=> Array.isArray(x) ? x : (typeof x==='string' && x.trim().startsWith('[') ? (JSON.parse(x)||[]) : []);
+  const fromJson = [
+    ...tryJson(ev?.contacts),
+    ...tryJson(ev?.referenti),
+    ...tryJson(ev?.contatti)
+  ];
+  if (fromJson.length) return fromJson;
 
+  const out = [];
+  for (let i=1;i<=10;i++){
+    const nome  = ev?.[`nome_referente_${i}`] || ev?.[`referente${i}_nome`] || ev?.[`contatto${i}_nome`] || '';
+    const tel   = ev?.[`numero_referente_${i}`] || ev?.[`referente${i}_tel`] || ev?.[`telefono${i}`] || '';
+    const email = ev?.[`email_referente_${i}`] || ev?.[`referente${i}_email`] || ev?.[`email${i}`] || '';
+    if (nome || tel || email) out.push({ nome, tel, email });
+  }
+  if (out.length) return out;
+
+  const nome  = ev?.nome_referente || ev?.referente_nome || ev?.referente || '';
+  const tel   = ev?.numero_referente || ev?.referente_tel || ev?.telefono || '';
+  const email = ev?.email_referente || ev?.referente_email || '';
+  return (nome||tel||email) ? [{nome,tel,email}] : [];
+}
+  
   let CURRENT_IDS = [];   // array di event_id selezionati
   let CUR_INDEX   = 0;    // indice corrente in CURRENT_IDS
   let CUR_EVENT   = null; // snapshot originale dell'evento corrente
@@ -918,7 +989,12 @@
     eDescr.value  = ev?.descrizione || ev?.description || '';
     ePublished.value = String(ev?.published!==false);
     eLocUrl.value = ev?.locandina_url || '';
+    // Prezzo/Ingresso
+ePrezzo.value = ev?.price_text || ev?.prezzo || ev?.price || ev?.ingresso || '';
 
+// Referenti
+renderContactsUI( extractContactsFromEvent(ev||{}) );
+    
     // Extended flag (supporto più nomi colonna)
     const extVal = (ev?.is_extended ?? ev?.extended ?? ev?.evento_diffuso ?? ev?.diffuso) ? 'true' : 'false';
     eExtended.value = extVal;
@@ -983,7 +1059,9 @@
     const locUrl = clean(eLocUrl.value);
     const cats   = getSelectedCatsFromUI();
     if (!titolo || !descr || !cats.length){ edErr.textContent='Compila Titolo*, Descrizione* e almeno 1 Categoria*.'; return false; }
-
+    const prezzo = clean(ePrezzo.value || '');
+const contactsArr = collectContactsFromEditor();
+    
     // --- Occorrenze
     const occUI = collectOccFromUI();
     if (!occUI){ edErr.textContent='Completa tutti i campi di ogni occorrenza.'; return false; }
@@ -1028,6 +1106,22 @@
       published: pub
     };
     const rEv = await sb.from('events').update(payloadEvent).eq('id', eventId).select('id').single();
+    // Prezzo su più colonne possibili
+try { await updateEventOptional(eventId, { price_text: prezzo }); } catch(_){}
+try { await updateEventOptional(eventId, { prezzo: prezzo }); } catch(_){}
+try { await updateEventOptional(eventId, { price: prezzo }); } catch(_){}
+try { await updateEventOptional(eventId, { ingresso: prezzo }); } catch(_){}
+
+// Referenti su JSONB vari + fallback su flat (primo referente)
+try { await updateEventOptional(eventId, { contacts: contactsArr }); } catch(_){}
+try { await updateEventOptional(eventId, { referenti: contactsArr }); } catch(_){}
+try { await updateEventOptional(eventId, { contatti: contactsArr }); } catch(_){}
+if (contactsArr[0]) {
+  const c0 = contactsArr[0];
+  try { await updateEventOptional(eventId, { nome_referente: c0.nome || null }); } catch(_){}
+  try { await updateEventOptional(eventId, { numero_referente: c0.tel || null }); } catch(_){}
+  try { await updateEventOptional(eventId, { email_referente: c0.email || null }); } catch(_){}
+}
     if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
 
     // Aggiorna "approved" opzionale e "evento diffuso" su possibili nomi di colonna
@@ -1104,10 +1198,10 @@ async function tryUpdateOccColumnNew(set){
           try { await tryUpdateOccColumnNew({ time_weekend: o.ora_festivo }); } catch(_){}
         }
         if (!o.ora && (o.ora_feriale || o.ora_festivo)){
-          const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
-const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', o.id);          
-          if (rF.error){ edErr.textContent='Errore salvataggio orario combinato: '+(rF.error.message||String(rF.error)); return false; }
-        }
+  const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
+  const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', occId);
+  if (rF.error){ edErr.textContent='Errore salvataggio orario combinato: '+(rF.error.message||String(rF.error)); return false; }
+}
       }
     }
 
