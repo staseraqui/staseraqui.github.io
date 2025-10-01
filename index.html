@@ -637,13 +637,19 @@
   }
 
 function lAddMarker(occ, ev){
-  // Mostra i testi così come sono stati inseriti
-  const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')].map(s => (s||'').toString().trim()).filter(Boolean);
+  // Testi così come inseriti (niente forzature di lowercase)
+  const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
+    .map(s => (s||'').toString().trim()).filter(Boolean);
   const where = whereParts.join(', ');
   const cats  = (ev._cats||[]).join(', ');
   const theDescr = ev.description||ev.descrizione||'';
 
-  // —— URL sito + locandina (robusto) ——
+  // Prezzo/Ingresso: prova più chiavi comuni dal form
+  const prezzoIngresso = [ev.prezzo_ingresso, ev.prezzo, ev.ingresso, ev.entry_price, ev.price]
+    .map(v => (v??'').toString().trim())
+    .find(Boolean) || '';
+
+  // URL sito + locandina (robusto)
   const website = pickFirstUrl(
     ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.sitoUfficiale,
     ev.link_evento, ev.url_evento, ev.facebook_event, ev.evento_facebook, ev.facebook,
@@ -659,44 +665,48 @@ function lAddMarker(occ, ev){
   if (locandinaUrl && locandinaUrl.startsWith('/')) {
     try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
   }
+  const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+  const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-  const btnSite   = website ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-  const btnPoster = locandinaUrl ? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
-
-  // —— Referenti: estrai da più formati possibili (flat o JSON) ——
+  // ===== Referenti: array JSON o campi flat (mostra TUTTI)
   function toArray(x){
     if (!x) return [];
     if (Array.isArray(x)) return x;
     try { const j = typeof x==='string' ? JSON.parse(x) : x; return Array.isArray(j) ? j : []; }
     catch(_){ return []; }
   }
+  function firstNonEmpty(...vals){
+    for (const v of vals){ const s=(v??'').toString().trim(); if (s) return s; }
+    return '';
+  }
   function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
+
   function extractReferenti(ev){
     const out = [];
 
-    // JSON array: ev.referenti / ev.contatti / ev.contacts / ev.referents
-    toArray(ev.referenti || ev.contatti || ev.contacts || ev.referents).forEach(r=>{
+    // JSON array (contatti/referenti)
+    toArray(ev.contatti || ev.referenti || ev.contacts || ev.referents).forEach(r=>{
       const nome  = firstNonEmpty(r.nome, r.name, r.referente, r.contatto, r.fullname);
-      const tel   = firstNonEmpty(r.tel, r.telefono, r.phone, r.cell, r.cel, r.mobile);
+      const tel   = firstNonEmpty(r.numero, r.telefono, r.tel, r.cell, r.mobile, r.phone);
       const email = firstNonEmpty(r.email, r.mail);
       if (nome || tel || email) out.push({ nome, tel, email });
     });
 
-    // Flat: fino a 3 slot
-    for (let i=1;i<=3;i++){
-      const nome  = firstNonEmpty(ev[`referente${i}_nome`], ev[`referente_nome_${i}`], ev[`ref${i}_nome`], ev[`contatto${i}_nome`], ev[`contatto_nome_${i}`], ev[`referente${i}`]);
-      const tel   = firstNonEmpty(ev[`referente${i}_tel`], ev[`referente${i}_telefono`], ev[`ref${i}_tel`], ev[`telefono${i}`], ev[`phone${i}`], ev[`cell${i}`]);
-      const email = firstNonEmpty(ev[`referente${i}_email`], ev[`ref${i}_email`], ev[`email${i}`], ev[`mail${i}`]);
+    // Campi flat singoli
+    const nome0  = firstNonEmpty(ev.nome_referente, ev.referente_nome, ev.contatto_nome, ev.referente);
+    const tel0   = firstNonEmpty(ev.numero_referente, ev.referente_tel, ev.referente_telefono, ev.telefono, ev.cell, ev.mobile, ev.phone, ev.numero);
+    const email0 = firstNonEmpty(ev.email_referente, ev.referente_email, ev.contatto_email, ev.email_evento, ev.email);
+    if (nome0 || tel0 || email0) out.push({ nome:nome0, tel:tel0, email:email0 });
+
+    // Slot numerati (nome/numero/email) fino a 10
+    for (let i=1;i<=10;i++){
+      const nome  = firstNonEmpty(ev[`nome_referente_${i}`], ev[`referente${i}_nome`], ev[`contatto${i}_nome`], ev[`referente${i}`]);
+      const tel   = firstNonEmpty(ev[`numero_referente_${i}`], ev[`referente${i}_tel`], ev[`referente${i}_telefono`], ev[`telefono${i}`], ev[`phone${i}`], ev[`cell${i}`]);
+      const email = firstNonEmpty(ev[`email_referente_${i}`], ev[`referente${i}_email`], ev[`email${i}`], ev[`mail${i}`]);
       if (nome || tel || email) out.push({ nome, tel, email });
     }
 
-    // Flat singolo
-    const nome0  = firstNonEmpty(ev.referente_nome, ev.contatto_nome, ev.referente);
-    const tel0   = firstNonEmpty(ev.referente_tel, ev.referente_telefono, ev.contatto_tel, ev.telefono, ev.cell, ev.mobile, ev.phone);
-    const email0 = firstNonEmpty(ev.referente_email, ev.contatto_email, ev.email_evento, ev.email);
-    if (nome0 || tel0 || email0) out.unshift({ nome:nome0, tel:tel0, email:email0 });
-
-    return out.filter(x => x.nome || x.tel || x.email).slice(0,3);
+    return out.filter(x => x.nome || x.tel || x.email);
   }
 
   const referenti = extractReferenti(ev);
@@ -705,30 +715,25 @@ function lAddMarker(occ, ev){
       <b>Referenti:</b>
       <ul style="margin:6px 0 0 18px">
         ${referenti.map(r => {
-          const telPart   = r.tel   ? ` · <a href="tel:${sanitizeTel(r.tel)}">${r.tel}</a>` : '';
-          const emailPart = r.email ? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
-          const namePart  = r.nome  ? `<b>${r.nome}</b>` : '';
-          return `<li>${namePart}${telPart}${emailPart}</li>`;
+          const name   = r.nome ? `<b>${r.nome}</b>` : '';
+          const tel    = r.tel  ? ` · <a href="tel:${sanitizeTel(r.tel)}">${r.tel}</a>` : '';
+          const email  = r.email? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
+          return `<li>${name}${tel}${email}</li>`;
         }).join('')}
       </ul>
     </div>` : '';
 
-  // Raggruppa le occorrenze future dello stesso evento nella stessa posizione
+  // ===== Raggruppo date future stessa posizione
   const today = todayISO();
   const latKey = round5(occ.lat), lngKey = round5(occ.lng);
   const allDates = OCCS
-    .filter(o =>
-      o.event_id === occ.event_id &&
-      o.data && o.data >= today &&
-      round5(o.lat) === latKey && round5(o.lng) === lngKey
-    )
-    .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC: più vicine per prime
+    .filter(o => o.event_id === occ.event_id && o.data && o.data >= today &&
+                 round5(o.lat) === latKey && round5(o.lng) === lngKey)
+    .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora)); // ASC
 
-  // === RIGA DATE DAL–AL (con orari se presenti) ===
   let dateLine = '';
   if (allDates.length > 1) {
-    const start = allDates[0];
-    const end   = allDates[allDates.length - 1];
+    const start = allDates[0], end = allDates[allDates.length - 1];
     const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
     const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
     dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
@@ -755,11 +760,13 @@ function lAddMarker(occ, ev){
     : '';
 
   const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
+  const prezzoHtml = prezzoIngresso ? `<div class="small" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>` : '';
 
   const html = `<div class="sq-popup" style="color:#081421;max-width:320px">
       <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
       <small>${cats||''}</small><br>
       ${dateLine}<br>${where}
+      ${prezzoHtml}
       ${referentiHtml}
       ${theDescr ? `<br><br>${theDescr}` : ''}
       ${listHtml}
