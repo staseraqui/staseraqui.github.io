@@ -6,6 +6,8 @@
   <link rel="canonical" href="https://www.staseraqui.it/pubblica-evento.html">
   <meta name="description" content="Inserisci titolo, foto o sito e date: geolocalizziamo il tuo evento sulla mappa. Pagamento sicuro con Stripe e pubblicazione immediata.">
   <meta name="robots" content="index,follow">
+
+  <!-- Social -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="Pubblica evento — Stasera Qui">
   <meta property="og:description" content="Pubblica in 2 minuti. Pagamento con Stripe e visibilità immediata sulla mappa.">
@@ -18,29 +20,35 @@
   <meta name="twitter:image" content="https://www.staseraqui.it/assets/social/share-default.jpg">
 
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=24">
+  <link rel="stylesheet" href="assets/style.css?v=25">
+
   <style>
+    /* --- UI locale della pagina --- */
     .modal{z-index:999999!important}
-    /* Barra carrello */
+    .help-inline{font-size:12px;color:#b8c2ce;margin-top:4px}
+    .smallmuted{font-size:12px;color:#9fb0c4}
+    .badge.sub{background:#12263a;border-color:#3b7aa3;opacity:.95}
+
+    /* Carrello */
     #cartBar{position:sticky;top:0;z-index:30;background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin-bottom:12px;display:none}
     #cartList{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0}
     .cartItem{background:#17304d;color:#d7f2ff;border:1px solid #2e6e8f;border-radius:10px;padding:6px 10px;display:flex;gap:8px;align-items:center}
     .cartItem b{white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
     .cartItem button{padding:6px 8px}
-    .help-inline{font-size:12px;color:#b8c2ce;margin-top:4px}
-    .smallmuted{font-size:12px;color:#9fb0c4}
-    /* badge sotto-categorie leggermente “light” */
-    .badge.sub{background:#12263a;border-color:#3b7aa3;opacity:.95}
-    /* modale categorie */
-    .cat-grid{display:grid;grid-template-columns:1fr;gap:12px}
-    @media (min-width:720px){ .cat-grid{grid-template-columns:1fr 2fr} }
-    .cat-box, .subcat-box{background:#0b1726;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px;min-height:120px}
-    .chip{background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:28px;padding:8px 14px;font-weight:700;cursor:pointer;user-select:none}
+
+    /* Modale categorie: opzione 2 (griglia per gruppo) */
+    .catlayout{display:grid;gap:12px}
+    @media(min-width:740px){ .catlayout{grid-template-columns:1fr 1fr} }
+    @media(min-width:1040px){ .catlayout{grid-template-columns:1fr 1fr 1fr} }
+
+    .catCard{background:#0b1726;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px}
+    .chip{background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:28px;padding:8px 14px;font-weight:700;cursor:pointer;user-select:none;display:inline-block}
+    .chip.cat{font-weight:800}
     .chip.active{background:#22b3f0;color:#081421;border-color:#22b3f0}
-    .chip.group{cursor:default;border-style:dashed;opacity:.8;font-weight:700}
+    .subWrap{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   </style>
 
-  <!-- Config chiavi + tassonomia -->
+  <!-- Config -->
   <script src="assets/app-config.js?v=3"></script>
 
   <!-- Supabase -->
@@ -106,7 +114,7 @@
       <div>
         <label for="categorieBtn">Categorie*</label><br>
         <button class="btn secondary" id="categorieBtn" type="button">Scegli categorie</button>
-        <div id="catBadges"></div>
+        <div id="catBadges" style="margin-top:6px"></div>
       </div>
     </div>
 
@@ -122,7 +130,6 @@
       </div>
     </div>
 
-    <!-- 🔗 SITO WEB (opzionale, alternativo alla locandina) -->
     <div class="grid">
       <div>
         <label for="sito_web">Sito ufficiale dell’evento (opzionale)</label>
@@ -155,7 +162,7 @@
       <a class="btn secondary" id="howBtn" href="prezzi-condizioni.html#istruzioni" target="_blank" rel="noopener">Cos’è evento singolo/multiplo?</a>
     </h3>
 
-    <!-- Occorrenza #1 -->
+    <!-- Occorrenza base -->
     <div id="occWrap">
       <div class="occ card">
         <div class="grid">
@@ -262,6 +269,7 @@
   <p class="small" style="margin-top:16px">In caso di dubbi o problemi durante la pubblicazione di un evento, scrivi a: <a href="mailto:eventi@staseraqui.it">eventi@staseraqui.it</a></p>
 </main>
 
+<!-- =================== SCRIPTS =================== -->
 <script>
 (function(){
   // ====== CONFIG ROBUSTA ======
@@ -275,177 +283,131 @@
     ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
     : null;
 
-  // ====== TASSONOMIA (da config, con fallback) ======
-  const EB_TAXONOMY = (CFG && CFG.EB_TAXONOMY) ? CFG.EB_TAXONOMY : {
+  // ====== TASSONOMIA (fallback interno se non fornita da app-config) ======
+  const TAX = (CFG && CFG.EB_TAXONOMY) ? CFG.EB_TAXONOMY : {
     "Musica": ["Rock","Jazz & Blues","Classica","Elettronica","Hip-Hop / Rap","Indie / Alternative","Pop","Metal","Folk / Acustico","Country","Latina","R&B / Soul","DJ / Dance","Cantautori"],
-    "Food & Drink": ["Degustazioni","Birra","Vino","Distillati","Street Food","Festival enogastronomici","Corsi di cucina","Cene sociali / Supper club","Caffè / Tea","Mixology / Cocktail"],
-    "Nightlife": ["Discoteca / Club","DJ set","Karaoke","Latin Night","Bar Crawl","Aperitivo","Serata a tema"],
+    "Food & Drink": ["Aperitivo","Street Food","Degustazioni","Birra","Vino","Distillati","Festival enogastronomici","Corsi di cucina","Cene sociali / Supper club","Caffè / Tea","Mixology / Cocktail"],
+    "Nightlife": ["Discoteca / Club","DJ set","Karaoke","Latin Night","Bar Crawl","Serata a tema"],
     "Cultura/Spettacolo": ["Teatro","Arti visive / Mostre","Cinema / Proiezioni","Stand-up / Commedia","Danza","Letture / Presentazioni","Opera / Operetta"],
-    "Famiglie & Bambini": ["Laboratori","Spettacolo bambini","Letture animate","Giochi / Animazione","Feste di paese","Parchi / Outdoor"],
-    "Sport": ["Calcio","Running / Corsa","Ciclismo","Trekking / Escursioni","Fitness / Wellness","Tornei","Arti marziali"],
-    "Sagre & Fiere": ["Sagra","Fiera / Festival","Enogastronomia","Festa patronale","Festa della birra","Festa del vino"],
+    "Famiglie & Bambini": ["Spettacolo bambini","Laboratori","Letture animate","Giochi / Animazione","Feste di paese","Parchi / Outdoor"],
+    "Sport": ["Calcio","Ciclismo","Running / Corsa","Trekking / Escursioni","Fitness / Wellness","Tornei","Arti marziali"],
+    "Sagre & Fiere": ["Sagra","Fiera / Festival","Festa della birra","Festa del vino","Enogastronomia","Festival"],
     "Mercatini": ["Antiquariato","Hobbisti / Handmade","Usato / Vintage","Km0 / Prodotti locali","Mercatino di Natale"]
   };
-  const EB_ORDER = (CFG && Array.isArray(CFG.EB_CATEGORIES_ORDER) && CFG.EB_CATEGORIES_ORDER.length)
-    ? CFG.EB_CATEGORIES_ORDER
-    : Object.keys(EB_TAXONOMY);
+  const CAT_ORDER = (CFG && Array.isArray(CFG.EB_CATEGORIES_ORDER) && CFG.EB_CATEGORIES_ORDER.length)
+    ? CFG.EB_CATEGORIES_ORDER.slice()
+    : Object.keys(TAX);
 
-  // ====== Carica Google Maps JS (Geocoder) ======
+  // ====== Caricamento Google Maps (per geocoding) ======
   let mapsLoadedPromise = null;
   function loadGoogleMaps(){
     if (window.google && window.google.maps) return Promise.resolve();
     if (mapsLoadedPromise) return mapsLoadedPromise;
-    mapsLoadedPromise = new Promise((resolve, reject)=>{
-      if(!GOOGLE_KEY){ resolve(); return; } // se manca la key, saltiamo il geocode ma non blocchiamo tutto
+    mapsLoadedPromise = new Promise((resolve)=>{
+      if(!GOOGLE_KEY){ resolve(); return; }
       const s = document.createElement('script');
       s.src = 'https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GOOGLE_KEY)+'&libraries=places&v=quarterly';
       s.async = true; s.defer = true;
-      s.onload = ()=> resolve();
-      s.onerror = ()=> resolve(); // NON bloccare il resto della pagina
+      s.onload = resolve; s.onerror = resolve; // non bloccare il resto
       document.head.appendChild(s);
     });
     return mapsLoadedPromise;
   }
 
-  // ====== CATEGORIE: MODALE (con sotto-categorie) ======
+  // ====== CATEGORIE — MODALE (OPZIONE 2, GRUPPI) ======
   const catBtn = document.getElementById('categorieBtn');
   const wrapBadges = document.getElementById('catBadges');
 
-  // stato selezione
-  let selCats = [];
-  let selSubcats = [];
+  let selCats = [];     // ["Musica", ...]
+  let selSubcats = [];  // ["Rock", ...]
 
   function renderBadges(){
     wrapBadges.innerHTML = '';
     selCats.forEach(c=>{
-      const b = document.createElement('span');
-      b.className = 'badge';
-      b.dataset.type = 'cat';
-      b.textContent = c;
-      wrapBadges.appendChild(b);
+      const b = document.createElement('span'); b.className='badge'; b.dataset.type='cat'; b.textContent=c; wrapBadges.appendChild(b);
     });
     selSubcats.forEach(s=>{
-      const b = document.createElement('span');
-      b.className = 'badge sub';
-      b.dataset.type = 'sub';
-      b.textContent = s;
-      wrapBadges.appendChild(b);
+      const b = document.createElement('span'); b.className='badge sub'; b.dataset.type='sub'; b.textContent=s; wrapBadges.appendChild(b);
     });
   }
-  function getSelected(type){ // 'cat' | 'sub'
-    return Array.prototype.map.call(wrapBadges.querySelectorAll('.badge'+(type==='cat'?':not(.sub)':'.sub')), b=>b.textContent);
-  }
 
-  // modal element
+  // Modale HTML
   const modal = document.createElement('div');
   modal.className='modal';
-  Object.assign(modal.style,{
-    display:'none',position:'fixed',inset:'0',background:'rgba(0,0,0,.45)',
-    alignItems:'center',justifyContent:'center',padding:'16px'
-  });
-
-  const allCatsOrdered = EB_ORDER.slice();
-  const allSubByCat = EB_TAXONOMY;
+  Object.assign(modal.style,{display:'none',position:'fixed',inset:'0',background:'rgba(0,0,0,.45)',alignItems:'center',justifyContent:'center',padding:'16px'});
 
   modal.innerHTML = `
-  <div style="background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px;min-width:320px;max-width:980px;width:100%">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-      <h3 style="margin:0">Categorie & sotto-categorie</h3>
-      <button class="btn" id="catClose" type="button">Chiudi</button>
-    </div>
-    <div class="help-inline" style="margin-top:4px">Selezione multipla. Le sotto-categorie sono facoltative.</div>
-    <div class="cat-grid" style="margin-top:10px">
-      <div class="cat-box">
-        <div class="small" style="opacity:.85;margin-bottom:6px"><b>Categorie</b></div>
-        <div id="chipsCats" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    <div style="background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px;min-width:320px;max-width:1100px;width:100%;max-height:90vh;overflow:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <h3 style="margin:0">Categorie & sotto-categorie</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn secondary" id="catClear" type="button">Azzera</button>
+          <button class="btn" id="catClose" type="button">Chiudi</button>
+          <button class="btn primary" id="catOk" type="button">Conferma</button>
+        </div>
       </div>
-      <div class="subcat-box">
-        <div class="small" style="opacity:.85;margin-bottom:6px"><b>Sotto-categorie</b> <span class="smallmuted">(in base alle categorie scelte)</span></div>
-        <div id="chipsSubcats" style="display:flex;gap:8px;flex-wrap:wrap;min-height:40px"></div>
-      </div>
-    </div>
-    <div class="actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="btn secondary" id="catClear" type="button">Azzera</button>
-      <button class="btn primary"   id="catOk"    type="button">Conferma</button>
-    </div>
-  </div>`;
-
+      <div class="help-inline" style="margin-top:4px">Selezione multipla. Cliccando una <b>sotto-categoria</b>, la <b>categoria madre</b> viene selezionata automaticamente.</div>
+      <div id="catGrid" class="catlayout" style="margin-top:12px"></div>
+    </div>`;
   document.body.appendChild(modal);
 
-  function rebuildCatChips(){
-    const box = modal.querySelector('#chipsCats');
-    box.innerHTML = allCatsOrdered.map(c=>{
-      const active = selCats.includes(c) ? ' active':'';
-      return `<div class="chip${active}" data-cat="${c}">${c}</div>`;
-    }).join('');
-  }
-  function rebuildSubcatChips(){
-    const box = modal.querySelector('#chipsSubcats');
-    // tutte le sub delle categorie selezionate (se nessuna, mostra tutte)
-    const set = new Set();
-    const srcCats = selCats.length ? selCats : allCatsOrdered;
-    srcCats.forEach(c => (allSubByCat[c]||[]).forEach(s=> set.add(s)));
-    const subs = Array.from(set).sort((a,b)=>a.localeCompare(b,'it'));
-    const html = subs.map(s=>{
-      const active = selSubcats.includes(s) ? ' active':'';
-      return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
-    }).join('');
-    box.innerHTML = html || `<div class="chip group">— nessuna sotto-categoria —</div>`;
+  function rebuildCatGrid(){
+    const grid = modal.querySelector('#catGrid');
+    grid.innerHTML = '';
+    CAT_ORDER.forEach(cat=>{
+      const subs = (TAX[cat]||[]).slice().sort((a,b)=>a.localeCompare(b,'it'));
+      const activeCat = selCats.includes(cat);
+      const box = document.createElement('div');
+      box.className = 'catCard';
+      box.innerHTML = `
+        <div class="chip cat${activeCat?' active':''}" data-cat="${cat}">${cat}</div>
+        <div class="subWrap">
+          ${subs.map(s=> `<div class="chip${selSubcats.includes(s)?' active':''}" data-sub="${s}" data-parent="${cat}">${s}</div>`).join('')}
+        </div>`;
+      grid.appendChild(box);
+    });
   }
 
-  function openCatsModal(){
-    rebuildCatChips();
-    rebuildSubcatChips();
-    modal.style.display='flex';
-    document.body.style.overflow='hidden';
-  }
-  function closeCatsModal(){
-    modal.style.display='none';
-    document.body.style.overflow='auto';
-  }
+  function openCatsModal(){ rebuildCatGrid(); modal.style.display='flex'; document.body.style.overflow='hidden'; }
+  function closeCatsModal(){ modal.style.display='none'; document.body.style.overflow='auto'; }
 
   if (catBtn) catBtn.addEventListener('click', openCatsModal);
-  modal.addEventListener('click', e=>{ if(e.target===modal) closeCatsModal(); });
+  modal.addEventListener('click', (e)=>{ if(e.target===modal) closeCatsModal(); });
   modal.querySelector('#catClose').addEventListener('click', closeCatsModal);
-
-  // Deleghe click chips
-  modal.addEventListener('click', (e)=>{
-    const catChip = e.target.closest('.chip[data-cat]');
-    const subChip = e.target.closest('.chip[data-sub]');
-    if (catChip){
-      const c = catChip.getAttribute('data-cat');
-      const idx = selCats.indexOf(c);
-      if (idx>-1){ selCats.splice(idx,1); catChip.classList.remove('active'); }
-      else { selCats.push(c); catChip.classList.add('active'); }
-      // appena cambiano le categorie, limiamo le sub non più appartenenti
-      selSubcats = selSubcats.filter(s=>{
-        // rimane se è in almeno una delle sub delle cat selezionate
-        return selCats.length
-          ? selCats.some(cat => (EB_TAXONOMY[cat]||[]).includes(s))
-          : true; // se nessuna cat selezionata, lasciamo tutto
-      });
-      rebuildSubcatChips();
-      return;
-    }
-    if (subChip){
-      const s = subChip.getAttribute('data-sub');
-      const idx = selSubcats.indexOf(s);
-      if (idx>-1){ selSubcats.splice(idx,1); subChip.classList.remove('active'); }
-      else { selSubcats.push(s); subChip.classList.add('active'); }
-      return;
-    }
-  });
-
   modal.querySelector('#catClear').addEventListener('click', ()=>{
-    selCats = [];
-    selSubcats = [];
-    rebuildCatChips();
-    rebuildSubcatChips();
+    selCats=[]; selSubcats=[]; rebuildCatGrid(); renderBadges();
   });
+  modal.querySelector('#catOk').addEventListener('click', ()=>{ renderBadges(); closeCatsModal(); });
 
-  modal.querySelector('#catOk').addEventListener('click', ()=>{
-    renderBadges();
-    closeCatsModal();
+  // Deleghe nella griglia
+  modal.addEventListener('click', (e)=>{
+    const chipCat = e.target.closest('.chip.cat[data-cat]');
+    const chipSub = e.target.closest('.chip[data-sub]');
+    if (chipCat){
+      const c = chipCat.getAttribute('data-cat');
+      const i = selCats.indexOf(c);
+      if (i>-1){
+        // deseleziono categoria -> rimuovo anche le sue sub
+        selCats.splice(i,1);
+        selSubcats = selSubcats.filter(s => !(TAX[c]||[]).includes(s));
+      }else{
+        selCats.push(c);
+      }
+      rebuildCatGrid(); renderBadges(); return;
+    }
+    if (chipSub){
+      const s = chipSub.getAttribute('data-sub');
+      const parent = chipSub.getAttribute('data-parent');
+      const i = selSubcats.indexOf(s);
+      if (i>-1){
+        selSubcats.splice(i,1);
+      }else{
+        selSubcats.push(s);
+        // auto-seleziona la categoria madre se non c'è
+        if (!selCats.includes(parent)) selCats.push(parent);
+      }
+      rebuildCatGrid(); renderBadges(); return;
+    }
   });
 
   // ====== CONTATTI ======
@@ -503,11 +465,9 @@
     wrapO.appendChild(d);
   });
 
-  // Delegati: toggle indirizzo vs diffuso + pannelli orari
+  // Deleghe: orari & diffuso
   wrapO.addEventListener('change', (e)=>{
-    const box = e.target.closest('.occ');
-    if (!box) return;
-
+    const box = e.target.closest('.occ'); if (!box) return;
     if (e.target.classList.contains('sched_mode')){
       const m = e.target.value;
       const s1 = box.querySelector('.sched_single');
@@ -516,7 +476,6 @@
       if (s2) s2.style.display = (m==='split')  ? 'block' : 'none';
       return;
     }
-
     if (e.target.classList.contains('diffuso')){
       const indirizzo = box.querySelector('.indirizzo');
       if (e.target.checked){
@@ -527,33 +486,14 @@
     }
   });
 
-  // ====== UTILITY ======
+  // ====== UTILS ======
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
-  function selectedCats(){ return getSelected('cat'); }
-  function selectedSubcats(){ return getSelected('sub'); }
-
-  // Raccoglie i referenti (nome/telefono) dal form
-  function collectContactsFromForm(){
-    const out = [];
-    document.querySelectorAll('#contattiWrap .contact').forEach(row=>{
-      const name  = (row.querySelector('.ref_name')  ?.value || '').trim();
-      const phone = (row.querySelector('.ref_phone') ?.value || '').trim();
-      if (name || phone) out.push({ nome: name, tel: phone });
-    });
-    return out;
-  }
-
-  // Normalizza URL "sito web"
   function normalizeUrl(u){
-    u = (u||'').trim();
-    if (!u) return '';
-    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
-    try { const _ = new URL(u); return u; } catch(_){ return ''; }
+    u=(u||'').trim(); if(!u) return '';
+    if(!/^https?:\/\//i.test(u)) u='https://'+u;
+    try{ new URL(u); return u; }catch(_){ return ''; }
   }
-
-  // Date utils (UTC-safe per yyyy-mm-dd)
-  function toISO(d){ return (typeof d==='string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) ? d : d; }
   function datesBetweenInclusive(from, to){
     const res=[]; if(!from) return res;
     const m1=String(from).match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -568,14 +508,13 @@
     return res;
   }
   function formatRange(a,b){ if(a&&b) return `${a}-${b}`; if(a) return a; if(b) return b; return ''; }
-  function weekdayOfISO(d){ try{ return new Date(d+'T00:00:00').getDay(); }catch(_){ return null; } } // 0=dom ... 6=sab
+  function weekdayOfISO(d){ try{ return new Date(d+'T00:00:00').getDay(); }catch(_){ return null; } } // 0=dom..6=sab
   function oraForDate(o, d){
     const mode = o.mode || 'none';
     if (mode==='none') return '';
     if (mode==='single') return formatRange(o.t_from||'', o.t_to||'');
     if (mode==='split'){
-      const wd = weekdayOfISO(d);
-      const weekend = (wd===0 || wd===6);
+      const wd = weekdayOfISO(d); const weekend = (wd===0 || wd===6);
       const from = weekend ? (o.we_from||'') : (o.wd_from||'');
       const to   = weekend ? (o.we_to||'')   : (o.wd_to||'');
       return formatRange(from,to);
@@ -583,51 +522,56 @@
     return '';
   }
 
-  // Geocoding helpers
+  // Geocoding
+  async function loadMaps(){ try{ await loadGoogleMaps(); }catch(_){ } }
   async function geocode(indirizzo, citta){
-    try{ await loadGoogleMaps(); }catch(_){}
-    if (!(window.google && google.maps && google.maps.Geocoder)){ throw new Error('Geocoding non disponibile'); }
+    await loadMaps();
+    if (!(window.google && google.maps && google.maps.Geocoder)) throw new Error('Geocoding non disponibile');
     const geocoder = new google.maps.Geocoder();
     const tentativi = [
-      { address: `${indirizzo}, ${citta}`, componentRestrictions: { country: 'IT', locality: citta } },
-      { address: `${indirizzo}, ${citta}`, componentRestrictions: { country: 'IT' } },
-      { address: `${indirizzo}, ${citta}, Italia`, componentRestrictions: { country: 'IT' } },
+      { address:`${indirizzo}, ${citta}`, componentRestrictions:{ country:'IT', locality:citta } },
+      { address:`${indirizzo}, ${citta}`, componentRestrictions:{ country:'IT' } },
+      { address:`${indirizzo}, ${citta}, Italia`, componentRestrictions:{ country:'IT' } },
     ];
     for (const t of tentativi){
-      const res = await new Promise((resolve)=>{
-        geocoder.geocode(t, (results, status)=>{
-          if(status==='OK' && results && results[0] && results[0] .geometry){
-            const loc = results[0].geometry.location;
-            resolve({ok:true, lat:loc.lat(), lng:loc.lng()});
-          } else resolve({ok:false});
-        });
-      });
-      if(res.ok) return { lat:+res.lat.toFixed(6), lng:+res.lng.toFixed(6) };
+      const res = await new Promise(r=> geocoder.geocode(t, (results,status)=>{
+        if(status==='OK' && results && results[0] && results[0].geometry){
+          const loc=results[0].geometry.location; r({ok:true,lat:loc.lat(),lng:loc.lng()});
+        } else r({ok:false});
+      }));
+      if (res.ok) return { lat:+res.lat.toFixed(6), lng:+res.lng.toFixed(6) };
     }
     throw new Error('Geocoding fallito (indirizzo)');
   }
   async function geocodeCity(citta){
-    try{ await loadGoogleMaps(); }catch(_){}
-    if (!(window.google && google.maps && google.maps.Geocoder)){ throw new Error('Geocoding non disponibile'); }
+    await loadMaps();
+    if (!(window.google && google.maps && google.maps.Geocoder)) throw new Error('Geocoding non disponibile');
     const geocoder = new google.maps.Geocoder();
-    const res = await new Promise((resolve)=>{
-      geocoder.geocode({ address: `${citta}, Italia`, componentRestrictions:{ country:'IT' }}, (results,status)=>{
-        if(status==='OK' && results && results[0] && results[0].geometry){
-          const loc = results[0].geometry.location;
-          resolve({ok:true, lat:loc.lat(), lng:loc.lng()});
-        } else resolve({ok:false});
-      });
-    });
+    const res = await new Promise(r=> geocoder.geocode({ address:`${citta}, Italia`, componentRestrictions:{country:'IT'} }, (results,status)=>{
+      if(status==='OK' && results && results[0] && results[0].geometry){
+        const loc=results[0].geometry.location; r({ok:true,lat:loc.lat(),lng:loc.lng()});
+      } else r({ok:false});
+    }));
     if (res.ok) return { lat:+res.lat.toFixed(6), lng:+res.lng.toFixed(6) };
     throw new Error('Geocoding città fallito');
   }
 
+  // Raccoglitori
+  function collectContactsFromForm(){
+    const out = [];
+    document.querySelectorAll('#contattiWrap .contact').forEach(row=>{
+      const name  = (row.querySelector('.ref_name')  ?.value || '').trim();
+      const phone = (row.querySelector('.ref_phone') ?.value || '').trim();
+      if (name || phone) out.push({ nome: name, tel: phone });
+    });
+    return out;
+  }
   function collectOcc(){
     const occ=[];
     Array.prototype.forEach.call(document.querySelectorAll('#occWrap .occ'), (b)=>{
-      const luogo=clean((b.querySelector('.luogo')||{}).value||'');
-      const indirizzo=clean((b.querySelector('.indirizzo')||{}).value||'');
-      const citta=clean((b.querySelector('.citta')||{}).value||'');
+      const luogo=(b.querySelector('.luogo')||{}).value?.trim()||'';
+      const indirizzo=(b.querySelector('.indirizzo')||{}).value?.trim()||'';
+      const citta=(b.querySelector('.citta')||{}).value?.trim()||'';
       const diffuso=(b.querySelector('.diffuso')||{}).checked||false;
       const dal=(b.querySelector('.dal')||{}).value||'';
       const al =(b.querySelector('.al')||{}).value||'';
@@ -638,19 +582,16 @@
       const wd_to=(b.querySelector('.wd_to')||{}).value||'';
       const we_from=(b.querySelector('.we_from')||{}).value||'';
       const we_to=(b.querySelector('.we_to')||{}).value||'';
-
       const from = dal, to = al || dal;
-      if(!luogo||!citta||!from||(!diffuso && !indirizzo)){ occ.push(null); }
-      else if (to && to < from){ occ.push(null); }
-      else {
-        occ.push({luogo,indirizzo,citta,diffuso,dal:from,al:to,mode,t_from,t_to,wd_from,wd_to,we_from,we_to});
-      }
+      if(!luogo||!citta||!from||(!diffuso && !indirizzo)) occ.push(null);
+      else if (to && to < from) occ.push(null);
+      else occ.push({luogo,indirizzo,citta,diffuso,dal:from,al:to,mode,t_from,t_to,wd_from,wd_to,we_from,we_to});
     });
     if(occ.length===0 || occ.indexOf(null)>-1) return null;
     return occ;
   }
 
-  // ====== ANTEPRIMA ======
+  // ====== Anteprima ======
   document.getElementById('anteprimaBtn').addEventListener('click', ()=>{
     err.textContent='';
     const titolo=clean(document.getElementById('titolo').value);
@@ -658,22 +599,17 @@
     const rawSite=document.getElementById('sito_web').value||'';
     const site = normalizeUrl(rawSite);
     const file  =(document.getElementById('locandina').files||[])[0];
-    const catsArr = selectedCats();
-    const subArr  = selectedSubcats();
-    const anyCat = catsArr.length>0;
+    const catsArr = selCats.slice();
+    const subArr  = selSubcats.slice();
     const occ=collectOcc();
-    if(!titolo||!descr||(!file && !site)||!anyCat||!occ){
-      err.textContent='Controlla: Titolo*, Descrizione*, almeno 1 Categoria*, (Locandina OPPURE Sito ufficiale), e completa tutte le occorrenze (luogo/città e date).'; return;
+    if(!titolo||!descr||(!file && !site)||!catsArr.length||!occ){
+      err.textContent='Controlla: Titolo*, Descrizione*, almeno 1 Categoria*, (Locandina OPPURE Sito ufficiale), e completa tutte le occorrenze.'; return;
     }
     if (rawSite && !site){ err.textContent='URL del sito non valido. Correggilo o lascia vuoto.'; return; }
 
-    // espandi le date dei periodi
+    // espansione
     const expanded=[];
-    occ.forEach(o=>{
-      datesBetweenInclusive(o.dal, o.al).forEach(d=>{
-        expanded.push({ ...o, data:d, ora: oraForDate(o, d) });
-      });
-    });
+    occ.forEach(o=> datesBetweenInclusive(o.dal, o.al).forEach(d=> expanded.push({ ...o, data:d, ora: oraForDate(o, d) })));
 
     document.getElementById('pv_titolo').textContent=titolo;
     document.getElementById('pv_cats').textContent=catsArr.join(', ');
@@ -686,11 +622,10 @@
 
     const ul=document.createElement('ul');
     occ.forEach(o=>{
-      const r = (o.al && o.al!==o.dal) ? (`dal ${toISO(o.dal)} al ${toISO(o.al)}`) : (`${toISO(o.dal)}`);
+      const r = (o.al && o.al!==o.dal) ? (`dal ${o.dal} al ${o.al}`) : (`${o.dal}`);
       let sched='';
       if (o.mode==='single'){
-        const s = formatRange(o.t_from||'', o.t_to||'');
-        if (s) sched = ` — ore ${s}`;
+        const s = formatRange(o.t_from||'', o.t_to||''); if (s) sched = ` — ore ${s}`;
       } else if (o.mode==='split'){
         const fer = formatRange(o.wd_from||'', o.wd_to||'') || '—';
         const we  = formatRange(o.we_from||'', o.we_to||'') || '—';
@@ -703,7 +638,6 @@
     });
     const list=document.getElementById('pv_list'); list.innerHTML=''; list.appendChild(ul);
 
-    // sito nell’anteprima
     const wrap = document.getElementById('pv_site_wrap');
     const a = document.getElementById('pv_site');
     if (site){ a.href = site; a.textContent = site.replace(/^https?:\/\//i,''); wrap.style.display='block'; }
@@ -713,11 +647,11 @@
     window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
   });
 
-  // ====== CARRELLO ======
+  // ====== Carrello ======
   const cartBar   = document.getElementById('cartBar');
   const cartList  = document.getElementById('cartList');
   const cartCount = document.getElementById('cartCount');
-  const CART = []; // [{titolo, descr, prezzo, sito, cats[], subcats[], locandina_url, occ:[...], contacts:[] }]
+  const CART = [];
 
   function refreshCartUI(){
     cartCount.textContent = CART.length;
@@ -747,17 +681,18 @@
       const prezzo=(document.getElementById('prezzo').value||'').trim();
       const sito_raw=(document.getElementById('sito_web').value||'').trim();
       const sito = normalizeUrl(sito_raw);
-      const catsArr = selectedCats();
-      const subArr  = selectedSubcats();
+      const catsArr = selCats.slice();
+      const subArr  = selSubcats.slice();
       const file  =(document.getElementById('locandina').files||[])[0];
       const occ   =collectOcc();
       const contacts = collectContactsFromForm();
+
       if(!titolo||!descr||(!file && !sito)||!occ||!catsArr.length){
-        err.textContent='Compila Titolo, Descrizione, almeno 1 Categoria e (Locandina OPPURE Sito ufficiale). Completa tutte le occorrenze (luogo/città e date).'; return;
+        err.textContent='Compila Titolo, Descrizione, almeno 1 Categoria e (Locandina OPPURE Sito ufficiale). Completa tutte le occorrenze.'; return;
       }
       if (sito_raw && !sito){ err.textContent='URL del sito non valido. Correggilo o lascia vuoto.'; return; }
 
-      // Upload locandina (se presente)
+      // Upload immagine (se presente)
       let locandina_url = '';
       if (file){
         const stamp = new Date().toISOString().replace(/[:.]/g,'-');
@@ -770,15 +705,12 @@
         locandina_url = pub?.data?.publicUrl || '';
       }
 
-      // Geocoding per ogni occorrenza + espansione periodi a giorni
+      // Geocoding + espansione
       const occExpanded=[];
       for(const o of occ){
         let g;
-        if (o.diffuso){
-          g = await geocodeCity(o.citta);
-        } else {
-          g = await geocode(o.indirizzo, o.citta);
-        }
+        if (o.diffuso) g = await geocodeCity(o.citta);
+        else g = await geocode(o.indirizzo, o.citta);
         const days = datesBetweenInclusive(o.dal, o.al);
         if(!days.length){ err.textContent = `Intervallo date non valido per: ${o.luogo}, ${o.citta}`; return; }
         for(const d of days){
@@ -795,58 +727,14 @@
       CART.push(eventObj);
       refreshCartUI();
 
-      // Reset campi evento
+      // Reset
       document.getElementById('titolo').value='';
       document.getElementById('prezzo').value='';
       document.getElementById('sito_web').value='';
       document.getElementById('descrizione').value='';
       document.getElementById('locandina').value='';
       selCats=[]; selSubcats=[]; renderBadges();
-      document.getElementById('occWrap').innerHTML = `
-        <div class="occ card">
-          <div class="grid">
-            <div><label>Luogo/Nome locale*</label><input class="luogo" placeholder="Es. Bar Centrale / Centro storico"></div>
-            <div><label>Indirizzo <span class="smallmuted">(opzionale se evento diffuso)</span></label><input class="indirizzo" placeholder="Via Roma 1"></div>
-          </div>
-          <div class="grid">
-            <div>
-              <label>Città*</label><input class="citta" placeholder="Es. Alba">
-              <label class="smallmuted" style="display:block;margin-top:6px"><input type="checkbox" class="diffuso"> Evento diffuso in città (senza indirizzo preciso)</label>
-            </div>
-            <div>
-              <label>Dal*</label><input class="dal" type="date">
-              <div class="help-inline">Compila anche “Al” se dura più giorni</div>
-            </div>
-          </div>
-          <div class="grid">
-            <div><label>Al (facoltativo)</label><input class="al" type="date"></div>
-            <div>
-              <label>Orario</label>
-              <select class="sched_mode">
-                <option value="none" selected>Nessun orario (tutto il giorno)</option>
-                <option value="single">Stessa fascia per tutte le date</option>
-                <option value="split">Feriali vs weekend</option>
-              </select>
-              <div class="sched_single" style="display:none;margin-top:6px">
-                <div class="grid">
-                  <div><label>Dalle</label><input type="time" class="time_from"></div>
-                  <div><label>Alle</label><input type="time" class="time_to"></div>
-                </div>
-              </div>
-              <div class="sched_split" style="display:none;margin-top:6px">
-                <div class="smallmuted" style="margin-bottom:4px">Default: lun–ven 15:00–21:00; sab–dom 10:00–21:00</div>
-                <div class="grid">
-                  <div><label>Lun–Ven dalle</label><input type="time" class="wd_from" value="15:00"></div>
-                  <div><label>Lun–Ven alle</label><input type="time" class="wd_to" value="21:00"></div>
-                </div>
-                <div class="grid">
-                  <div><label>Sab–Dom dalle</label><input type="time" class="we_from" value="10:00"></div>
-                  <div><label>Sab–Dom alle</label><input type="time" class="we_to" value="21:00"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>`;
+      document.getElementById('occWrap').innerHTML = document.querySelector('#occWrap').children[0].outerHTML;
       document.getElementById('preview').style.display='none';
       window.scrollTo({top:0, behavior:'smooth'});
     }catch(e){
@@ -854,7 +742,7 @@
     }
   }
 
-  // ====== Vai al pagamento (bundle nel formato ATTESO) ======
+  // ====== Vai al pagamento ======
   document.getElementById('goCheckout').addEventListener('click', async ()=>{
     try{
       if(CART.length===0){ alert('Il carrello è vuoto. Aggiungi almeno un evento.'); return; }
@@ -869,7 +757,6 @@
         return;
       }
 
-      // Trasforma gli eventi del carrello nel formato { tipo, metadata }
       const bundleItems = CART.map(ev=>{
         const catsStr = (ev.cats||[]).join('|').slice(0,120);
         const subStr  = (ev.subcats||[]).join('|').slice(0,180);
@@ -880,11 +767,10 @@
         }));
         const occStr = JSON.stringify(occMin);
 
-        const MAX_DAYS = 60; // deve corrispondere a MAX_DAYS_PER_EVENT su create-checkout-session
+        const MAX_DAYS = 60;
         const actualDays = new Set(occMin.map(o => o.d)).size;
-        if (actualDays > MAX_DAYS) {
-          throw new Error(`Periodo troppo lungo: ${actualDays} giorni (limite ${MAX_DAYS}). Dividi il periodo in più annunci o contattaci: eventi@staseraqui.it`);
-        }
+        if (actualDays > MAX_DAYS) throw new Error(`Periodo troppo lungo: ${actualDays} giorni (limite ${MAX_DAYS}).`);
+
         const contactsStr = JSON.stringify(ev.contacts || []).slice(0, 4000);
         const metadata = {
           titolo: (ev.titolo||'').slice(0,80),
@@ -893,9 +779,9 @@
           locandina_url: ev.locandina_url,
           website: (ev.sito||'').slice(0,200),
           cats: catsStr,
-          subcats: subStr,                 // ← NOVITÀ
+          subcats: subStr,
           occ:  occStr,
-          contacts: contactsStr,           // ← referenti
+          contacts: contactsStr,
           submitter_email: email.slice(0,120),
           submitter_name: (`${nome} ${cognome}`).slice(0,80),
           submitter_tel: (tel||'').slice(0,32),
@@ -929,7 +815,6 @@
 
   // ====== RESET ======
   document.getElementById('azzeraBtn').addEventListener('click', ()=> location.reload());
-
 })();
 </script>
 
