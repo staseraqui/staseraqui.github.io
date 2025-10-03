@@ -352,7 +352,7 @@
   };
   const CAT_ORDER = Object.keys(TAX);
 
-  // Helpers sub-categorie (lettura/scrittura tollerante)
+  // Helpers sub-categorie
   function getSubcatsFromEvent(ev){
     const tryArr = (v)=>{
       if (Array.isArray(v)) return v;
@@ -659,6 +659,7 @@
   const edIdx     = $('#edIdx');
   const edErr     = $('#edErr');
   const eTitolo   = $('#e_titolo');
+  const eCatBtn   = $('#e_catBtn');
   const eLocUrl   = $('#e_loc_url');
   const eLocFile  = $('#e_loc_file');
   const eLocBtn   = $('#e_loc_btn');
@@ -702,7 +703,6 @@
   // Categorie & sotto-categorie (UI)
   const catModal = $('#catModal');
   const catGrid  = $('#catGrid');
-  const eCatBtn  = $('#e_catBtn');
   const catBadges = $('#catBadges');
   const subBadges = $('#subBadges');
   const catClearQuick = $('#catClearQuick');
@@ -713,7 +713,7 @@
   function renderBadges(){ catBadges.innerHTML = selCats.map(c=> `<span class="badge">${c}</span>`).join(''); subBadges.innerHTML = selSubcats.map(s=> `<span class="badge">${s}</span>`).join(''); }
   function rebuildCatGrid(){
     catGrid.innerHTML = '';
-    CAT_ORDER.forEach(cat=>{
+    Object.keys(TAX).forEach(cat=>{
       const subs = (TAX[cat]||[]).slice().sort((a,b)=>a.localeCompare(b,'it'));
       const activeCat = selCats.includes(cat);
       const box = document.createElement('div');
@@ -728,7 +728,7 @@
   }
   function openCatsModal(){ rebuildCatGrid(); catModal.style.display='flex'; document.body.style.overflow='hidden'; }
   function closeCatsModal(){ catModal.style.display='none'; document.body.style.overflow='auto'; }
-  eCatBtn.addEventListener('click', openCatsModal);
+  $('#e_catBtn').addEventListener('click', openCatsModal);
   $('#catModalClose').addEventListener('click', closeCatsModal);
   $('#catModalOk').addEventListener('click', ()=>{ renderBadges(); closeCatsModal(); });
   $('#catModalClear').addEventListener('click', ()=>{ selCats=[]; selSubcats=[]; rebuildCatGrid(); renderBadges(); });
@@ -778,7 +778,7 @@
   $('#addOcc').addEventListener('click', ()=> { occWrap.insertAdjacentHTML('beforeend', occRow({})); });
   occWrap.addEventListener('click', e=>{ if (e.target.classList.contains('del-occ')) { const box = e.target.closest('.occ'); if (box) box.remove(); } });
 
-  // ====== Geocoding (Google con fallback OSM) ======
+  // ====== Geocoding ======
   let gmLoadedPromise=null;
   function loadGoogle(){
     if (window.google && window.google.maps) return Promise.resolve();
@@ -825,9 +825,8 @@
     }catch(_){ return await geocodeOSM(indirizzo, citta); }
   }
 
-  // ====== Upload locandina ======
+  // ====== Upload locandina (riuso variabili già dichiarate) ======
   const POSTERS_BUCKET = 'event-images';
-  const eLocBtn = $('#e_loc_btn'), eLocFile = $('#e_loc_file'), eLocUrl = $('#e_loc_url'), eLocMsg = $('#e_loc_msg');
   eLocBtn.addEventListener('click', ()=> eLocFile.click());
   eLocFile.addEventListener('change', async (e)=>{
     const file = e.target.files && e.target.files[0]; if (!file) return;
@@ -862,18 +861,20 @@
     edIdx.textContent   = CURRENT_IDS.length>1 ? `(${CUR_INDEX+1} di ${CURRENT_IDS.length})` : '';
     edErr.textContent   = '';
 
-    $('#e_titolo').value = ev?.titolo || ev?.title || '';
-    $('#e_descr').value  = ev?.descrizione || ev?.description || '';
-    $('#e_published').value = String(ev?.published!==false);
-    $('#e_loc_url').value = ev?.locandina_url || '';
-    $('#e_prezzo').value = ev?.price_text || ev?.prezzo || ev?.price || ev?.ingresso || '';
+    eTitolo.value = ev?.titolo || ev?.title || '';
+    eDescr.value  = ev?.descrizione || ev?.description || '';
+    ePublished.value = String(ev?.published!==false);
+    eLocUrl.value = ev?.locandina_url || '';
+    ePrezzo.value = ev?.price_text || ev?.prezzo || ev?.price || ev?.ingresso || '';
     renderContactsUI( extractContactsFromEvent(ev||{}) );
 
     const extVal = (ev?.is_extended ?? ev?.extended ?? ev?.evento_diffuso ?? ev?.diffuso) ? 'true' : 'false';
-    $('#e_extended').value = extVal;
+    eExtended.value = extVal;
 
-    selCats = getCats(ev||{});
-    selSubcats = getSubcatsFromEvent(ev||{});
+    // categorie & sotto-categorie
+    let selCats = getCats(ev||{});
+    let selSubcats = getSubcatsFromEvent(ev||{});
+    window.selCats = selCats; window.selSubcats = selSubcats; // per le funzioni del modal
     renderBadges();
 
     occWrap.innerHTML = '';
@@ -882,13 +883,65 @@
 
     editModal.style.display='flex'; document.body.style.overflow='hidden';
   }
+  function renderBadges(){ 
+    catBadges.innerHTML = (window.selCats||[]).map(c=> `<span class="badge">${c}</span>`).join('');
+    subBadges.innerHTML = (window.selSubcats||[]).map(s=> `<span class="badge">${s}</span>`).join('');
+  }
   function closeEditor(){ editModal.style.display='none'; document.body.style.overflow='auto'; }
-  $('#edClose').addEventListener('click', closeEditor);
-  $('#edPrev').addEventListener('click', ()=> openEditorFor(Math.max(0, CUR_INDEX-1)));
-  $('#edNext').addEventListener('click', ()=> openEditorFor(Math.min(CURRENT_IDS.length-1, CUR_INDEX+1)));
-  $('#btnEdit').addEventListener('click', ()=>{
+  edClose.addEventListener('click', closeEditor);
+  edPrev.addEventListener('click', ()=> openEditorFor(Math.max(0, CUR_INDEX-1)));
+  edNext.addEventListener('click', ()=> openEditorFor(Math.min(CURRENT_IDS.length-1, CUR_INDEX+1)));
+  document.getElementById('btnEdit').addEventListener('click', ()=>{
     if (!SELECTED.size){ alert('Seleziona almeno un evento sulla mappa.'); return; }
     CURRENT_IDS = [...SELECTED]; openEditorFor(0);
+  });
+
+  // Rendi disponibili al modal le liste selezionate
+  const catBadges = document.getElementById('catBadges');
+  const subBadges = document.getElementById('subBadges');
+  const eCatBtn = document.getElementById('e_catBtn');
+  const catClearQuick = document.getElementById('catClearQuick');
+  function rebuildCatGrid(){
+    const catGrid = document.getElementById('catGrid');
+    catGrid.innerHTML = '';
+    Object.keys(TAX).forEach(cat=>{
+      const subs = (TAX[cat]||[]).slice().sort((a,b)=>a.localeCompare(b,'it'));
+      const activeCat = (window.selCats||[]).includes(cat);
+      const box = document.createElement('div');
+      box.className = 'catCard';
+      box.innerHTML = `
+        <div class="chipx cat${activeCat?' active':''}" data-cat="${cat}">${cat}</div>
+        <div class="subWrap">
+          ${subs.map(s=> `<div class="chipx${(window.selSubcats||[]).includes(s)?' active':''}" data-sub="${s}" data-parent="${cat}">${s}</div>`).join('')}
+        </div>`;
+      catGrid.appendChild(box);
+    });
+  }
+  function openCatsModal(){ rebuildCatGrid(); document.getElementById('catModal').style.display='flex'; document.body.style.overflow='hidden'; }
+  function closeCatsModal(){ document.getElementById('catModal').style.display='none'; document.body.style.overflow='auto'; }
+  eCatBtn.addEventListener('click', openCatsModal);
+  document.getElementById('catModalClose').addEventListener('click', closeCatsModal);
+  document.getElementById('catModalOk').addEventListener('click', ()=>{ renderBadges(); closeCatsModal(); });
+  document.getElementById('catModalClear').addEventListener('click', ()=>{ window.selCats=[]; window.selSubcats=[]; rebuildCatGrid(); renderBadges(); });
+  catClearQuick.addEventListener('click', ()=>{ window.selCats=[]; window.selSubcats=[]; renderBadges(); });
+  document.getElementById('catModal').addEventListener('click', (e)=>{
+    const chipCat = e.target.closest('.chipx.cat[data-cat]');
+    const chipSub = e.target.closest('.chipx[data-sub]');
+    if (chipCat){
+      const c = chipCat.getAttribute('data-cat');
+      const i = (window.selCats||[]).indexOf(c);
+      if (i>-1){ window.selCats.splice(i,1); window.selSubcats = (window.selSubcats||[]).filter(s => !(TAX[c]||[]).includes(s)); }
+      else window.selCats.push(c);
+      rebuildCatGrid(); return;
+    }
+    if (chipSub){
+      const s = chipSub.getAttribute('data-sub');
+      const parent = chipSub.getAttribute('data-parent');
+      const i = (window.selSubcats||[]).indexOf(s);
+      if (i>-1) window.selSubcats.splice(i,1);
+      else { window.selSubcats.push(s); if (!(window.selCats||[]).includes(parent)) window.selCats.push(parent); }
+      rebuildCatGrid(); return;
+    }
   });
 
   // ====== Salvataggio ======
@@ -916,17 +969,18 @@
     const eventId = CURRENT_IDS[CUR_INDEX];
     if (!eventId){ edErr.textContent='ID evento mancante.'; return false; }
 
-    const titolo = clean($('#e_titolo').value);
-    const descr  = clean($('#e_descr').value);
-    const pub    = $('#e_published').value === 'true';
-    const isExtended = $('#e_extended').value === 'true';
-    const locUrl = clean($('#e_loc_url').value);
-    const cats   = selCats.slice();
-    const subcats = selSubcats.slice();
+    const titolo = clean(eTitolo.value);
+    const descr  = clean(eDescr.value);
+    const pub    = ePublished.value === 'true';
+    const isExtended = eExtended.value === 'true';
+    const locUrl = clean(eLocUrl.value);
+    const cats   = (window.selCats||[]).slice();
+    const subcats= (window.selSubcats||[]).slice();
     if (!titolo || !descr || !cats.length){ edErr.textContent='Compila Titolo*, Descrizione* e almeno 1 Categoria*.'; return false; }
-    const prezzo = clean($('#e_prezzo').value || '');
+    const prezzo = clean(ePrezzo.value || '');
 
-    const contactsArr=[]; document.querySelectorAll('#edContacts [data-cid]').forEach(row=>{
+    const contactsArr=[];
+    edContacts.querySelectorAll('[data-cid]').forEach(row=>{
       const nome  = (row.querySelector('.c_name')?.value || '').trim();
       const tel   = (row.querySelector('.c_tel') ?.value || '').trim();
       const email = (row.querySelector('.c_mail')?.value || '').trim();
@@ -962,7 +1016,6 @@
     try { await updateEventOptional(eventId, { prezzo: prezzo }); } catch(_){}
     try { await updateEventOptional(eventId, { price: prezzo }); } catch(_){}
     try { await updateEventOptional(eventId, { ingresso: prezzo }); } catch(_){}
-
     try { await updateEventOptional(eventId, { contacts: contactsArr }); } catch(_){}
     try { await updateEventOptional(eventId, { referenti: null }); } catch(_){}
     try { await updateEventOptional(eventId, { contatti: null }); } catch(_){}
@@ -1034,8 +1087,8 @@
     return true;
   }
 
-  $('#edSave').addEventListener('click', async ()=> { if (await saveCurrentEvent()) { alert('Modifiche salvate.'); } });
-  $('#edSaveNext').addEventListener('click', async ()=>{
+  document.getElementById('edSave').addEventListener('click', async ()=> { if (await saveCurrentEvent()) { alert('Modifiche salvate.'); } });
+  document.getElementById('edSaveNext').addEventListener('click', async ()=>{
     if (await saveCurrentEvent()){
       if (CUR_INDEX < CURRENT_IDS.length-1) openEditorFor(CUR_INDEX+1);
       else { alert('Modifiche salvate su tutti gli eventi selezionati.'); closeEditor(); }
