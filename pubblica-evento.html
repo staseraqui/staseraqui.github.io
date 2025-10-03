@@ -41,7 +41,7 @@
   </style>
 
   <!-- Config chiavi -->
-  <script src="assets/app-config.js?v=3"></script>
+  <script src="assets/app-config.js?v=4"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <!-- Dati strutturati -->
@@ -263,15 +263,24 @@
 
 <script>
 (function(){
-  // ====== CONFIG ======
-  const CFG = window.SQ_CONFIG || {};
-  const EB_TAXONOMY = CFG.EB_TAXONOMY; // <-- usa la tassonomia centralizzata
-  const SUPABASE_URL = CFG.SUPABASE_URL;
-  const SUPABASE_ANON = CFG.SUPABASE_ANON;
-  const GOOGLE_KEY   = CFG.GOOGLE_MAPS_API_KEY;
-  const sb = (SUPABASE_URL && SUPABASE_ANON) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
+(function(){
+  // ====== CONFIG (robusta) ======
+  const CFG = (typeof window !== 'undefined' && window.SQ_CONFIG) ? window.SQ_CONFIG : {};
+  const SUPABASE_URL = CFG.SUPABASE_URL || '';
+  const SUPABASE_ANON = CFG.SUPABASE_ANON || '';
+  const GOOGLE_KEY   = CFG.GOOGLE_MAPS_API_KEY || '';
+  const sb = (SUPABASE_URL && SUPABASE_ANON && window.supabase)
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
+    : null;
   const EDGE_URL = 'https://rubdzlnolxcgpjklfggk.functions.supabase.co/create-checkout-session';
 
+  // Tassonomia: se non c'è in config, fallback alle 8 categorie base
+  const EB_TAXONOMY = CFG.EB_TAXONOMY || null;
+  const EB_ORDER = (CFG.EB_CATEGORIES_ORDER && CFG.EB_CATEGORIES_ORDER.length)
+    ? CFG.EB_CATEGORIES_ORDER
+    : (EB_TAXONOMY ? Object.keys(EB_TAXONOMY)
+                   : ['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini']);
+  
   // ====== Carica Google Maps JS (Geocoder) ======
   let mapsLoadedPromise = null;
   function loadGoogleMaps(){
