@@ -111,6 +111,9 @@
 .sq-popup * { text-transform: none !important; }  
 /* Evita che prezzo/referenti vadano fuori o vengano troncati */
 .sq-price, .sq-ref { white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }  
+#subchips { margin-top:8px }
+#subchips .chip { opacity:.95 }
+#subchips .chip.group-label { cursor:default; font-weight:700; opacity:.75; border-style:dashed }  
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -142,6 +145,10 @@
 
 <!-- ✅ Cookie banner / GA dopo consenso -->
 <script src="assets/cookie-consent.js" defer></script>
+
+<!-- Config chiavi + tassonomia -->
+<script src="assets/app-config.js?v=3"></script>
+  
 </head>
 <body>
 <header class="header">
@@ -188,6 +195,7 @@
     <div class="pill" data-day="weekend">Weekend</div>
     <div class="pill" id="selDataBtn">Seleziona data</div>
     <span id="dateBadge" style="display:none"></span>
+    <button class="btn small" id="resetDatesBtn" type="button" style="margin-left:8px">Reset date</button>
   </div>
 
   <!-- Filtri categorie -->
@@ -201,7 +209,13 @@
     <div class="chip" data-cat="Cultura/Spettacolo">Cultura/Spettacolo</div>
     <div class="chip" data-cat="Mercatini">Mercatini</div>
   </div>
-
+  <div style="margin-top:6px">
+  <button class="btn small" id="resetCatsBtn" type="button">Reset categorie</button>
+</div>
+  
+<!-- Filtri sotto-categorie (si popola dinamicamente) -->
+<div class="chips" id="subchips" style="display:none"></div>
+  
   <!-- Contatore + lista -->
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div id="counter" class="small">—</div>
@@ -256,6 +270,19 @@
 
   let USE_GMAPS = false; // mappa principale = Leaflet
 
+// Leggi tassonomia da config centrale
+const CFG = window.SQ_CONFIG || {};
+const EB_TAXONOMY = CFG.EB_TAXONOMY || {};
+const EB_ORDER = (CFG.EB_CATEGORIES_ORDER && CFG.EB_CATEGORIES_ORDER.length)
+  ? CFG.EB_CATEGORIES_ORDER
+  : Object.keys(EB_TAXONOMY);
+
+// Mappa inversa: sotto-cat -> categoria padre
+const SUBCAT_PARENT = {};
+Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
+  (subs||[]).forEach(s => { SUBCAT_PARENT[s] = cat; });
+});
+  
   // Namespace utili
   let GMAPS = {
     map:null,            // mappa Google SOLO per il percorso
@@ -269,7 +296,7 @@
   let LEAF = { map:null, pinIcon:null, routeLayer:null, myPosMarker:null };
 
   let EVENTS=[], OCCS=[], EVENTS_BY_ID=new Map(), markers=[];
-  let state = { day:null, customDate:null, cats:new Set(), query:'' };
+  let state = { day:null, customDate:null, cats:new Set(), subcats:new Set(), query:'' };
   let ORIGIN = null;
 
   // Auto-fit: consentito solo prima di geoloc o ricerca
@@ -299,6 +326,21 @@
     }
     return [];
   }
+function normSubcats(raw){
+  // Accetta colonne: subcats | subcategories | sottocategorie
+  const c = (raw?.subcats ?? raw?.subcategories ?? raw?.sottocategorie ?? []);
+  if (Array.isArray(c)) return c.filter(Boolean).map(String);
+  if (c == null) return [];
+  if (typeof c === 'string'){
+    try{
+      const j = JSON.parse(c);
+      if (Array.isArray(j)) return j.filter(Boolean).map(String);
+    }catch(_){}
+    if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
+    return c.trim() ? [c.trim()] : [];
+  }
+  return [];
+}  
   function safeUrl(u){
     if (u == null) return '';
     if (Array.isArray(u)){
@@ -643,7 +685,8 @@
     .map(s => (s||'').toString().trim()).filter(Boolean);
   const where = whereParts.join(', ');
   const cats  = (ev._cats||[]).join(', ');
-  const theDescr = ev.description||ev.descrizione||'';
+    const subcatsTxt = (ev._subcats||[]).join(', ');
+    const theDescr = ev.description||ev.descrizione||'';
 
   // ===== PREZZO/INGRESSO (robusto) =====
   function getPrice(evObj){
@@ -801,6 +844,7 @@
   const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
       <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
       <small>${cats||''}</small><br>
+      ${subcatsTxt ? `<small><i>${subcatsTxt}</i></small><br>` : ``}
       ${dateLine}<br>${where}
       ${prezzoHtml}
       ${referentiHtml}
@@ -901,18 +945,128 @@
   })();
 
   (function setupChips(){
-    $$('#chips .chip').forEach(ch=>{
-      ch.addEventListener('click', ()=>{
-        ch.classList.toggle('active');
-        const c = ch.getAttribute('data-cat');
-        if (ch.classList.contains('active')) state.cats.add(c);
-        else state.cats.delete(c);
-        _refitTried = false;
-        renderMarkers();
-      });
-    });
-  })();
+  $$('#chips .chip').forEach(ch=>{
+    ch.addEventListener('click', ()=>{
+      ch.classList.toggle('active');
+      const c = ch.getAttribute('data-cat');
+      if (ch.classList.contains('active')) state.cats.add(c);
+      else state.cats.delete(c);
 
+      // Quando cambiano le categorie, ricostruiamo le sotto-categorie mostrate
+      if (window._rebuildSubchips){
+        // Se ho deselezionato tutte le categorie, svuoto anche subcats selezionate
+        if (state.cats.size === 0) state.subcats.clear();
+        window._rebuildSubchips();
+      }
+
+      _refitTried = false;
+      renderMarkers();
+    });
+  });
+
+  // Prima costruzione all’avvio
+  if (window._rebuildSubchips) window._rebuildSubchips();
+})();
+  // ===== RESET FILTRI =====
+(function setupResetButtons(){
+  const btnCats  = document.getElementById('resetCatsBtn');
+  const btnDates = document.getElementById('resetDatesBtn');
+
+  if (btnCats){
+    btnCats.addEventListener('click', ()=>{
+      // Pulisci stato
+      state.cats.clear();
+      state.subcats.clear();
+
+      // UI: togli "active" da tutte le chip categoria
+      document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
+
+      // Ricostruisci/azzera subchips e nascondi box
+      if (window._rebuildSubchips) window._rebuildSubchips();
+      const subBox = document.getElementById('subchips');
+      if (subBox){ subBox.innerHTML=''; subBox.style.display='none'; }
+
+      _refitTried = false;
+      renderMarkers();
+    });
+  }
+
+  if (btnDates){
+    btnDates.addEventListener('click', ()=>{
+      // Pulisci stato date
+      state.day = null;
+      state.customDate = null;
+
+      // UI: togli "active" da oggi/domani/weekend e nascondi badge
+      document.querySelectorAll('#dayPills .pill.active').forEach(el=> el.classList.remove('active'));
+      const badge = document.getElementById('dateBadge');
+      if (badge){ badge.style.display='none'; badge.textContent=''; }
+
+      _refitTried = false;
+      renderMarkers();
+    });
+  }
+})();  
+  // ===== SOTTO-CATEGORIE: costruzione dinamica + handlers =====
+(function setupSubchips(){
+  const box = document.getElementById('subchips');
+  if (!box) return;
+
+  function renderSubchips(){
+    // Raccogli le sotto-categorie delle categorie selezionate
+    const catsSel = Array.from(state.cats);
+    const subSet = new Set();
+    if (catsSel.length){
+      catsSel.forEach(cat => (EB_TAXONOMY[cat]||[]).forEach(s => subSet.add(s)));
+    } else {
+      // Se nessuna categoria selezionata, mostriamo tutte (opzionale)
+      Object.values(EB_TAXONOMY).forEach(list => (list||[]).forEach(s => subSet.add(s)));
+    }
+
+    const subs = Array.from(subSet).sort((a,b)=> a.localeCompare(b,'it'));
+    if (!subs.length){ box.style.display='none'; box.innerHTML=''; return; }
+
+    // (Facoltativo) piccoli label per gruppi
+    const subsByCat = {};
+    subs.forEach(s=>{
+      const p = SUBCAT_PARENT[s] || 'Altro';
+      (subsByCat[p] = subsByCat[p] || []).push(s);
+    });
+
+    const html = Object.entries(subsByCat)
+      .sort((a,b)=> EB_ORDER.indexOf(a[0]) - EB_ORDER.indexOf(b[0]))
+      .map(([parent, list])=>{
+        const chips = list.map(s=>{
+          const active = state.subcats.has(s) ? ' active' : '';
+          return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
+        }).join('');
+        return `
+          <div class="chip group-label" style="pointer-events:none">${parent}</div>
+          ${chips}
+        `;
+      }).join('');
+
+    box.innerHTML = html;
+    box.style.display='block';
+  }
+
+  // Delegation click
+  box.addEventListener('click', (e)=>{
+    const el = e.target.closest('.chip');
+    if (!el || el.classList.contains('group-label')) return;
+    el.classList.toggle('active');
+    const sub = el.getAttribute('data-sub');
+    if (!sub) return;
+    if (el.classList.contains('active')) state.subcats.add(sub);
+    else state.subcats.delete(sub);
+    _refitTried = false;
+    renderMarkers();
+  });
+
+  // Espone un hook per ricostruire quando cambiano le categorie
+  window._rebuildSubchips = renderSubchips;
+})();
+  
   // ===== CERCA — centra mappa con geocoding ibrido + cache =====
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
@@ -1003,13 +1157,31 @@
       if (occ.data !== sat && occ.data !== sun) return false;
     }
 
-    // Categorie
-    if (state.cats.size > 0){
-      const ev = EVENTS_BY_ID.get(occ.event_id);
-      const evCats = (ev?._cats || []);
-      if (!evCats.some(c => state.cats.has(c))) return false;
-    }
+    // Categorie (già esistente)
+if (state.cats.size > 0){
+  const ev = EVENTS_BY_ID.get(occ.event_id);
+  const evCats = (ev?._cats || []);
+  if (!evCats.some(c => state.cats.has(c))) return false;
+}
 
+// Sotto-categorie (nuovo)
+if (state.subcats.size > 0){
+  const ev = EVENTS_BY_ID.get(occ.event_id);
+  const evSubs = (ev?._subcats || []);
+  if (evSubs.length > 0){
+    // Richiede almeno un match con una subcat selezionata
+    const ok = evSubs.some(s => state.subcats.has(s));
+    if (!ok) return false;
+  } else {
+    // Fallback legacy: se l’evento NON ha subcats,
+    // lo includiamo SOLO se ha almeno una categoria padre
+    // coerente con una delle subcats selezionate.
+    const evCats = (ev?._cats || []);
+    const parentsOfSelected = new Set(Array.from(state.subcats).map(s => SUBCAT_PARENT[s]).filter(Boolean));
+    const okParent = evCats.some(c => parentsOfSelected.has(c));
+    if (!okParent) return false;
+  }
+}
     return true;
   }
 
@@ -1089,8 +1261,12 @@
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
     EVENTS = EVENTS_ALL
-      .filter(e => !('published' in e) || isTruthyPub(e.published))
-      .map(e => ({ ...e, _cats: normCats(e) }));
+  .filter(e => !('published' in e) || isTruthyPub(e.published))
+  .map(e => ({ 
+    ...e, 
+    _cats: normCats(e),
+    _subcats: normSubcats(e)
+  }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
