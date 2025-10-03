@@ -29,6 +29,15 @@
     .cartItem button{padding:6px 8px}
     .help-inline{font-size:12px;color:#b8c2ce;margin-top:4px}
     .smallmuted{font-size:12px;color:#9fb0c4}
+
+    /* [SUBCATS] Stile veloce per colonne modale categorie */
+    .cat-grid{display:grid;grid-template-columns:260px 1fr;gap:12px;min-width:280px;max-width:1000px}
+    .cat-col{background:#0c1726;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px;max-height:60vh;overflow:auto}
+    .cat-col h4{margin:0 0 6px}
+    .chip{background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none}
+    .chip.active{background:#22b3f0!important;color:#081421!important;border-color:#22b3f0!important}
+    .subsec{border-top:1px dashed rgba(255,255,255,.14);padding-top:8px;margin-top:8px}
+    .badge{background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:6px 10px;margin:6px 6px 0 0;display:inline-block}
   </style>
 
   <!-- Config chiavi -->
@@ -240,6 +249,8 @@
     <div class="small">
       <div><b>Titolo:</b> <span id="pv_titolo"></span></div>
       <div><b>Categorie:</b> <span id="pv_cats"></span></div>
+      <!-- [SUBCATS] riga sotto-categorie -->
+      <div id="pv_subcats_wrap" style="display:none"><b>Sotto-categorie:</b> <span id="pv_subcats"></span></div>
       <div id="pv_site_wrap" style="display:none"><b>Sito web:</b> <a id="pv_site" href="#" target="_blank" rel="noopener"></a></div>
     </div>
     <p id="pv_descr" style="margin-top:8px"></p>
@@ -254,6 +265,7 @@
 (function(){
   // ====== CONFIG ======
   const CFG = window.SQ_CONFIG || {};
+  const EB_TAXONOMY = CFG.EB_TAXONOMY; // <-- usa la tassonomia centralizzata
   const SUPABASE_URL = CFG.SUPABASE_URL;
   const SUPABASE_ANON = CFG.SUPABASE_ANON;
   const GOOGLE_KEY   = CFG.GOOGLE_MAPS_API_KEY;
@@ -277,53 +289,147 @@
     return mapsLoadedPromise;
   }
 
-  // ====== CATEGORIE: MODALE ======
+  
+  // ====== CATEGORIE: MODALE (rinnovata con sotto-categorie) ======
   const btn = document.getElementById('categorieBtn');
   const wrap = document.getElementById('catBadges');
 
+  // [SUBCATS] Stato selezioni
+  const selectedCats = new Set();
+  const selectedSubs = {}; // { "Musica": Set([...]), ... }
+
+  function ensureSubSet(cat){ if(!selectedSubs[cat]) selectedSubs[cat] = new Set(); }
+
+  function renderBadges(){
+    wrap.innerHTML = '';
+    const catsSorted = Array.from(selectedCats);
+    catsSorted.forEach(cat=>{
+      const subs = Array.from(selectedSubs[cat]||[]);
+      const b = document.createElement('span');
+      b.className = 'badge';
+      b.textContent = subs.length ? `${cat}: ${subs.join(', ')}` : cat;
+      wrap.appendChild(b);
+    });
+  }
+
+  // Costruzione modale
   const modal = document.createElement('div');
   modal.className='modal';
   Object.assign(modal.style,{
     display:'none',position:'fixed',inset:'0',background:'rgba(0,0,0,.45)',
     alignItems:'center',justifyContent:'center',padding:'16px'
   });
-  modal.innerHTML = '<div style="background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px;min-width:280px;max-width:900px">\
-    <h3 style="margin:0 0 6px">Scegli categorie (multi)</h3>\
-    <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px">\
-      '+['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini']
-        .map(c=>'<div class="chip" data-cat="'+c+'" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none">'+c+'</div>').join('')+'\
-    </div>\
-    <div class="actions" style="display:flex;gap:8px;justify-content:flex-end">\
-      <button class="btn primary" id="catOk" type="button">Conferma</button>\
-      <button class="btn secondary" id="catClear" type="button">Azzera</button>\
-    </div>\
-  </div>';
+
+  const allCats = Object.keys(EB_TAXONOMY);
+  modal.innerHTML = `
+  <div style="background:#0f1c2d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px" class="cat-grid">
+    <div style="grid-column:1 / span 2; display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+      <h3 style="margin:0">Scegli categorie e sotto-categorie (multi)</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn secondary" id="catClear" type="button">Azzera</button>
+        <button class="btn primary" id="catOk" type="button">Conferma</button>
+      </div>
+    </div>
+    <div class="cat-col">
+      <h4>Categorie</h4>
+      <div id="catsCol" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px"></div>
+    </div>
+    <div class="cat-col">
+      <h4>Sotto-categorie</h4>
+      <div id="subsCol"></div>
+    </div>
+  </div>`;
+
   document.body.appendChild(modal);
 
-  function renderCats(cats){ wrap.innerHTML=''; cats.forEach(c=>{ const b=document.createElement('span'); b.className='badge'; b.textContent=c; wrap.appendChild(b); }); }
+  const catsCol = modal.querySelector('#catsCol');
+  const subsCol = modal.querySelector('#subsCol');
 
-  let cats=[];
-  btn.addEventListener('click', ()=>{ modal.style.display='flex'; document.body.style.overflow='hidden'; });
-  modal.addEventListener('click', e=>{ if(e.target===modal){ modal.style.display='none'; document.body.style.overflow='auto'; }});
-  modal.addEventListener('click', e=>{
-    if(e.target.classList.contains('chip')){
-      e.target.classList.toggle('active');
-      if(e.target.classList.contains('active')){
-        e.target.style.background='#22b3f0'; e.target.style.color='#081421'; e.target.style.borderColor='#22b3f0';
-      }else{
-        e.target.style.background='#17304d'; e.target.style.color='#d7f2ff'; e.target.style.borderColor='#2e6e8f';
-      }
-    }
+  // Render categorie (chips)
+  allCats.forEach(c=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.setAttribute('data-cat', c);
+    chip.textContent = c;
+    catsCol.appendChild(chip);
   });
+
+  function refreshCatChipsUI(){
+    catsCol.querySelectorAll('.chip').forEach(el=>{
+      const c = el.getAttribute('data-cat');
+      if(selectedCats.has(c)) el.classList.add('active'); else el.classList.remove('active');
+    });
+  }
+
+  function renderSubsPanels(){
+    subsCol.innerHTML = '';
+    Array.from(selectedCats).forEach(cat=>{
+      const box = document.createElement('div');
+      box.className = 'subsec';
+      const subs = EB_TAXONOMY[cat] || [];
+      ensureSubSet(cat);
+      box.innerHTML = `<div style="font-weight:700;margin-bottom:6px">${cat}</div>
+        <div class="subs" data-cat="${cat}" style="display:flex;gap:8px;flex-wrap:wrap"></div>`;
+      subsCol.appendChild(box);
+      const holder = box.querySelector('.subs');
+      subs.forEach(s=>{
+        const subChip = document.createElement('div');
+        subChip.className = 'chip';
+        subChip.setAttribute('data-sub', s);
+        subChip.textContent = s;
+        if(selectedSubs[cat].has(s)) subChip.classList.add('active');
+        holder.appendChild(subChip);
+      });
+    });
+  }
+
+  // Interazioni modale
+  btn.addEventListener('click', ()=>{ 
+    modal.style.display='flex'; 
+    document.body.style.overflow='hidden';
+    refreshCatChipsUI();
+    renderSubsPanels();
+  });
+  modal.addEventListener('click', e=>{ if(e.target===modal){ modal.style.display='none'; document.body.style.overflow='auto'; }});
+
+  // Toggle categorie
+  catsCol.addEventListener('click', (e)=>{
+    const el = e.target.closest('.chip');
+    if(!el) return;
+    const cat = el.getAttribute('data-cat');
+    if(selectedCats.has(cat)){
+      selectedCats.delete(cat);
+      delete selectedSubs[cat];
+    }else{
+      selectedCats.add(cat);
+      ensureSubSet(cat);
+    }
+    refreshCatChipsUI();
+    renderSubsPanels();
+  });
+
+  // Toggle sotto-categorie
+  subsCol.addEventListener('click', (e)=>{
+    const el = e.target.closest('.chip');
+    if(!el) return;
+    const cat = el.parentElement?.getAttribute('data-cat');
+    const sub = el.getAttribute('data-sub');
+    if(!cat || !sub) return;
+    ensureSubSet(cat);
+    if(selectedSubs[cat].has(sub)){ selectedSubs[cat].delete(sub); el.classList.remove('active'); }
+    else { selectedSubs[cat].add(sub); el.classList.add('active'); }
+  });
+
   modal.querySelector('#catOk').addEventListener('click', ()=>{
-    cats = Array.prototype.slice.call(modal.querySelectorAll('.chip.active')).map(ch=>ch.getAttribute('data-cat'));
-    renderCats(cats); modal.style.display='none'; document.body.style.overflow='auto';
+    renderBadges();
+    modal.style.display='none'; document.body.style.overflow='auto';
   });
   modal.querySelector('#catClear').addEventListener('click', ()=>{
-    cats=[]; renderCats(cats);
-    Array.prototype.forEach.call(modal.querySelectorAll('.chip'), ch=>{
-      ch.classList.remove('active'); ch.style.background='#17304d'; ch.style.color='#d7f2ff'; ch.style.borderColor='#2e6e8f';
-    });
+    Object.keys(selectedSubs).forEach(k=> delete selectedSubs[k]);
+    selectedCats.clear();
+    renderBadges();
+    refreshCatChipsUI();
+    renderSubsPanels();
   });
 
   // ====== CONTATTI ======
@@ -406,18 +512,20 @@
   // ====== UTILITY ======
   const err = document.getElementById('err');
   function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t? t.charAt(0).toUpperCase()+t.slice(1):''; }
+  // (badge->array) non più usata per logica interna, ma la lascio se servisse altrove
   function badgesToArray(){ return Array.prototype.map.call(document.getElementById('catBadges').children, b=>b.textContent); }
+
   // Raccoglie i referenti (nome/telefono) dal form
-function collectContactsFromForm(){
-  const out = [];
-  document.querySelectorAll('#contattiWrap .contact').forEach(row=>{
-    const name  = (row.querySelector('.ref_name')  ?.value || '').trim();
-    const phone = (row.querySelector('.ref_phone') ?.value || '').trim();
-    if (name || phone) out.push({ nome: name, tel: phone });
-  });
-  return out;
-}
-  
+  function collectContactsFromForm(){
+    const out = [];
+    document.querySelectorAll('#contattiWrap .contact').forEach(row=>{
+      const name  = (row.querySelector('.ref_name')  ?.value || '').trim();
+      const phone = (row.querySelector('.ref_phone') ?.value || '').trim();
+      if (name || phone) out.push({ nome: name, tel: phone });
+    });
+    return out;
+  }
+
   // Normalizza URL "sito web"
   function normalizeUrl(u){
     u = (u||'').trim();
@@ -531,7 +639,7 @@ function collectContactsFromForm(){
     const rawSite=document.getElementById('sito_web').value||'';
     const site = normalizeUrl(rawSite);
     const file  =(document.getElementById('locandina').files||[])[0];
-    const anyCat=(document.getElementById('catBadges').children.length>0);
+    const anyCat=(selectedCats.size>0); // [SUBCATS] cambia la sorgente del check
     const occ=collectOcc();
     if(!titolo||!descr||(!file && !site)||!anyCat||!occ){
       err.textContent='Controlla: Titolo*, Descrizione*, almeno 1 Categoria*, (Locandina OPPURE Sito ufficiale), e completa tutte le occorrenze (luogo/città e date).'; return;
@@ -547,7 +655,13 @@ function collectContactsFromForm(){
     });
 
     document.getElementById('pv_titolo').textContent=titolo;
-    document.getElementById('pv_cats').textContent=badgesToArray().join(', ');
+    document.getElementById('pv_cats').textContent=Array.from(selectedCats).join(', ');
+    const allSubPairs = Object.keys(selectedSubs).flatMap(cat=> Array.from(selectedSubs[cat]||[]).map(s=>`${cat} → ${s}`));
+    const pvSubWrap = document.getElementById('pv_subcats_wrap');
+    const pvSub = document.getElementById('pv_subcats');
+    if(allSubPairs.length){ pvSub.textContent = allSubPairs.join(' • '); pvSubWrap.style.display='block'; }
+    else { pvSubWrap.style.display='none'; }
+
     document.getElementById('pv_descr').textContent=descr;
     document.getElementById('pv_occ').textContent=expanded.length+' occorrenza/e';
 
@@ -571,10 +685,10 @@ function collectContactsFromForm(){
     const list=document.getElementById('pv_list'); list.innerHTML=''; list.appendChild(ul);
 
     // sito nell’anteprima
-    const wrap = document.getElementById('pv_site_wrap');
+    const wrapSite = document.getElementById('pv_site_wrap');
     const a = document.getElementById('pv_site');
-    if (site){ a.href = site; a.textContent = site.replace(/^https?:\/\//i,''); wrap.style.display='block'; }
-    else { wrap.style.display='none'; }
+    if (site){ a.href = site; a.textContent = site.replace(/^https?:\/\//i,''); wrapSite.style.display='block'; }
+    else { wrapSite.style.display='none'; }
 
     document.getElementById('preview').style.display='block';
     window.scrollTo({ top: document.getElementById('preview').offsetTop-10, behavior:'smooth'});
@@ -584,7 +698,7 @@ function collectContactsFromForm(){
   const cartBar   = document.getElementById('cartBar');
   const cartList  = document.getElementById('cartList');
   const cartCount = document.getElementById('cartCount');
-  const CART = []; // [{titolo, descr, prezzo, sito, cats[], locandina_url, occ:[...] }]
+  const CART = []; // [{titolo, descr, prezzo, sito, cats[], subcats[], locandina_url, occ:[...] }]
 
   function refreshCartUI(){
     cartCount.textContent = CART.length;
@@ -614,10 +728,12 @@ function collectContactsFromForm(){
       const prezzo=(document.getElementById('prezzo').value||'').trim();
       const sito_raw=(document.getElementById('sito_web').value||'').trim();
       const sito = normalizeUrl(sito_raw);
-      const catsArr=badgesToArray();
+      const catsArr=Array.from(selectedCats); // [SUBCATS]
+      // Costruisco array subcats come coppie {cat, sub}
+      const subcatsArr = Object.keys(selectedSubs).flatMap(cat => Array.from(selectedSubs[cat]||[]).map(s=>({cat, sub:s})));
       const file  =(document.getElementById('locandina').files||[])[0];
       const occ   =collectOcc();
-      const contacts = collectContactsFromForm();      
+      const contacts = collectContactsFromForm();
       if(!titolo||!descr||(!file && !sito)||!occ||!catsArr.length){
         err.textContent='Compila Titolo, Descrizione, almeno 1 Categoria e (Locandina OPPURE Sito ufficiale). Completa tutte le occorrenze (luogo/città e date).'; return;
       }
@@ -636,7 +752,7 @@ function collectContactsFromForm(){
         locandina_url = pub?.data?.publicUrl || '';
       }
 
-      // Geocoding per ogni occorrenza + espansione periodi a giorni
+      // Geocoding + espansione periodi
       const occExpanded=[];
       for(const o of occ){
         let g;
@@ -657,21 +773,24 @@ function collectContactsFromForm(){
         }
       }
 
-
-      const eventObj = { titolo, descr, prezzo, sito, cats: catsArr, locandina_url, occ: occExpanded, contacts };
+      const eventObj = { titolo, descr, prezzo, sito, cats: catsArr, subcats: subcatsArr, locandina_url, occ: occExpanded, contacts };
       CART.push(eventObj);
       refreshCartUI();
 
-      // Reset campi evento
+      // Reset form
       document.getElementById('titolo').value='';
       document.getElementById('prezzo').value='';
       document.getElementById('sito_web').value='';
       document.getElementById('descrizione').value='';
       document.getElementById('locandina').value='';
+      // Reset categorie/sotto-categorie
+      Object.keys(selectedSubs).forEach(k=> delete selectedSubs[k]);
+      selectedCats.clear();
       document.getElementById('catBadges').innerHTML='';
-      Array.prototype.forEach.call(document.querySelectorAll('.modal .chip'), ch=>{
-        ch.classList.remove('active'); ch.style.background='#17304d'; ch.style.color='#d7f2ff'; ch.style.borderColor='#2e6e8f';
-      });
+      // ripulisci UI modale
+      modal.querySelectorAll('.chip').forEach(ch=> ch.classList.remove('active'));
+      subsCol.innerHTML='';
+
       document.getElementById('occWrap').innerHTML = `
         <div class="occ card">
           <div class="grid">
@@ -742,6 +861,7 @@ function collectContactsFromForm(){
       // Trasforma gli eventi del carrello nel formato { tipo, metadata }
       const bundleItems = CART.map(ev=>{
         const catsStr = (ev.cats||[]).join('|').slice(0,120);
+        const subcatsStr = (ev.subcats||[]).map(p=>`${p.cat}:${p.sub}`).join('|').slice(0,240); // [SUBCATS] nuovo
         const occMin  = (ev.occ||[]).map(o=>({
           l:o.luogo, i:o.indirizzo, c:o.citta, d:o.data, o:o.ora,
           la:+(+o.lat).toFixed(6), ln:+(+o.lng).toFixed(6),
@@ -755,20 +875,21 @@ function collectContactsFromForm(){
           throw new Error(`Periodo troppo lungo: ${actualDays} giorni (limite ${MAX_DAYS}). Dividi il periodo in più annunci o contattaci: eventi@staseraqui.it`);
         }
         const contactsStr = JSON.stringify(ev.contacts || []).slice(0, 4000);
-const metadata = {
-  titolo: (ev.titolo||'').slice(0,80),
-  descr:  (ev.descr||'').slice(0,180),
-  prezzo: (ev.prezzo||'').slice(0,120),   // ← era 40, lo alzo a 120
-  locandina_url: ev.locandina_url,
-  website: (ev.sito||'').slice(0,200),
-  cats: catsStr,
-  occ:  occStr,
-  contacts: contactsStr,                   // ← NOVITÀ: referenti
-  submitter_email: email.slice(0,120),
-  submitter_name: (`${nome} ${cognome}`).slice(0,80),
-  submitter_tel: (tel||'').slice(0,32),
-  partner: (partner||'').slice(0,12)
-};
+        const metadata = {
+          titolo: (ev.titolo||'').slice(0,80),
+          descr:  (ev.descr||'').slice(0,180),
+          prezzo: (ev.prezzo||'').slice(0,120),
+          locandina_url: ev.locandina_url,
+          website: (ev.sito||'').slice(0,200),
+          cats: catsStr,
+          subcats: subcatsStr,                 // [SUBCATS] nuovo campo (retro-compatibile)
+          occ:  occStr,
+          contacts: contactsStr,
+          submitter_email: email.slice(0,120),
+          submitter_name: (`${nome} ${cognome}`).slice(0,80),
+          submitter_tel: (tel||'').slice(0,32),
+          partner: (partner||'').slice(0,12)
+        };
         const tipo = (ev.occ && ev.occ.length>1) ? 'multi' : 'single';
         return { tipo, metadata };
       });
