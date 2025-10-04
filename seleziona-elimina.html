@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="assets/style.css?v=12">
 
   <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
   <!-- Supabase -->
@@ -20,7 +20,7 @@
 
   <style>
     .wrap{max-width:1100px;margin:0 auto;padding:16px}
-    #map{height:62vh;min-height:360px;border-radius:12px;border:1px solid rgba(255,255,255,.15);margin-bottom:12px}
+    #map{height:62vh;border-radius:12px;border:1px solid rgba(255,255,255,.15);margin-bottom:12px}
     .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.25);padding:6px 10px;border-radius:999px;background:#0f1c2d}
     .list{margin-top:8px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;max-height:22vh;overflow:auto;font-size:14px}
@@ -36,17 +36,16 @@
     .small{font-size:13px}
     .smallmuted{font-size:13px;color:#b8c2ce}
 
-    /* Giallo su "Elimina definitivamente" */
     .btn.warning{background:var(--primary); border-color:var(--primary-border); color:#081421; font-weight:800}
     .btn.ghost{background:#111f31;border:1px solid rgba(255,255,255,.25);color:#fff}
 
-    /* Overlay login semplice */
+    /* Login overlay */
     #authGate{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:999999}
     #authBox{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px;max-width:360px;width:92%}
     #authBox h3{margin:0 0 8px}
     #authErr{color:#ff9a9a;margin-top:8px;display:none}
 
-    /* ===== Editor evento ===== */
+    /* Editor */
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media (max-width:860px){ .grid{grid-template-columns:1fr} }
     .occ{background:#0b1623;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px;margin-top:8px}
@@ -55,18 +54,11 @@
     .err{color:#ffb4b4;min-height:18px;margin-top:6px}
     .ok{color:#b8ffc2}
 
-    /* Chip categorie */
     .chip{color:#fff !important}
-
-    /* Badge categorie selezionate */
     #catBadges .badge{background:#17304d;color:#d7f2ff;border:1px solid #2e6e8f}
 
-    /* Bottone upload locandina: layout */
     .posterRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .posterRow input[type="text"]{flex:1;min-width:260px}
-
-    /* Debug overlay in caso di errori JS */
-    #dbg{position:fixed;left:12px;right:12px;bottom:12px;z-index:100000;background:#2b1e1e;color:#ffd8d8;border:1px solid #c66;border-radius:10px;padding:10px;font-size:13px;display:none;white-space:pre-wrap}
   </style>
 
   <!-- GA4 -->
@@ -92,7 +84,7 @@
   <h1 style="margin:8px 0 10px">Modifica & elimina eventi</h1>
   <p class="help">Tocca/clicca i pin per selezionare gli eventi. Poi scegli <b>Modifica</b>, <b>Nascondi</b> (soft: <i>published=false</i>) o <b>Elimina definitivamente</b> (cestino con <i>deleted_at</i>, ripristinabile; gli <b>scaduti</b> non si ripristinano).</p>
 
-  <div id="map" aria-label="Mappa Leaflet"></div>
+  <div id="map"></div>
 
   <div class="toolbar" style="margin-bottom:8px">
     <span class="badge">Selezionati: <b id="selCount">0</b></span>
@@ -165,7 +157,6 @@
           <p class="smallmuted">Nome / numero / email (facoltativo). Saranno visibili nel popup.</p>
         </div>
       </div>
-
       <div>
         <label for="e_published">Pubblicato</label>
         <select id="e_published">
@@ -175,7 +166,6 @@
       </div>
     </div>
 
-    <!-- Evento diffuso (esteso) -->
     <div class="grid" style="margin-top:8px">
       <div>
         <label for="e_extended">Evento diffuso (esteso)</label>
@@ -294,7 +284,7 @@
   </div>
 </div>
 
-<!-- OVERLAY LOGIN (email + password) -->
+<!-- OVERLAY LOGIN -->
 <div id="authGate" aria-hidden="true">
   <div id="authBox">
     <h3>Accedi</h3>
@@ -310,37 +300,26 @@
   </div>
 </div>
 
-<!-- DEBUG OVERLAY -->
-<div id="dbg"></div>
-
 <script>
 (async function(){
-  const dbg = document.getElementById('dbg');
-  function showDbg(msg){ try{ dbg.textContent = String(msg||''); dbg.style.display='block'; }catch(e){} }
-  window.addEventListener('error', e => showDbg('Errore JS: ' + (e?.error?.message || e?.message || e)));
-  window.addEventListener('unhandledrejection', e => showDbg('Promise rifiutata: ' + (e?.reason?.message || e?.reason || e)));
-
-  // ====== CONFIG / SUPABASE ======
+  /* ===== CONFIG / SUPABASE ===== */
   const CFG = window.SQ_CONFIG || {};
   const SB_URL  = CFG.SUPABASE_URL;
   const SB_ANON = CFG.SUPABASE_ANON;
   const GMAPS_KEY = CFG.GOOGLE_MAPS_API_KEY;
   const hasGoogleKey = GMAPS_KEY && !/^INSERISCI_/.test(GMAPS_KEY);
 
-  if (!SB_URL || !SB_ANON) { alert('Configurazione Supabase mancante (assets/app-config.js).'); }
-
+  if (!SB_URL || !SB_ANON) alert('Configurazione Supabase mancante (assets/app-config.js).');
   const sb = supabase.createClient(SB_URL, SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } });
 
-  // ====== LOGIN SOLO PASSWORD ======
+  /* ===== LOGIN ===== */
   const AUTH_EMAIL_WHITELIST = ['andrea.cordero@staseraqui.it'];
   async function requireLogin(){
-    try{
-      const { data:{ session } } = await sb.auth.getSession();
-      if (session && AUTH_EMAIL_WHITELIST.includes(session.user.email)) {
-        document.getElementById('authGate').style.display='none';
-        return true;
-      }
-    }catch(_){}
+    const { data:{ session } } = await sb.auth.getSession();
+    if (session && AUTH_EMAIL_WHITELIST.includes(session.user.email)) {
+      document.getElementById('authGate').style.display='none';
+      return true;
+    }
     const gate = document.getElementById('authGate');
     const email = document.getElementById('authEmail');
     const pass  = document.getElementById('authPass');
@@ -373,7 +352,7 @@
     });
   }
 
-  // ====== UTILS ======
+  /* ===== UTILS ===== */
   const $  = s => document.querySelector(s);
   const $$ = s => Array.from(document.querySelectorAll(s));
   const todayISO = () => new Date().toISOString().slice(0,10);
@@ -400,17 +379,10 @@
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   }
 
-  // ====== MAPPA LEAFLET ROBUSTA ======
+  /* ===== MAPPA (Leaflet) ===== */
   let LEAF  = { map:null, pinIcon:null, markers:new Map() };
-
-  function initLeafOnce(){
-    if (LEAF.map) return LEAF.map;
-    const mapDiv = document.getElementById('map');
-    if (!mapDiv){ showDbg('Container mappa #map non trovato'); return null; }
-    const rect = mapDiv.getBoundingClientRect();
-    if (rect.height < 50){ console.warn('Attenzione: altezza mappa molto bassa:', rect.height); }
-    LEAF.map = L.map('map', { attributionControl:false });
-    LEAF.map.setView([45.0703,7.6869], 6);
+  function initLeaf(){
+    LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
     L.control.attribution({prefix:false}).addTo(LEAF.map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(LEAF.map);
     LEAF.pinIcon = L.divIcon({
@@ -420,43 +392,15 @@
               <circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>`,
       iconSize:[30,34], iconAnchor:[15,34], popupAnchor:[0,-30]
     });
-    setTimeout(()=> { try{ LEAF.map.invalidateSize(); }catch(_){}} , 50);
-    setTimeout(()=> { try{ LEAF.map.invalidateSize(); }catch(_){}} , 300);
-    return LEAF.map;
   }
-
-  function ensureLeafletReady(){
-    if (document.readyState === 'complete' || document.readyState === 'interactive'){
-      initLeafOnce();
-    } else {
-      document.addEventListener('DOMContentLoaded', initLeafOnce, { once:true });
-    }
-    window.addEventListener('load', ()=> initLeafOnce(), { once:true });
-
-    let retries = 0;
-    const t = setInterval(()=>{
-      if (LEAF.map){ clearInterval(t); return; }
-      retries++;
-      initLeafOnce();
-      if (retries > 10) clearInterval(t);
-    }, 200);
-  }
-
   function lAddMarker(eventId, lat, lng, title){
-    if (!LEAF.map) return;
-    const m = L.marker([lat,lng], {icon:LEAF.pinIcon}).addTo(LEAF.map)
-      .bindPopup(`<div style="color:#081421"><b>${title}</b></div>`)
-      .on('click', ()=> toggleSelect(eventId));
+    const m = L.marker([lat,lng], {icon:LEAF.pinIcon}).addTo(LEAF.map).bindPopup(`<div style="color:#081421"><b>${title}</b></div>`);
+    m.on('click', ()=> toggleSelect(eventId));
     if (!LEAF.markers.has(eventId)) LEAF.markers.set(eventId, []);
     LEAF.markers.get(eventId).push(m);
   }
-  function lClearMarkers(){
-    if (!LEAF.map) return;
-    LEAF.markers.forEach(list=> list.forEach(m=> LEAF.map.removeLayer(m)));
-    LEAF.markers.clear();
-  }
+  function lClearMarkers(){ LEAF.markers.forEach(list=> list.forEach(m=> LEAF.map.removeLayer(m))); LEAF.markers.clear(); }
   function lFit(){
-    if (!LEAF.map) return;
     const all = [];
     LEAF.markers.forEach(list=> list.forEach(m=> all.push(m.getLatLng())));
     if (all.length) LEAF.map.fitBounds(L.latLngBounds(all), {padding:[40,40]});
@@ -468,23 +412,22 @@
     });
   }
 
-  // ====== STATO & DATI ======
+  /* ===== DATI ===== */
   const EVENTS = new Map();
   const OCCS_BY_EVENT = new Map();
   const ALL_OCCS_BY_EVENT = new Map();
   const SELECTED = new Set();
   function setSelectedIcon(id, on){ lSetSelected(id, on); }
 
-  // ====== CARICA DATI ======
+  /* ===== CARICA DATI ===== */
   async function loadData(){
     let evs = [];
     {
       const colSel = 'id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at, price_text, prezzo, price, ingresso, contacts, referenti, contatti, nome_referente, numero_referente, email_referente, is_extended, extended, evento_diffuso, diffuso';
       const r1 = await sb.from('events').select(colSel);
       if (r1.error) {
-        console.warn('Select specific columns failed, fallback to *:', r1.error);
         const r2 = await sb.from('events').select('*');
-        if (r2.error) { console.error(r2.error); alert('Errore lettura events: ' + (r2.error.message || r2.error.code || 'sconosciuto')); return; }
+        if (r2.error) { alert('Errore lettura events: ' + (r2.error.message || r2.error.code || 'sconosciuto')); return; }
         evs = r2.data || [];
       } else {
         evs = r1.data || [];
@@ -492,7 +435,7 @@
     }
     const { data: occs, error: ocErr } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, city, address, time, venue, deleted_at');
-    if (ocErr){ console.error(ocErr); alert('Errore lettura occorrenze'); return; }
+    if (ocErr){ alert('Errore lettura occorrenze'); return; }
 
     EVENTS.clear();
     (evs||[]).forEach(e=> EVENTS.set(e.id, { id: e.id, title: getTitle(e), raw: e }));
@@ -523,7 +466,7 @@
     lFit();
   }
 
-  // ====== SELEZIONE ======
+  /* ===== SELEZIONE ===== */
   function toggleSelect(eventId){
     if (!EVENTS.has(eventId)) return;
     const on = !SELECTED.has(eventId);
@@ -555,39 +498,18 @@
       b.addEventListener('click', ()=> toggleSelect(b.getAttribute('data-unselect')));
     });
   }
-// Handler robusto per il bottone "Modifica eventi selezionati"
-function openEditorFromButton(){
-  try{
-    if (!SELECTED.size){
-      alert('Seleziona almeno un evento sulla mappa.');
-      return;
-    }
-    CURRENT_IDS = [...SELECTED];
-    openEditorFor(0);
-  }catch(ex){
-    alert('Errore apertura editor: ' + (ex?.message || String(ex)));
-  }
-}
 
-// 1) Bind diretto (se l’elemento è già nel DOM)
-const btnEditEl = document.getElementById('btnEdit');
-if (btnEditEl) btnEditEl.addEventListener('click', openEditorFromButton);
-
-// 2) Fallback in delega (se per qualche motivo il bind diretto non scatta)
-document.addEventListener('click', (e)=>{
-  if (e && e.target && e.target.id === 'btnEdit') {
-    openEditorFromButton();
-  }
-});  
-  
-  // ====== AZIONI: Nascondi / Cestino ======
+  /* ===== AZIONI ===== */
   async function softHide(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
     const ids = [...SELECTED];
+
     const r = await sb.from('events').update({ published:false }).in('id', ids);
     if (r.error){ alert('Errore: '+(r.error.message||String(r.error))); return; }
+
     try { await updateEventsOptional(ids, { approved:false }); } catch(_){}
+
     ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.published=false; } });
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nascosti.';
@@ -617,7 +539,7 @@ document.addEventListener('click', (e)=>{
   $('#btnSoft').addEventListener('click', softHide);
   $('#btnHard').addEventListener('click', hardDelete);
 
-  // ====== MODALI di servizio (Nascosti / Cestino) ======
+  /* ===== MODALI secondarie ===== */
   function openModal(id){ const m=$('#'+id); if(m) m.style.display='flex'; }
   function closeModal(id){ const m=$('#'+id); if(m) m.style.display='none'; }
   $$('[data-close]').forEach(b=> b.addEventListener('click', ()=> closeModal(b.getAttribute('data-close')) ));
@@ -669,9 +591,12 @@ document.addEventListener('click', (e)=>{
     $$('#hResults [data-restore-hidden]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-hidden');
+
         const r = await sb.from('events').update({ published:true }).eq('id', id);
         if (r.error){ alert('Errore ripristino: '+(r.error.message||String(r.error))); return; }
+
         try { await updateEventOptional(id, { approved:true }); } catch(_){}
+
         $('#lastAction').textContent = 'Evento ripristinato.';
         await loadData(); renderHidden();
         window.notifyEventsChanged();
@@ -735,12 +660,15 @@ document.addEventListener('click', (e)=>{
     $$('#dResults [data-restore-deleted]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-deleted');
+
         const r1 = await sb.from('occurrences').update({ deleted_at:null }).eq('event_id', id);
         if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
         const r2 = await sb.from('events').update({ deleted_at:null, published:true }).eq('id', id);
         if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
+
         try { await updateEventOptional(id, { approved:true }); } catch(_){}
         try { await updateEventOptional(id, { deleted:false }); } catch(_){}
+
         $('#lastAction').textContent = 'Evento ripristinato dal cestino.';
         await loadData(); renderDeleted();
         window.notifyEventsChanged();
@@ -774,19 +702,470 @@ document.addEventListener('click', (e)=>{
     });
   }
 
-  // ====== AVVIO ======
-  const logged = await requireLogin();
-  if (logged){
-    ensureLeafletReady();
-    setTimeout(()=> loadData(), 300);
+  /* ===== EDITOR ===== */
+  const editModal = $('#editModal');
+  const edTitle   = $('#edTitle');
+  const edIdx     = $('#edIdx');
+  const edErr     = $('#edErr');
+  const eTitolo   = $('#e_titolo');
+  const eCatBtn   = $('#e_catBtn');
+  const eLocUrl   = $('#e_loc_url');
+  const eLocFile  = $('#e_loc_file');
+  const eLocBtn   = $('#e_loc_btn');
+  const eLocMsg   = $('#e_loc_msg');
+  const eDescr    = $('#e_descr');
+  const ePublished= $('#e_published');
+  const eExtended = $('#e_extended');
+  const occWrap   = $('#occWrap');
+  const edPrev    = $('#edPrev');
+  const edNext    = $('#edNext');
+  const edClose   = $('#edClose');
+  const edSave    = $('#edSave');
+  const edSaveNext= $('#edSaveNext');
+  const ePrezzo      = $('#e_prezzo');
+  const edContacts   = $('#edContacts');
+  const edAddContact = $('#edAddContact');
+
+  function renderContactsUI(list){
+    edContacts.innerHTML = (list && list.length ? list : [{nome:'',tel:'',email:''}]).map(c => contactRow(c)).join('');
+  }
+  function contactRow(c){
+    const id = uniqueId();
+    return `<div class="grid" data-cid="${id}" style="margin-bottom:6px">
+      <div><label class="small">Nome</label><input class="c_name" value="${(c?.nome||c?.name||'')}" placeholder="Es. Laura Bianchi"></div>
+      <div><label class="small">Telefono</label><input class="c_tel"  value="${(c?.tel||c?.telefono||c?.phone||'')}" placeholder="+39 333 1234567"></div>
+      <div><label class="small">Email</label><input class="c_mail" value="${(c?.email||c?.mail||'')}" placeholder="es. info@evento.it"></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn small del-contact" type="button">Rimuovi</button></div>
+    </div>`;
+  }
+  edContacts.addEventListener('click', (e)=>{
+    if (e.target.classList.contains('del-contact')) {
+      const box = e.target.closest('[data-cid]');
+      if (box) box.remove();
+    }
+  });
+  edAddContact.addEventListener('click', ()=>{
+    edContacts.insertAdjacentHTML('beforeend', contactRow({}));
+  });
+  function collectContactsFromEditor(){
+    const out=[];
+    edContacts.querySelectorAll('[data-cid]').forEach(row=>{
+      const nome  = (row.querySelector('.c_name')?.value || '').trim();
+      const tel   = (row.querySelector('.c_tel') ?.value || '').trim();
+      const email = (row.querySelector('.c_mail')?.value || '').trim();
+      if (nome || tel || email) out.push({ nome, tel, email });
+    });
+    return out;
+  }
+  function extractContactsFromEvent(ev){
+    const pickArr = (v)=>{
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'string' && v.trim().startsWith('[')){
+        try { const j=JSON.parse(v); return Array.isArray(j)?j:[]; } catch(_){ return []; }
+      }
+      return [];
+    };
+    let arr = pickArr(ev.contacts);
+    if (!arr.length) arr = pickArr(ev.referenti);
+    if (!arr.length) arr = pickArr(ev.contatti);
+
+    const out = [];
+    if (arr.length){
+      arr.forEach(x=> out.push({ nome: x?.nome||x?.name||'', tel: x?.tel||x?.telefono||x?.phone||'', email: x?.email||'' }));
+    } else {
+      const push=(n,t,e)=>{ if (n||t||e) out.push({nome:n||'', tel:t||'', email:e||''}); };
+      push(ev.nome_referente, ev.numero_referente, ev.email_referente);
+      for (let i=1;i<=10;i++){ push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]); }
+      if (!out.length && typeof ev.referenti_text==='string'){ out.push({ nome: ev.referenti_text, tel:'', email:'' }); }
+    }
+    const seen=new Set(), dedup=[];
+    out.forEach(c=>{
+      const key = [ (c.nome||'').trim().toLowerCase(), (c.tel||'').replace(/[^\d+]/g,''), (c.email||'').trim().toLowerCase() ].join('|');
+      if (!seen.has(key) && (c.nome||c.tel||c.email)) { seen.add(key); dedup.push(c); }
+    });
+    return dedup;
   }
 
-  setTimeout(()=>{
-    const r = document.getElementById('map')?.getBoundingClientRect();
-    if (!r || r.height < 20){
-      showDbg('Avviso: il contenitore #map risulta con altezza troppo bassa ('+(r && r.height)+'). Verifica CSS/altezza.');
+  let CURRENT_IDS = [];
+  let CUR_INDEX   = 0;
+  let CUR_EVENT   = null;
+  let CUR_OCCS    = [];
+
+  /* === Categorie modal === */
+  const catModal = $('#catModal');
+  const chipsModal = $('#chipsModal');
+  const catBadges = $('#catBadges');
+  const ALL_CATS = ['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini'];
+  function renderChipSet(selected){
+    chipsModal.innerHTML = ALL_CATS.map(c=>{
+      const on = selected.includes(c);
+      return `<div class="chip ${on?'active':''}" data-cat="${c}" style="background:${on?'#22b3f0':'#17304d'};border:1px solid ${on?'#22b3f0':'#2e6e8f'};color:#fff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none">${c}</div>`;
+    }).join('');
+  }
+  function renderBadges(selected){ catBadges.innerHTML = selected.map(c=> `<span class="badge">${c}</span>`).join(''); }
+  function getSelectedCatsFromUI(){ return Array.from(catBadges.querySelectorAll('.badge')).map(x=>x.textContent); }
+  $('#e_catBtn').addEventListener('click', ()=>{
+    const sel = getSelectedCatsFromUI();
+    renderChipSet(sel);
+    catModal.style.display='flex';
+  });
+  chipsModal.addEventListener('click', e=>{
+    if(e.target.classList.contains('chip')){
+      const ch=e.target; const on = !ch.classList.contains('active');
+      ch.classList.toggle('active', on);
+      ch.style.background = on ? '#22b3f0' : '#17304d';
+      ch.style.borderColor = on ? '#22b3f0' : '#2e6e8f';
     }
-  }, 500);
+  });
+  $('#catClear').addEventListener('click', ()=>{ catBadges.innerHTML=''; renderChipSet([]); });
+  $('#catOk').addEventListener('click', ()=>{
+    const sel = Array.from(chipsModal.querySelectorAll('.chip.active')).map(ch=> ch.getAttribute('data-cat'));
+    renderBadges(sel); catModal.style.display='none';
+  });
+  $('#catClose').addEventListener('click', ()=> (catModal.style.display='none'));
+
+  /* === Occorrenze UI === */
+  function occRow(o){
+    const occId = o?.id || '';
+    const rid = 'occ_' + uniqueId();
+    return `<div class="occ" data-occ="${rid}">
+      <div class="head">
+        <b>Occorrenza</b>
+        <button class="btn secondary small del-occ" type="button">Rimuovi</button>
+      </div>
+      <input type="hidden" class="occ_id" value="${occId}">
+      <div class="grid">
+        <div><label>Luogo/Nome locale*</label><input class="luogo" value="${o?.luogo||o?.venue||''}" placeholder="Es. Bar Centrale"></div>
+        <div><label>Indirizzo*</label><input class="indirizzo" value="${o?.indirizzo||o?.address||''}" placeholder="Via Roma 1"></div>
+      </div>
+      <div class="grid">
+        <div><label>Città*</label><input class="citta" value="${o?.citta||o?.city||''}" placeholder="Es. Torino"></div>
+        <div><label>Data*</label><input class="data" type="date" value="${o?.data||''}"></div>
+      </div>
+      <div class="grid">
+        <div>
+          <label>Orario feriale (opzionale)</label>
+          <input class="ora_feriale" type="text" placeholder="es. 15:00–21:00" value="${o?.ora_feriale||o?.time_weekday||''}">
+        </div>
+        <div>
+          <label>Orario festivo/prefestivo (opzionale)</label>
+          <input class="ora_festivo" type="text" placeholder="es. 10:00–23:00" value="${o?.ora_festivo||o?.time_weekend||''}">
+        </div>
+      </div>
+      <div class="grid">
+        <div>
+          <label>Orario generico (fallback)</label>
+          <input class="ora" type="text" placeholder="es. 15:00–21:00 (se vuoto usiamo i due sopra)" value="${o?.ora||o?.time||''}">
+        </div>
+        <div></div>
+      </div>
+    </div>`;
+  }
+  $('#addOcc').addEventListener('click', ()=> { occWrap.insertAdjacentHTML('beforeend', occRow({})); });
+  occWrap.addEventListener('click', e=>{
+    if (e.target.classList.contains('del-occ')) {
+      const box = e.target.closest('.occ'); if (box) box.remove();
+    }
+  });
+
+  /* === Geocoding (Google + OSM fallback) === */
+  let gmLoadedPromise=null;
+  function loadGoogle(){
+    if (window.google && window.google.maps) return Promise.resolve();
+    if (gmLoadedPromise) return gmLoadedPromise;
+    gmLoadedPromise = new Promise((resolve, reject)=>{
+      if(!hasGoogleKey){ reject(new Error('Manca GOOGLE_MAPS_API_KEY')); return; }
+      const s = document.createElement('script');
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GMAPS_KEY)}&libraries=places&v=quarterly`;
+      s.async = true; s.defer = true;
+      s.onload = ()=> resolve(); s.onerror = ()=> reject(new Error('Caricamento Google Maps JS fallito'));
+      document.head.appendChild(s);
+    });
+    return gmLoadedPromise;
+  }
+  async function geocodeOSM(indirizzo, citta){
+    const q = `${indirizzo}, ${citta}, Italia`.trim();
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q=' + encodeURIComponent(q);
+    const r = await fetch(url, { headers: { 'Accept-Language': 'it', 'User-Agent': 'StaseraQui-Admin/1.0' } });
+    const j = await r.json();
+    if (Array.isArray(j) && j.length){
+      return { lat: +(+j[0].lat).toFixed(6), lng: +(+j[0].lon).toFixed(6) };
+    }
+    throw new Error('OSM geocoding: nessun risultato');
+  }
+  async function geocode(indirizzo, citta){
+    try{
+      await loadGoogle();
+      const geocoder = new google.maps.Geocoder();
+      const tentativi = [
+        { address: `${indirizzo}, ${citta}`, componentRestrictions: { country:'IT', locality: citta } },
+        { address: `${indirizzo}, ${citta}`, componentRestrictions: { country:'IT' } },
+        { address: `${indirizzo}, ${citta}, Italia`, componentRestrictions: { country:'IT' } },
+      ];
+      for (const t of tentativi){
+        const res = await new Promise((resolve)=>{
+          geocoder.geocode(t, (results, status)=>{
+            if(status==='OK' && results && results[0] && results[0].geometry){
+              const loc = results[0].geometry.location;
+              resolve({ok:true, lat:+loc.lat().toFixed(6), lng:+loc.lng().toFixed(6)});
+            } else resolve({ok:false});
+          });
+        });
+        if (res.ok) return res;
+      }
+      return await geocodeOSM(indirizzo, citta);
+    }catch(_){
+      return await geocodeOSM(indirizzo, citta);
+    }
+  }
+
+  /* === Upload locandina === */
+  const POSTERS_BUCKET = 'event-images';
+  eLocBtn.addEventListener('click', ()=> eLocFile.click());
+  eLocFile.addEventListener('change', async (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    eLocMsg.textContent=''; eLocMsg.className='small';
+    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)){ eLocMsg.textContent='Formato non valido. Usa PNG/JPG/WebP.'; eLocMsg.classList.add('err'); eLocFile.value=''; return; }
+    if (file.size > 6*1024*1024){ eLocMsg.textContent='File troppo grande (max 6 MB).'; eLocMsg.classList.add('err'); eLocFile.value=''; return; }
+    try{
+      eLocMsg.textContent='Upload in corso…'; eLocMsg.classList.remove('err'); eLocMsg.classList.add('ok');
+      const ts = new Date().toISOString().replace(/[:.]/g,'-');
+      const rnd = Math.random().toString(36).slice(2,8);
+      const ext = file.type==='image/png'?'png':(file.type==='image/webp'?'webp':'jpg');
+      const path = `events/${ts}_${rnd}.${ext}`;
+      const up = await sb.storage.from(POSTERS_BUCKET).upload(path, file, { upsert:false, contentType:file.type });
+      if (up.error){ throw new Error(up.error.message); }
+      const pub = sb.storage.from(POSTERS_BUCKET).getPublicUrl(path);
+      const url = pub?.data?.publicUrl || '';
+      if (!url) throw new Error('URL pubblico non disponibile');
+      eLocUrl.value = url;
+      eLocMsg.textContent='Caricata ✔, URL impostata';
+      eLocMsg.classList.add('ok');
+    }catch(ex){
+      eLocMsg.textContent = 'Errore upload: ' + (ex?.message||String(ex));
+      eLocMsg.classList.remove('ok'); eLocMsg.classList.add('err');
+    }finally{
+      eLocFile.value='';
+    }
+  });
+
+  /* === Apertura editor === */
+  function openEditorFor(index){
+    if (!CURRENT_IDS.length) return;
+    CUR_INDEX = Math.max(0, Math.min(index, CURRENT_IDS.length-1));
+    const id = CURRENT_IDS[CUR_INDEX];
+    const ev = EVENTS.get(id)?.raw;
+    const occs = (ALL_OCCS_BY_EVENT.get(id)||[]).filter(o=>!o.deleted_at);
+
+    CUR_EVENT = JSON.parse(JSON.stringify(ev||{}));
+    CUR_OCCS  = JSON.parse(JSON.stringify(occs||[]));
+
+    edTitle.textContent = 'Modifica evento';
+    edIdx.textContent   = CURRENT_IDS.length>1 ? `(${CUR_INDEX+1} di ${CURRENT_IDS.length})` : '';
+    edErr.textContent   = '';
+
+    eTitolo.value   = ev?.titolo || ev?.title || '';
+    eDescr.value    = ev?.descrizione || ev?.description || '';
+    ePublished.value= String(ev?.published!==false);
+    eLocUrl.value   = ev?.locandina_url || '';
+    ePrezzo.value   = ev?.price_text || ev?.prezzo || ev?.price || ev?.ingresso || '';
+
+    renderContactsUI( extractContactsFromEvent(ev||{}) );
+
+    const extVal = (ev?.is_extended ?? ev?.extended ?? ev?.evento_diffuso ?? ev?.diffuso) ? 'true' : 'false';
+    eExtended.value = extVal;
+
+    const cats = getCats(ev||{});
+    renderBadges(cats);
+
+    occWrap.innerHTML = '';
+    if (CUR_OCCS.length){ CUR_OCCS.forEach(o=> occWrap.insertAdjacentHTML('beforeend', occRow(o))); }
+    else { occWrap.insertAdjacentHTML('beforeend', occRow({})); }
+
+    editModal.style.display='flex';
+    document.body.style.overflow='hidden';
+  }
+  /* ←—— ESPONGO la funzione così non può risultare “non definita” */
+  window.openEditorFor = openEditorFor;
+
+  function closeEditor(){
+    editModal.style.display='none';
+    document.body.style.overflow='auto';
+  }
+  edClose.addEventListener('click', closeEditor);
+  edPrev.addEventListener('click', ()=> openEditorFor(Math.max(0, CUR_INDEX-1)));
+  edNext.addEventListener('click', ()=> openEditorFor(Math.min(CURRENT_IDS.length-1, CUR_INDEX+1)));
+
+  document.getElementById('btnEdit').addEventListener('click', ()=>{
+    if (!SELECTED.size){ alert('Seleziona almeno un evento sulla mappa.'); return; }
+    CURRENT_IDS = [...SELECTED];
+    openEditorFor(0);
+  });
+
+  /* === Salvataggio === */
+  function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t; }
+  function collectOccFromUI(){
+    const rows = Array.from(occWrap.querySelectorAll('.occ'));
+    const occ = [];
+    for (const box of rows){
+      const id = (box.querySelector('.occ_id')||{}).value||'';
+      const luogo = clean((box.querySelector('.luogo')||{}).value||'');
+      const indirizzo = clean((box.querySelector('.indirizzo')||{}).value||'');
+      const citta = clean((box.querySelector('.citta')||{}).value||'');
+      const data = (box.querySelector('.data')||{}).value||'';
+      const ora  = (box.querySelector('.ora')||{}).value||'';
+      const ora_feriale = (box.querySelector('.ora_feriale')||{}).value||'';
+      const ora_festivo = (box.querySelector('.ora_festivo')||{}).value||'';
+      if (!luogo || !indirizzo || !citta || !data) return null;
+      occ.push({ id, luogo, indirizzo, citta, data, ora, ora_feriale, ora_festivo });
+    }
+    return occ;
+  }
+
+  async function saveCurrentEvent(){
+    edErr.textContent='';
+    const eventId = CURRENT_IDS[CUR_INDEX];
+    if (!eventId){ edErr.textContent='ID evento mancante.'; return false; }
+
+    const titolo = clean(eTitolo.value);
+    const descr  = clean(eDescr.value);
+    const pub    = ePublished.value === 'true';
+    const isExtended = eExtended.value === 'true';
+    const locUrl = clean(eLocUrl.value);
+    const cats   = getSelectedCatsFromUI();
+    if (!titolo || !descr || !cats.length){ edErr.textContent='Compila Titolo*, Descrizione* e almeno 1 Categoria*.'; return false; }
+    const prezzo = clean(ePrezzo.value || '');
+    const contactsArr = collectContactsFromEditor();
+
+    const occUI = collectOccFromUI();
+    if (!occUI){ edErr.textContent='Completa tutti i campi di ogni occorrenza.'; return false; }
+
+    const origById = new Map(CUR_OCCS.map(o=> [String(o.id), o]));
+    const occReady = [];
+    for (const o of occUI){
+      let lat=null, lng=null;
+      try{
+        if (o.id && origById.has(String(o.id))){
+          const prev = origById.get(String(o.id));
+          const sameAddr = (clean(prev.indirizzo||prev.address||'')===o.indirizzo) && (clean(prev.citta||prev.city||'')===o.citta);
+          if (sameAddr){
+            lat = +(+prev.lat||0).toFixed(6);
+            lng = +(+prev.lng||0).toFixed(6);
+          } else { const g = await geocode(o.indirizzo, o.citta); lat = g.lat; lng = g.lng; }
+        } else { const g = await geocode(o.indirizzo, o.citta); lat = g.lat; lng = g.lng; }
+      }catch(ex){
+        const prev = o.id && origById.get(String(o.id)) || null;
+        if (prev && prev.lat!=null && prev.lng!=null){ lat = +(+prev.lat).toFixed(6); lng = +(+prev.lng).toFixed(6); }
+        else { edErr.textContent = `Indirizzo non trovato: ${o.indirizzo}, ${o.citta}`; return false; }
+      }
+      occReady.push({ ...o, lat, lng });
+    }
+
+    const payloadEvent = {
+      title: titolo, titolo: titolo,
+      description: descr, descrizione: descr,
+      categories: cats, categorie: cats,
+      locandina_url: locUrl,
+      published: pub
+    };
+    const rEv = await sb.from('events').update(payloadEvent).eq('id', eventId).select('id').single();
+
+    try { await updateEventOptional(eventId, { price_text: prezzo }); } catch(_){}
+    try { await updateEventOptional(eventId, { prezzo: prezzo }); } catch(_){}
+    try { await updateEventOptional(eventId, { price: prezzo }); } catch(_){}
+    try { await updateEventOptional(eventId, { ingresso: prezzo }); } catch(_){}
+
+    try { await updateEventOptional(eventId, { contacts: contactsArr }); } catch(_){}
+    try { await updateEventOptional(eventId, { referenti: null }); } catch(_){}
+    try { await updateEventOptional(eventId, { contatti: null }); } catch(_){}
+    if (contactsArr[0]) {
+      const c0 = contactsArr[0];
+      try { await updateEventOptional(eventId, { nome_referente: c0.nome || null }); } catch(_){}
+      try { await updateEventOptional(eventId, { numero_referente: c0.tel || null }); } catch(_){}
+      try { await updateEventOptional(eventId, { email_referente: c0.email || null }); } catch(_){}
+    }
+    if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
+
+    try { await updateEventOptional(eventId, { approved: pub }); } catch(_){}
+    async function tryUpdateExtended(colName){
+      const r = await sb.from('events').update({ [colName]: isExtended }).eq('id', eventId);
+      if (r.error && String(r.error.code) !== '42703') { throw r.error; }
+    }
+    try { await tryUpdateExtended('is_extended'); } catch(_){}
+    try { await tryUpdateExtended('extended'); } catch(_){}
+    try { await tryUpdateExtended('evento_diffuso'); } catch(_){}
+    try { await tryUpdateExtended('diffuso'); } catch(_){}
+
+    const keepIds = [];
+    for (const o of occReady){
+      if (o.id){
+        const up = { luogo:o.luogo, venue:o.luogo, indirizzo:o.indirizzo, address:o.indirizzo, citta:o.citta, city:o.citta, data:o.data, time:o.ora, ora:o.ora, lat:o.lat, lng:o.lng };
+        const r = await sb.from('occurrences').update(up).eq('id', o.id).select('id').single();
+        if (r.error){ edErr.textContent='Errore update occorrenza: '+(r.error.message||String(r.error)); return false; }
+        keepIds.push(String(o.id));
+
+        async function tryUpdateOccColumn(set){
+          const rX = await sb.from('occurrences').update(set).eq('id', o.id);
+          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
+        }
+        if (o.ora_feriale){ try { await tryUpdateOccColumn({ ora_feriale:o.ora_feriale }); } catch(_){}
+                            try { await tryUpdateOccColumn({ time_weekday:o.ora_feriale }); } catch(_){} }
+        if (o.ora_festivo){ try { await tryUpdateOccColumn({ ora_festivo:o.ora_festivo }); } catch(_){}
+                            try { await tryUpdateOccColumn({ time_weekend:o.ora_festivo }); } catch(_){} }
+        if (!o.ora && (o.ora_feriale || o.ora_festivo)){
+          const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
+          const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', o.id).eq('event_id', eventId);
+          if (rF.error){ edErr.textContent='Errore salvataggio orario combinato: '+(rF.error.message||String(rF.error)); return false; }
+        }
+      } else {
+        const row = { event_id:eventId, luogo:o.luogo, venue:o.luogo, indirizzo:o.indirizzo, address:o.indirizzo, citta:o.citta, city:o.citta, data:o.data, time:o.ora, ora:o.ora, lat:o.lat, lng:o.lng };
+        const r = await sb.from('occurrences').insert(row).select('id').single();
+        if (r.error){ edErr.textContent='Errore inserimento occorrenza: '+(r.error.message||String(r.error)); return false; }
+        keepIds.push(String(r.data.id));
+        const occId = String(r.data.id);
+        async function tryUpdateOccColumnNew(set){
+          const rX = await sb.from('occurrences').update(set).eq('id', occId);
+          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
+        }
+        if (o.ora_feriale){ try { await tryUpdateOccColumnNew({ ora_feriale:o.ora_feriale }); } catch(_){}
+                            try { await tryUpdateOccColumnNew({ time_weekday:o.ora_feriale }); } catch(_){} }
+        if (o.ora_festivo){ try { await tryUpdateOccColumnNew({ ora_festivo:o.ora_festivo }); } catch(_){}
+                            try { await tryUpdateOccColumnNew({ time_weekend:o.ora_festivo }); } catch(_){} }
+        if (!o.ora && (o.ora_feriale || o.ora_festivo)){
+          const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
+          const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', occId);
+          if (rF.error){ edErr.textContent='Errore salvataggio orario combinato: '+(rF.error.message||String(rF.error)); return false; }
+        }
+      }
+    }
+
+    const toDelete = CUR_OCCS.filter(x=> !x.deleted_at).filter(x=> !keepIds.includes(String(x.id))).map(x=> String(x.id));
+    if (toDelete.length){
+      const r = await sb.from('occurrences').update({ deleted_at: new Date().toISOString() }).in('id', toDelete);
+      if (r.error && String(r.error.code)!=='42703'){ edErr.textContent='Errore delete occorrenze: '+(r.error.message||String(r.error)); return false; }
+    }
+
+    $('#lastAction').textContent = 'Salvato.';
+    await loadData();
+    window.notifyEventsChanged();
+    return true;
+  }
+
+  document.getElementById('edSave').addEventListener('click', async ()=> { if (await saveCurrentEvent()) alert('Modifiche salvate.'); });
+  document.getElementById('edSaveNext').addEventListener('click', async ()=>{
+    if (await saveCurrentEvent()){
+      if (CUR_INDEX < CURRENT_IDS.length-1) openEditorFor(CUR_INDEX+1);
+      else { alert('Modifiche salvate su tutti gli eventi selezionati.'); closeEditor(); }
+    }
+  });
+
+  /* ===== AVVIO ===== */
+  const ok = await requireLogin();
+  if (ok){
+    initLeaf();
+    setTimeout(()=> loadData(), 300);
+  }
 })();
 </script>
 
