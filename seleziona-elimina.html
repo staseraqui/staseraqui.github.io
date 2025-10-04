@@ -836,17 +836,23 @@
       return `<div class="chip ${on?'active':''} small" data-cat="${c}" style="background:${on?'#22b3f0':'#17304d'};border:1px solid ${on?'#22b3f0':'#2e6e8f'};color:#fff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none">${c}</div>`;
     }).join('');
   }
-  function renderSubchipSet(selectedCats, selectedSubs){
-    const set = new Set();
-    selectedCats.forEach(cat => (SUBCATS_MAP[cat]||[]).forEach(sc => set.add(sc)));
-    const list = [...set];
-    subchipsModal.innerHTML = list.length
-      ? list.map(sc=>{
-          const on = selectedSubs.includes(sc);
-          return `<div class="chip ${on?'active':''} small" data-sub="${sc}" style="background:${on?'#1a3652':'#10273f'};border:1px solid ${on?'#2e6e8f':'#234a67'};color:#fff;font-weight:700;cursor:pointer;user-select:none">${sc}</div>`;
-        }).join('')
-      : `<div class="smallmuted">Seleziona almeno una categoria per vedere le sotto-categorie.</div>`;
+function renderSubchipSet(selectedCats, selectedSubs){
+  const set = new Set();
+  selectedCats.forEach(cat => (SUBCATS_MAP[cat]||[]).forEach(sc => set.add(sc)));
+  const list = [...set];
+  if (!list.length){
+    subchipsModal.innerHTML = `<div class="smallmuted">Seleziona almeno una categoria per vedere le sotto-categorie.</div>`;
+    return;
   }
+  subchipsModal.innerHTML = list.map(sc=>{
+    const on = selectedSubs.includes(sc);
+    // imposto sia la classe che lo stile coerente
+    const bg  = on ? '#1a3652' : '#10273f';
+    const brd = on ? '#2e6e8f' : '#234a67';
+    return `<div class="chip ${on?'active':''} small" data-sub="${sc}" style="background:${bg};border:1px solid ${brd};color:#fff;font-weight:700;cursor:pointer;user-select:none">${sc}</div>`;
+  }).join('');
+}
+  
   function renderBadges(selected){
     catBadges.innerHTML = selected.map(c=> `<span class="badge">${c}</span>`).join('');
   }
@@ -889,24 +895,30 @@ chipsModal.addEventListener('click', e=>{
   // rigenero la lista sub mantenendo quelle già attive se ancora compatibili
   renderSubchipSet(selCats, selSubsInPanel);
 });
-  // toggle sotto-categorie (selezionare la categoria padre se necessario)
-  subchipsModal.addEventListener('click', e=>{
-    if(!e.target.classList.contains('chip')) return;
-    const ch=e.target;
-    const sub = ch.getAttribute('data-sub');
-    ch.classList.toggle('active');
+  // toggle sotto-categorie (feedback visivo + auto-selezione categoria padre)
+subchipsModal.addEventListener('click', e=>{
+  const ch = e.target.closest('.chip');
+  if(!ch) return;
+  const sub = ch.getAttribute('data-sub');
+  const nowOn = !ch.classList.contains('active');
+  ch.classList.toggle('active', nowOn);
+  // aggiorno lo stile inline per feedback immediato
+  ch.style.background  = nowOn ? '#1a3652' : '#10273f';
+  ch.style.borderColor = nowOn ? '#2e6e8f' : '#234a67';
 
-    // se l'utente sceglie una sotto-categoria, assicurati che almeno una categoria che la contiene sia attiva
-    if (ch.classList.contains('active')){
-      // trova le categorie padre di questa sotto-categoria
-      const parents = Object.keys(SUBCATS_MAP).filter(cat => (SUBCATS_MAP[cat]||[]).includes(sub));
-      parents.forEach(p=>{
-        const chip = chipsModal.querySelector(`[data-cat="${CSS.escape(p)}"]`);
-        if (chip && !chip.classList.contains('active')) chip.classList.add('active');
-      });
-    }
-  });
-
+  if (nowOn){
+    // assicura che esista almeno una categoria padre selezionata
+    const parents = Object.keys(SUBCATS_MAP).filter(cat => (SUBCATS_MAP[cat]||[]).includes(sub));
+    parents.forEach(p=>{
+      const chip = chipsModal.querySelector(`[data-cat="${CSS.escape(p)}"]`);
+      if (chip && !chip.classList.contains('active')){
+        chip.classList.add('active');
+        chip.style.background  = '#22b3f0';
+        chip.style.borderColor = '#22b3f0';
+      }
+    });
+  }
+});
   $('#catClear').addEventListener('click', ()=>{
     catBadges.innerHTML='';
     subBadges.innerHTML='';
