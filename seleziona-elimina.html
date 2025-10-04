@@ -555,7 +555,31 @@
       b.addEventListener('click', ()=> toggleSelect(b.getAttribute('data-unselect')));
     });
   }
+// Handler robusto per il bottone "Modifica eventi selezionati"
+function openEditorFromButton(){
+  try{
+    if (!SELECTED.size){
+      alert('Seleziona almeno un evento sulla mappa.');
+      return;
+    }
+    CURRENT_IDS = [...SELECTED];
+    openEditorFor(0);
+  }catch(ex){
+    alert('Errore apertura editor: ' + (ex?.message || String(ex)));
+  }
+}
 
+// 1) Bind diretto (se l’elemento è già nel DOM)
+const btnEditEl = document.getElementById('btnEdit');
+if (btnEditEl) btnEditEl.addEventListener('click', openEditorFromButton);
+
+// 2) Fallback in delega (se per qualche motivo il bind diretto non scatta)
+document.addEventListener('click', (e)=>{
+  if (e && e.target && e.target.id === 'btnEdit') {
+    openEditorFromButton();
+  }
+});  
+  
   // ====== AZIONI: Nascondi / Cestino ======
   async function softHide(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
