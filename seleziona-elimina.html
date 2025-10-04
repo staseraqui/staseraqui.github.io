@@ -868,16 +868,27 @@
     openModal('catModal');
   });
 
-  // toggle categorie
-  chipsModal.addEventListener('click', e=>{
-    if(!e.target.classList.contains('chip')) return;
-    const ch=e.target;
-    const cat = ch.getAttribute('data-cat');
-    ch.classList.toggle('active');
-    const selCats = Array.from(chipsModal.querySelectorAll('.chip.active')).map(x=>x.getAttribute('data-cat'));
-    renderSubchipSet(selCats, getSelectedSubsFromUI());
-  });
+  // toggle categorie (mantieni lo stato visivo + conserva sub attive del pannello)
+chipsModal.addEventListener('click', e=>{
+  const ch = e.target.closest('.chip');
+  if(!ch) return;
+  const nowOn = !ch.classList.contains('active');
+  ch.classList.toggle('active', nowOn);
+  // aggiorno lo stile inline per feedback immediato
+  ch.style.background  = nowOn ? '#22b3f0' : '#17304d';
+  ch.style.borderColor = nowOn ? '#22b3f0' : '#2e6e8f';
 
+  // categorie attive nel pannello
+  const selCats = Array.from(chipsModal.querySelectorAll('.chip.active'))
+    .map(x=>x.getAttribute('data-cat'));
+
+  // *** IMPORTANTE: prendo le sub attive DAL PANNELLO, non dai badge esterni ***
+  const selSubsInPanel = Array.from(subchipsModal.querySelectorAll('.chip.active'))
+    .map(x=>x.getAttribute('data-sub'));
+
+  // rigenero la lista sub mantenendo quelle già attive se ancora compatibili
+  renderSubchipSet(selCats, selSubsInPanel);
+});
   // toggle sotto-categorie (selezionare la categoria padre se necessario)
   subchipsModal.addEventListener('click', e=>{
     if(!e.target.classList.contains('chip')) return;
