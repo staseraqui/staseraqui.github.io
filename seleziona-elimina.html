@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="assets/style.css?v=12">
 
   <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
   <!-- Supabase -->
@@ -32,20 +32,20 @@
     /* Modali */
     .modal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.5);z-index:99999;overflow:auto}
     .modal .box{margin-top:40px;background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;min-width:320px;max-width:1100px;width:92%;max-height:calc(100vh - 80px);overflow:auto;-webkit-overflow-scrolling:touch}
-
     .small{font-size:13px}
     .smallmuted{font-size:13px;color:#b8c2ce}
 
+    /* Giallo su "Elimina definitivamente" */
     .btn.warning{background:var(--primary); border-color:var(--primary-border); color:#081421; font-weight:800}
     .btn.ghost{background:#111f31;border:1px solid rgba(255,255,255,.25);color:#fff}
 
-    /* Login overlay */
+    /* Overlay login semplice */
     #authGate{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:999999}
     #authBox{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px;max-width:360px;width:92%}
     #authBox h3{margin:0 0 8px}
     #authErr{color:#ff9a9a;margin-top:8px;display:none}
 
-    /* Editor */
+    /* ===== Editor evento ===== */
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media (max-width:860px){ .grid{grid-template-columns:1fr} }
     .occ{background:#0b1623;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px;margin-top:8px}
@@ -54,11 +54,24 @@
     .err{color:#ffb4b4;min-height:18px;margin-top:6px}
     .ok{color:#b8ffc2}
 
+    /* Chip categorie */
     .chip{color:#fff !important}
-    #catBadges .badge{background:#17304d;color:#d7f2ff;border:1px solid #2e6e8f}
+    .chip.small{font-size:13px;padding:8px 14px;border-radius:20px}
 
+    /* Badge categorie selezionate */
+    #catBadges .badge{background:#17304d;color:#d7f2ff;border:1px solid #2e6e8f}
+    #subBadges .badge{background:#10273f;color:#cfeaff;border:1px solid #285a7a}
+
+    /* Bottone upload locandina: layout */
     .posterRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .posterRow input[type="text"]{flex:1;min-width:260px}
+
+    /* Modal categorie layout 2 colonne */
+    .catGrid{display:grid;grid-template-columns:280px 1fr;gap:12px}
+    @media (max-width:780px){ .catGrid{grid-template-columns:1fr} }
+    .panel{background:#0b1623;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px}
+    .panel h4{margin:0 0 8px;font-size:14px;color:#b8c2ce}
+    .chipsWrap{display:flex;gap:8px;flex-wrap:wrap}
   </style>
 
   <!-- GA4 -->
@@ -129,9 +142,10 @@
         <input id="e_titolo" maxlength="80" required>
       </div>
       <div>
-        <label for="e_catBtn">Categorie*</label><br>
+        <label for="e_catBtn">Categorie* e sotto-categorie</label><br>
         <button class="btn secondary" id="e_catBtn" type="button">Scegli categorie</button>
         <div id="catBadges" style="margin-top:6px"></div>
+        <div id="subBadges" style="margin-top:6px"></div>
       </div>
     </div>
 
@@ -157,6 +171,7 @@
           <p class="smallmuted">Nome / numero / email (facoltativo). Saranno visibili nel popup.</p>
         </div>
       </div>
+
       <div>
         <label for="e_published">Pubblicato</label>
         <select id="e_published">
@@ -166,6 +181,7 @@
       </div>
     </div>
 
+    <!-- Evento diffuso (esteso) -->
     <div class="grid" style="margin-top:8px">
       <div>
         <label for="e_extended">Evento diffuso (esteso)</label>
@@ -196,15 +212,26 @@
   </div>
 </div>
 
-<!-- MODALE: Categorie -->
+<!-- MODALE: Categorie + Sotto-categorie -->
 <div id="catModal" class="modal" aria-hidden="true">
   <div class="box">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-      <h3 style="margin:0">Categorie (multi)</h3>
+      <h3 style="margin:0">Categorie (multi) & sotto-categorie</h3>
       <button class="btn" id="catClose" type="button">Chiudi</button>
     </div>
-    <div id="chipsModal" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 6px"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
+
+    <div class="catGrid" style="margin-top:10px">
+      <div class="panel">
+        <h4>Categorie</h4>
+        <div id="chipsModal" class="chipsWrap"></div>
+      </div>
+      <div class="panel">
+        <h4>Sotto-categorie <span class="smallmuted">(in base alle categorie scelte)</span></h4>
+        <div id="subchipsModal" class="chipsWrap"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn secondary" id="catClear" type="button">Azzera</button>
       <button class="btn primary" id="catOk" type="button">Conferma</button>
     </div>
@@ -284,7 +311,7 @@
   </div>
 </div>
 
-<!-- OVERLAY LOGIN -->
+<!-- OVERLAY LOGIN (email + password) -->
 <div id="authGate" aria-hidden="true">
   <div id="authBox">
     <h3>Accedi</h3>
@@ -302,7 +329,7 @@
 
 <script>
 (async function(){
-  /* ===== CONFIG / SUPABASE ===== */
+  // ====== CONFIG / SUPABASE ======
   const CFG = window.SQ_CONFIG || {};
   const SB_URL  = CFG.SUPABASE_URL;
   const SB_ANON = CFG.SUPABASE_ANON;
@@ -312,7 +339,7 @@
   if (!SB_URL || !SB_ANON) alert('Configurazione Supabase mancante (assets/app-config.js).');
   const sb = supabase.createClient(SB_URL, SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } });
 
-  /* ===== LOGIN ===== */
+  // ====== LOGIN SOLO PASSWORD ======
   const AUTH_EMAIL_WHITELIST = ['andrea.cordero@staseraqui.it'];
   async function requireLogin(){
     const { data:{ session } } = await sb.auth.getSession();
@@ -352,15 +379,18 @@
     });
   }
 
-  /* ===== UTILS ===== */
+  // ====== UTILS ======
   const $  = s => document.querySelector(s);
   const $$ = s => Array.from(document.querySelectorAll(s));
   const todayISO = () => new Date().toISOString().slice(0,10);
   const getTitle = e => e.title || e.titolo || '(evento)';
-  const getCats  = e => Array.isArray(e.categories) ? e.categories : (Array.isArray(e.categorie) ? e.categorie : (typeof e.categories==='string' ? safeParseCats(e.categories) : []));
-  const safeParseCats = s => { try{ const j=JSON.parse(s); return Array.isArray(j)?j:[]; }catch(_){ return (s||'').split(',').map(x=>x.trim()).filter(Boolean); } };
+  const safeParseArr = s => { try{ const j=JSON.parse(s); return Array.isArray(j)?j:[]; }catch(_){ return (s||'').split(',').map(x=>x.trim()).filter(Boolean); } };
+  const getCats  = e => Array.isArray(e.categories) ? e.categories : (Array.isArray(e.categorie) ? e.categorie : (typeof e.categories==='string' ? safeParseArr(e.categories) : []));
+  const getSubs  = e => Array.isArray(e.subcategories) ? e.subcategories : (Array.isArray(e.sottocategorie) ? e.sottocategorie : (typeof e.subcategories==='string' ? safeParseArr(e.subcategories) : (typeof e.sottocategorie==='string'?safeParseArr(e.sottocategorie):[])));
   const uniqueId = ()=> Math.random().toString(36).slice(2,10);
+  const clean = t => (t||'').trim().replace(/\s+/g,' ');
 
+  // aggiornamenti opzionali (ignorano la colonna inesistente: errore 42703)
   async function updateEventOptional(id, set){
     const r = await sb.from('events').update(set).eq('id', id);
     if (r.error && String(r.error.code) !== '42703') throw r.error;
@@ -379,7 +409,7 @@
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   }
 
-  /* ===== MAPPA (Leaflet) ===== */
+  // ====== MAPPE: Leaflet ======
   let LEAF  = { map:null, pinIcon:null, markers:new Map() };
   function initLeaf(){
     LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869], 6);
@@ -399,7 +429,10 @@
     if (!LEAF.markers.has(eventId)) LEAF.markers.set(eventId, []);
     LEAF.markers.get(eventId).push(m);
   }
-  function lClearMarkers(){ LEAF.markers.forEach(list=> list.forEach(m=> LEAF.map.removeLayer(m))); LEAF.markers.clear(); }
+  function lClearMarkers(){
+    LEAF.markers.forEach(list=> list.forEach(m=> LEAF.map.removeLayer(m)));
+    LEAF.markers.clear();
+  }
   function lFit(){
     const all = [];
     LEAF.markers.forEach(list=> list.forEach(m=> all.push(m.getLatLng())));
@@ -412,33 +445,33 @@
     });
   }
 
-  /* ===== DATI ===== */
-  const EVENTS = new Map();
-  const OCCS_BY_EVENT = new Map();
-  const ALL_OCCS_BY_EVENT = new Map();
+  // ====== STATO & DATI ======
+  const EVENTS = new Map(); // id -> evento
+  const OCCS_BY_EVENT = new Map(); // id -> [occ non cestinate future]
+  const ALL_OCCS_BY_EVENT = new Map(); // id -> [tutte le occ (per cestino)]
   const SELECTED = new Set();
   function setSelectedIcon(id, on){ lSetSelected(id, on); }
 
-  /* ===== CARICA DATI ===== */
+  // ====== CARICA DATI ======
   async function loadData(){
     let evs = [];
     {
-      const colSel = 'id, title, titolo, description, descrizione, categories, categorie, locandina_url, published, deleted_at, price_text, prezzo, price, ingresso, contacts, referenti, contatti, nome_referente, numero_referente, email_referente, is_extended, extended, evento_diffuso, diffuso';
+      const colSel = 'id, title, titolo, description, descrizione, categories, categorie, subcategories, sottocategorie, locandina_url, published, deleted_at, price_text, prezzo, price, ingresso, contacts, referenti, contatti, nome_referente, numero_referente, email_referente, is_extended, extended, evento_diffuso, diffuso';
       const r1 = await sb.from('events').select(colSel);
       if (r1.error) {
         const r2 = await sb.from('events').select('*');
-        if (r2.error) { alert('Errore lettura events: ' + (r2.error.message || r2.error.code || 'sconosciuto')); return; }
+        if (r2.error) { alert('Errore lettura events'); return; }
         evs = r2.data || [];
-      } else {
-        evs = r1.data || [];
-      }
+      } else evs = r1.data || [];
     }
     const { data: occs, error: ocErr } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, ora, luogo, indirizzo, citta, city, address, time, venue, deleted_at');
     if (ocErr){ alert('Errore lettura occorrenze'); return; }
 
     EVENTS.clear();
-    (evs||[]).forEach(e=> EVENTS.set(e.id, { id: e.id, title: getTitle(e), raw: e }));
+    (evs||[]).forEach(e=>{
+      EVENTS.set(e.id, { id: e.id, title: getTitle(e), raw: e });
+    });
 
     OCCS_BY_EVENT.clear();
     ALL_OCCS_BY_EVENT.clear();
@@ -460,13 +493,13 @@
     lClearMarkers(); SELECTED.clear(); updateSelectionUI();
     OCCS_BY_EVENT.forEach((list, eventId)=>{
       const ev = EVENTS.get(eventId); if (!ev) return;
-      if (ev.raw.deleted_at || ev.raw.published === false) return;
+      if (ev.raw.deleted_at || ev.raw.published === false) return; // sulla mappa solo attivi
       list.forEach(occ=> lAddMarker(eventId, occ.lat, occ.lng, ev.title));
     });
     lFit();
   }
 
-  /* ===== SELEZIONE ===== */
+  // ====== SELEZIONE ======
   function toggleSelect(eventId){
     if (!EVENTS.has(eventId)) return;
     const on = !SELECTED.has(eventId);
@@ -499,17 +532,14 @@
     });
   }
 
-  /* ===== AZIONI ===== */
+  // ====== AZIONI: Nascondi / Cestino ======
   async function softHide(){
     if (!SELECTED.size) { alert('Seleziona almeno un evento.'); return; }
     if (!confirm(`Nascondere ${SELECTED.size} evento/i? (published=false)`)) return;
     const ids = [...SELECTED];
-
     const r = await sb.from('events').update({ published:false }).in('id', ids);
     if (r.error){ alert('Errore: '+(r.error.message||String(r.error))); return; }
-
     try { await updateEventsOptional(ids, { approved:false }); } catch(_){}
-
     ids.forEach(id=>{ const e=EVENTS.get(id); if (e){ e.raw.published=false; } });
     drawMarkers();
     $('#lastAction').textContent = 'Fatto: eventi nascosti.';
@@ -539,7 +569,7 @@
   $('#btnSoft').addEventListener('click', softHide);
   $('#btnHard').addEventListener('click', hardDelete);
 
-  /* ===== MODALI secondarie ===== */
+  // ====== MODALI di servizio (Nascosti / Cestino) ======
   function openModal(id){ const m=$('#'+id); if(m) m.style.display='flex'; }
   function closeModal(id){ const m=$('#'+id); if(m) m.style.display='none'; }
   $$('[data-close]').forEach(b=> b.addEventListener('click', ()=> closeModal(b.getAttribute('data-close')) ));
@@ -591,12 +621,9 @@
     $$('#hResults [data-restore-hidden]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-hidden');
-
         const r = await sb.from('events').update({ published:true }).eq('id', id);
         if (r.error){ alert('Errore ripristino: '+(r.error.message||String(r.error))); return; }
-
         try { await updateEventOptional(id, { approved:true }); } catch(_){}
-
         $('#lastAction').textContent = 'Evento ripristinato.';
         await loadData(); renderHidden();
         window.notifyEventsChanged();
@@ -660,15 +687,12 @@
     $$('#dResults [data-restore-deleted]').forEach(b=>{
       b.addEventListener('click', async ()=>{
         const id = b.getAttribute('data-restore-deleted');
-
         const r1 = await sb.from('occurrences').update({ deleted_at:null }).eq('event_id', id);
         if (r1.error && String(r1.error.code)!=='42703'){ alert('Errore ripristino occorrenze: '+(r1.error.message||String(r1.error))); return; }
         const r2 = await sb.from('events').update({ deleted_at:null, published:true }).eq('id', id);
         if (r2.error && String(r2.error.code)!=='42703'){ alert('Errore ripristino evento: '+(r2.error.message||String(r2.error))); return; }
-
         try { await updateEventOptional(id, { approved:true }); } catch(_){}
         try { await updateEventOptional(id, { deleted:false }); } catch(_){}
-
         $('#lastAction').textContent = 'Evento ripristinato dal cestino.';
         await loadData(); renderDeleted();
         window.notifyEventsChanged();
@@ -702,7 +726,7 @@
     });
   }
 
-  /* ===== EDITOR ===== */
+  // ====== EDITOR: UI ======
   const editModal = $('#editModal');
   const edTitle   = $('#edTitle');
   const edIdx     = $('#edIdx');
@@ -726,9 +750,21 @@
   const edContacts   = $('#edContacts');
   const edAddContact = $('#edAddContact');
 
-  function renderContactsUI(list){
-    edContacts.innerHTML = (list && list.length ? list : [{nome:'',tel:'',email:''}]).map(c => contactRow(c)).join('');
-  }
+  // ====== SOTTO-CATEGORIE: definizione
+  const ALL_CATS = ['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini'];
+
+  const SUBCATS_MAP = {
+    'Musica': ['Cantautori','Classica','Country','DJ / Dance','DJ set','Hip-Hop / Rap','Indie / Alternative','Jazz & Blues','Karaoke','Latin Night','Pop','R&B / Soul','Rock','Tributi / Cover'],
+    'Food & Drink': ['Aperitivo','Caffè / Tea','Cene sociali / Supper club','Degustazioni','Distillati','Enogastronomia','Festa della birra','Mixology / Cocktail','Street Food','Vino'],
+    'Nightlife': ['Bar Crawl','Club / Discoteca','Latin Night','DJ / Dance','DJ set'],
+    'Cultura/Spettacolo': ['Arti visive / Mostre','Cinema / Proiezioni','Letture / Presentazioni','Opera / Operetta','Spettacolo bambini','Stand-up / Commedia','Teatro'],
+    'Famiglie & Bambini': ['Giochi / Animazione','Laboratori','Letture animate','Spettacolo bambini','Tornei'],
+    'Sport': ['Arti marziali','Ciclismo','Corsa / Running','Calcio','Fitness / Wellness','Tornei','Trekking / Escursioni'],
+    'Sagre & Fiere': ['Festa della birra','Festa patronale','Feste di paese','Fiera / Festival','Festival enogastronomici','Mercatino di Natale','Sagra'],
+    'Mercatini': ['Hobbisti / Handmade','Km0 / Prodotti locali','Mercatino di Natale','Usato / Vintage','Artigianato','Antiquariato']
+  };
+
+  // ====== Contatti (UI)
   function contactRow(c){
     const id = uniqueId();
     return `<div class="grid" data-cid="${id}" style="margin-bottom:6px">
@@ -737,6 +773,9 @@
       <div><label class="small">Email</label><input class="c_mail" value="${(c?.email||c?.mail||'')}" placeholder="es. info@evento.it"></div>
       <div style="display:flex;align-items:flex-end"><button class="btn small del-contact" type="button">Rimuovi</button></div>
     </div>`;
+  }
+  function renderContactsUI(list){
+    edContacts.innerHTML = (list && list.length ? list : [{nome:'',tel:'',email:''}]).map(c => contactRow(c)).join('');
   }
   edContacts.addEventListener('click', (e)=>{
     if (e.target.classList.contains('del-contact')) {
@@ -760,9 +799,7 @@
   function extractContactsFromEvent(ev){
     const pickArr = (v)=>{
       if (Array.isArray(v)) return v;
-      if (typeof v === 'string' && v.trim().startsWith('[')){
-        try { const j=JSON.parse(v); return Array.isArray(j)?j:[]; } catch(_){ return []; }
-      }
+      if (typeof v === 'string' && v.trim().startsWith('[')){ try { const j=JSON.parse(v); return Array.isArray(j)?j:[]; } catch(_){ return []; } }
       return [];
     };
     let arr = pickArr(ev.contacts);
@@ -786,45 +823,102 @@
     return dedup;
   }
 
-  let CURRENT_IDS = [];
-  let CUR_INDEX   = 0;
-  let CUR_EVENT   = null;
-  let CUR_OCCS    = [];
-
-  /* === Categorie modal === */
+  // ====== MODAL Categorie + Sotto-categorie
   const catModal = $('#catModal');
   const chipsModal = $('#chipsModal');
+  const subchipsModal = $('#subchipsModal');
   const catBadges = $('#catBadges');
-  const ALL_CATS = ['Musica','Food & Drink','Nightlife','Cultura/Spettacolo','Famiglie & Bambini','Sport','Sagre & Fiere','Mercatini'];
+  const subBadges = $('#subBadges');
+
   function renderChipSet(selected){
     chipsModal.innerHTML = ALL_CATS.map(c=>{
       const on = selected.includes(c);
-      return `<div class="chip ${on?'active':''}" data-cat="${c}" style="background:${on?'#22b3f0':'#17304d'};border:1px solid ${on?'#22b3f0':'#2e6e8f'};color:#fff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none">${c}</div>`;
+      return `<div class="chip ${on?'active':''} small" data-cat="${c}" style="background:${on?'#22b3f0':'#17304d'};border:1px solid ${on?'#22b3f0':'#2e6e8f'};color:#fff;border-radius:28px;padding:10px 18px;font-weight:700;cursor:pointer;user-select:none">${c}</div>`;
     }).join('');
   }
-  function renderBadges(selected){ catBadges.innerHTML = selected.map(c=> `<span class="badge">${c}</span>`).join(''); }
-  function getSelectedCatsFromUI(){ return Array.from(catBadges.querySelectorAll('.badge')).map(x=>x.textContent); }
-  $('#e_catBtn').addEventListener('click', ()=>{
-    const sel = getSelectedCatsFromUI();
-    renderChipSet(sel);
-    catModal.style.display='flex';
+  function renderSubchipSet(selectedCats, selectedSubs){
+    const set = new Set();
+    selectedCats.forEach(cat => (SUBCATS_MAP[cat]||[]).forEach(sc => set.add(sc)));
+    const list = [...set];
+    subchipsModal.innerHTML = list.length
+      ? list.map(sc=>{
+          const on = selectedSubs.includes(sc);
+          return `<div class="chip ${on?'active':''} small" data-sub="${sc}" style="background:${on?'#1a3652':'#10273f'};border:1px solid ${on?'#2e6e8f':'#234a67'};color:#fff;font-weight:700;cursor:pointer;user-select:none">${sc}</div>`;
+        }).join('')
+      : `<div class="smallmuted">Seleziona almeno una categoria per vedere le sotto-categorie.</div>`;
+  }
+  function renderBadges(selected){
+    catBadges.innerHTML = selected.map(c=> `<span class="badge">${c}</span>`).join('');
+  }
+  function renderSubBadges(selected){
+    subBadges.innerHTML = selected.map(c=> `<span class="badge">${c}</span>`).join('');
+  }
+  function getSelectedCatsFromUI(){
+    return Array.from(catBadges.querySelectorAll('.badge')).map(x=>x.textContent);
+  }
+  function getSelectedSubsFromUI(){
+    return Array.from(subBadges.querySelectorAll('.badge')).map(x=>x.textContent);
+  }
+
+  eCatBtn.addEventListener('click', ()=>{
+    const selCats = getSelectedCatsFromUI();
+    const selSubs = getSelectedSubsFromUI();
+    renderChipSet(selCats);
+    renderSubchipSet(selCats, selSubs);
+    openModal('catModal');
   });
+
+  // toggle categorie
   chipsModal.addEventListener('click', e=>{
-    if(e.target.classList.contains('chip')){
-      const ch=e.target; const on = !ch.classList.contains('active');
-      ch.classList.toggle('active', on);
-      ch.style.background = on ? '#22b3f0' : '#17304d';
-      ch.style.borderColor = on ? '#22b3f0' : '#2e6e8f';
+    if(!e.target.classList.contains('chip')) return;
+    const ch=e.target;
+    const cat = ch.getAttribute('data-cat');
+    ch.classList.toggle('active');
+    const selCats = Array.from(chipsModal.querySelectorAll('.chip.active')).map(x=>x.getAttribute('data-cat'));
+    renderSubchipSet(selCats, getSelectedSubsFromUI());
+  });
+
+  // toggle sotto-categorie (selezionare la categoria padre se necessario)
+  subchipsModal.addEventListener('click', e=>{
+    if(!e.target.classList.contains('chip')) return;
+    const ch=e.target;
+    const sub = ch.getAttribute('data-sub');
+    ch.classList.toggle('active');
+
+    // se l'utente sceglie una sotto-categoria, assicurati che almeno una categoria che la contiene sia attiva
+    if (ch.classList.contains('active')){
+      // trova le categorie padre di questa sotto-categoria
+      const parents = Object.keys(SUBCATS_MAP).filter(cat => (SUBCATS_MAP[cat]||[]).includes(sub));
+      parents.forEach(p=>{
+        const chip = chipsModal.querySelector(`[data-cat="${CSS.escape(p)}"]`);
+        if (chip && !chip.classList.contains('active')) chip.classList.add('active');
+      });
     }
   });
-  $('#catClear').addEventListener('click', ()=>{ catBadges.innerHTML=''; renderChipSet([]); });
-  $('#catOk').addEventListener('click', ()=>{
-    const sel = Array.from(chipsModal.querySelectorAll('.chip.active')).map(ch=> ch.getAttribute('data-cat'));
-    renderBadges(sel); catModal.style.display='none';
-  });
-  $('#catClose').addEventListener('click', ()=> (catModal.style.display='none'));
 
-  /* === Occorrenze UI === */
+  $('#catClear').addEventListener('click', ()=>{
+    catBadges.innerHTML='';
+    subBadges.innerHTML='';
+    renderChipSet([]);
+    renderSubchipSet([], []);
+  });
+  $('#catOk').addEventListener('click', ()=>{
+    const selCats = Array.from(chipsModal.querySelectorAll('.chip.active')).map(ch=> ch.getAttribute('data-cat'));
+    const selSubs = Array.from(subchipsModal.querySelectorAll('.chip.active')).map(ch=> ch.getAttribute('data-sub'));
+
+    // auto-includi la categoria padre di ogni sub (se non già presente)
+    selSubs.forEach(sc=>{
+      const parents = Object.keys(SUBCATS_MAP).filter(cat => (SUBCATS_MAP[cat]||[]).includes(sc));
+      parents.forEach(p=> { if(!selCats.includes(p)) selCats.push(p); });
+    });
+
+    renderBadges(selCats);
+    renderSubBadges(selSubs);
+    closeModal('catModal');
+  });
+  $('#catClose').addEventListener('click', ()=> closeModal('catModal'));
+
+  // ====== Occorrenze UI
   function occRow(o){
     const occId = o?.id || '';
     const rid = 'occ_' + uniqueId();
@@ -868,7 +962,7 @@
     }
   });
 
-  /* === Geocoding (Google + OSM fallback) === */
+  // ====== Google Maps per geocoding (fallback OSM se assente)
   let gmLoadedPromise=null;
   function loadGoogle(){
     if (window.google && window.google.maps) return Promise.resolve();
@@ -919,38 +1013,12 @@
     }
   }
 
-  /* === Upload locandina === */
-  const POSTERS_BUCKET = 'event-images';
-  eLocBtn.addEventListener('click', ()=> eLocFile.click());
-  eLocFile.addEventListener('change', async (e)=>{
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    eLocMsg.textContent=''; eLocMsg.className='small';
-    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)){ eLocMsg.textContent='Formato non valido. Usa PNG/JPG/WebP.'; eLocMsg.classList.add('err'); eLocFile.value=''; return; }
-    if (file.size > 6*1024*1024){ eLocMsg.textContent='File troppo grande (max 6 MB).'; eLocMsg.classList.add('err'); eLocFile.value=''; return; }
-    try{
-      eLocMsg.textContent='Upload in corso…'; eLocMsg.classList.remove('err'); eLocMsg.classList.add('ok');
-      const ts = new Date().toISOString().replace(/[:.]/g,'-');
-      const rnd = Math.random().toString(36).slice(2,8);
-      const ext = file.type==='image/png'?'png':(file.type==='image/webp'?'webp':'jpg');
-      const path = `events/${ts}_${rnd}.${ext}`;
-      const up = await sb.storage.from(POSTERS_BUCKET).upload(path, file, { upsert:false, contentType:file.type });
-      if (up.error){ throw new Error(up.error.message); }
-      const pub = sb.storage.from(POSTERS_BUCKET).getPublicUrl(path);
-      const url = pub?.data?.publicUrl || '';
-      if (!url) throw new Error('URL pubblico non disponibile');
-      eLocUrl.value = url;
-      eLocMsg.textContent='Caricata ✔, URL impostata';
-      eLocMsg.classList.add('ok');
-    }catch(ex){
-      eLocMsg.textContent = 'Errore upload: ' + (ex?.message||String(ex));
-      eLocMsg.classList.remove('ok'); eLocMsg.classList.add('err');
-    }finally{
-      eLocFile.value='';
-    }
-  });
+  // ====== Caricamento in editor ======
+  let CURRENT_IDS = [];
+  let CUR_INDEX   = 0;
+  let CUR_EVENT   = null;
+  let CUR_OCCS    = [];
 
-  /* === Apertura editor === */
   function openEditorFor(index){
     if (!CURRENT_IDS.length) return;
     CUR_INDEX = Math.max(0, Math.min(index, CURRENT_IDS.length-1));
@@ -965,19 +1033,20 @@
     edIdx.textContent   = CURRENT_IDS.length>1 ? `(${CUR_INDEX+1} di ${CURRENT_IDS.length})` : '';
     edErr.textContent   = '';
 
-    eTitolo.value   = ev?.titolo || ev?.title || '';
-    eDescr.value    = ev?.descrizione || ev?.description || '';
-    ePublished.value= String(ev?.published!==false);
-    eLocUrl.value   = ev?.locandina_url || '';
-    ePrezzo.value   = ev?.price_text || ev?.prezzo || ev?.price || ev?.ingresso || '';
-
+    eTitolo.value = ev?.titolo || ev?.title || '';
+    eDescr.value  = ev?.descrizione || ev?.description || '';
+    ePublished.value = String(ev?.published!==false);
+    eLocUrl.value = ev?.locandina_url || '';
+    ePrezzo.value = ev?.price_text || ev?.prezzo || ev?.price || ev?.ingresso || '';
     renderContactsUI( extractContactsFromEvent(ev||{}) );
 
     const extVal = (ev?.is_extended ?? ev?.extended ?? ev?.evento_diffuso ?? ev?.diffuso) ? 'true' : 'false';
     eExtended.value = extVal;
 
     const cats = getCats(ev||{});
+    const subs = getSubs(ev||{});
     renderBadges(cats);
+    renderSubBadges(subs);
 
     occWrap.innerHTML = '';
     if (CUR_OCCS.length){ CUR_OCCS.forEach(o=> occWrap.insertAdjacentHTML('beforeend', occRow(o))); }
@@ -986,25 +1055,22 @@
     editModal.style.display='flex';
     document.body.style.overflow='hidden';
   }
-  /* ←—— ESPONGO la funzione così non può risultare “non definita” */
-  window.openEditorFor = openEditorFor;
 
   function closeEditor(){
     editModal.style.display='none';
     document.body.style.overflow='auto';
   }
-  edClose.addEventListener('click', closeEditor);
-  edPrev.addEventListener('click', ()=> openEditorFor(Math.max(0, CUR_INDEX-1)));
-  edNext.addEventListener('click', ()=> openEditorFor(Math.min(CURRENT_IDS.length-1, CUR_INDEX+1)));
+  $('#edClose').addEventListener('click', closeEditor);
+  $('#edPrev').addEventListener('click', ()=> openEditorFor(Math.max(0, CUR_INDEX-1)));
+  $('#edNext').addEventListener('click', ()=> openEditorFor(Math.min(CURRENT_IDS.length-1, CUR_INDEX+1)));
 
-  document.getElementById('btnEdit').addEventListener('click', ()=>{
+  $('#btnEdit').addEventListener('click', ()=>{
     if (!SELECTED.size){ alert('Seleziona almeno un evento sulla mappa.'); return; }
     CURRENT_IDS = [...SELECTED];
     openEditorFor(0);
   });
 
-  /* === Salvataggio === */
-  function clean(t){ t=(t||'').trim().replace(/\s+/g,' '); return t; }
+  // ====== Salvataggio ======
   function collectOccFromUI(){
     const rows = Array.from(occWrap.querySelectorAll('.occ'));
     const occ = [];
@@ -1028,14 +1094,15 @@
     const eventId = CURRENT_IDS[CUR_INDEX];
     if (!eventId){ edErr.textContent='ID evento mancante.'; return false; }
 
-    const titolo = clean(eTitolo.value);
-    const descr  = clean(eDescr.value);
-    const pub    = ePublished.value === 'true';
-    const isExtended = eExtended.value === 'true';
-    const locUrl = clean(eLocUrl.value);
+    const titolo = clean($('#e_titolo').value);
+    const descr  = clean($('#e_descr').value);
+    const pub    = $('#e_published').value === 'true';
+    const isExtended = $('#e_extended').value === 'true';
+    const locUrl = clean($('#e_loc_url').value);
     const cats   = getSelectedCatsFromUI();
+    const subs   = getSelectedSubsFromUI();
     if (!titolo || !descr || !cats.length){ edErr.textContent='Compila Titolo*, Descrizione* e almeno 1 Categoria*.'; return false; }
-    const prezzo = clean(ePrezzo.value || '');
+    const prezzo = clean($('#e_prezzo').value || '');
     const contactsArr = collectContactsFromEditor();
 
     const occUI = collectOccFromUI();
@@ -1049,11 +1116,11 @@
         if (o.id && origById.has(String(o.id))){
           const prev = origById.get(String(o.id));
           const sameAddr = (clean(prev.indirizzo||prev.address||'')===o.indirizzo) && (clean(prev.citta||prev.city||'')===o.citta);
-          if (sameAddr){
-            lat = +(+prev.lat||0).toFixed(6);
-            lng = +(+prev.lng||0).toFixed(6);
-          } else { const g = await geocode(o.indirizzo, o.citta); lat = g.lat; lng = g.lng; }
-        } else { const g = await geocode(o.indirizzo, o.citta); lat = g.lat; lng = g.lng; }
+          if (sameAddr){ lat = +(+prev.lat||0).toFixed(6); lng = +(+prev.lng||0).toFixed(6); }
+          else { const g = await geocode(o.indirizzo, o.citta); lat = g.lat; lng = g.lng; }
+        } else {
+          const g = await geocode(o.indirizzo, o.citta); lat = g.lat; lng = g.lng;
+        }
       }catch(ex){
         const prev = o.id && origById.get(String(o.id)) || null;
         if (prev && prev.lat!=null && prev.lng!=null){ lat = +(+prev.lat).toFixed(6); lng = +(+prev.lng).toFixed(6); }
@@ -1062,6 +1129,7 @@
       occReady.push({ ...o, lat, lng });
     }
 
+    // Salvataggio evento principale (campi "sicuri")
     const payloadEvent = {
       title: titolo, titolo: titolo,
       description: descr, descrizione: descr,
@@ -1070,7 +1138,9 @@
       published: pub
     };
     const rEv = await sb.from('events').update(payloadEvent).eq('id', eventId).select('id').single();
+    if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
 
+    // Aggiornamenti opzionali (colonne che potrebbero non esistere)
     try { await updateEventOptional(eventId, { price_text: prezzo }); } catch(_){}
     try { await updateEventOptional(eventId, { prezzo: prezzo }); } catch(_){}
     try { await updateEventOptional(eventId, { price: prezzo }); } catch(_){}
@@ -1085,18 +1155,17 @@
       try { await updateEventOptional(eventId, { numero_referente: c0.tel || null }); } catch(_){}
       try { await updateEventOptional(eventId, { email_referente: c0.email || null }); } catch(_){}
     }
-    if (rEv.error){ edErr.textContent='Errore salvataggio evento: '+(rEv.error.message||String(rEv.error)); return false; }
 
     try { await updateEventOptional(eventId, { approved: pub }); } catch(_){}
-    async function tryUpdateExtended(colName){
-      const r = await sb.from('events').update({ [colName]: isExtended }).eq('id', eventId);
-      if (r.error && String(r.error.code) !== '42703') { throw r.error; }
+    for (const col of ['is_extended','extended','evento_diffuso','diffuso']){
+      try { await updateEventOptional(eventId, { [col]: isExtended }); } catch(_){}
     }
-    try { await tryUpdateExtended('is_extended'); } catch(_){}
-    try { await tryUpdateExtended('extended'); } catch(_){}
-    try { await tryUpdateExtended('evento_diffuso'); } catch(_){}
-    try { await tryUpdateExtended('diffuso'); } catch(_){}
 
+    // NEW: sotto-categorie (opzionale)
+    try { await updateEventOptional(eventId, { subcategories: subs }); } catch(_){}
+    try { await updateEventOptional(eventId, { sottocategorie: subs }); } catch(_){}
+
+    // Occorrenze: upsert + soft-delete
     const keepIds = [];
     for (const o of occReady){
       if (o.id){
@@ -1105,14 +1174,9 @@
         if (r.error){ edErr.textContent='Errore update occorrenza: '+(r.error.message||String(r.error)); return false; }
         keepIds.push(String(o.id));
 
-        async function tryUpdateOccColumn(set){
-          const rX = await sb.from('occurrences').update(set).eq('id', o.id);
-          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
-        }
-        if (o.ora_feriale){ try { await tryUpdateOccColumn({ ora_feriale:o.ora_feriale }); } catch(_){}
-                            try { await tryUpdateOccColumn({ time_weekday:o.ora_feriale }); } catch(_){} }
-        if (o.ora_festivo){ try { await tryUpdateOccColumn({ ora_festivo:o.ora_festivo }); } catch(_){}
-                            try { await tryUpdateOccColumn({ time_weekend:o.ora_festivo }); } catch(_){} }
+        const tryUpdateOcc=async set=>{ const rx = await sb.from('occurrences').update(set).eq('id', o.id); if (rx.error && String(rx.error.code)!=='42703') throw rx.error; };
+        if (o.ora_feriale){ try{ await tryUpdateOcc({ ora_feriale:o.ora_feriale }); }catch(_){} try{ await tryUpdateOcc({ time_weekday:o.ora_feriale }); }catch(_){} }
+        if (o.ora_festivo){ try{ await tryUpdateOcc({ ora_festivo:o.ora_festivo }); }catch(_){} try{ await tryUpdateOcc({ time_weekend:o.ora_festivo }); }catch(_){} }
         if (!o.ora && (o.ora_feriale || o.ora_festivo)){
           const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
           const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', o.id).eq('event_id', eventId);
@@ -1122,16 +1186,12 @@
         const row = { event_id:eventId, luogo:o.luogo, venue:o.luogo, indirizzo:o.indirizzo, address:o.indirizzo, citta:o.citta, city:o.citta, data:o.data, time:o.ora, ora:o.ora, lat:o.lat, lng:o.lng };
         const r = await sb.from('occurrences').insert(row).select('id').single();
         if (r.error){ edErr.textContent='Errore inserimento occorrenza: '+(r.error.message||String(r.error)); return false; }
-        keepIds.push(String(r.data.id));
         const occId = String(r.data.id);
-        async function tryUpdateOccColumnNew(set){
-          const rX = await sb.from('occurrences').update(set).eq('id', occId);
-          if (rX.error && String(rX.error.code) !== '42703') { throw rX.error; }
-        }
-        if (o.ora_feriale){ try { await tryUpdateOccColumnNew({ ora_feriale:o.ora_feriale }); } catch(_){}
-                            try { await tryUpdateOccColumnNew({ time_weekday:o.ora_feriale }); } catch(_){} }
-        if (o.ora_festivo){ try { await tryUpdateOccColumnNew({ ora_festivo:o.ora_festivo }); } catch(_){}
-                            try { await tryUpdateOccColumnNew({ time_weekend:o.ora_festivo }); } catch(_){} }
+        keepIds.push(occId);
+
+        const tryUpdateOcc=async set=>{ const rx = await sb.from('occurrences').update(set).eq('id', occId); if (rx.error && String(rx.error.code)!=='42703') throw rx.error; };
+        if (o.ora_feriale){ try{ await tryUpdateOcc({ ora_feriale:o.ora_feriale }); }catch(_){} try{ await tryUpdateOcc({ time_weekday:o.ora_feriale }); }catch(_){} }
+        if (o.ora_festivo){ try{ await tryUpdateOcc({ ora_festivo:o.ora_festivo }); }catch(_){} try{ await tryUpdateOcc({ time_weekend:o.ora_festivo }); }catch(_){} }
         if (!o.ora && (o.ora_feriale || o.ora_festivo)){
           const combo = `${o.ora_feriale ? 'Feriale: '+o.ora_feriale : ''}${(o.ora_feriale && o.ora_festivo)?' | ':''}${o.ora_festivo ? 'Festivo: '+o.ora_festivo : ''}`;
           const rF = await sb.from('occurrences').update({ ora: combo, time: combo }).eq('id', occId);
@@ -1152,15 +1212,15 @@
     return true;
   }
 
-  document.getElementById('edSave').addEventListener('click', async ()=> { if (await saveCurrentEvent()) alert('Modifiche salvate.'); });
-  document.getElementById('edSaveNext').addEventListener('click', async ()=>{
+  $('#edSave').addEventListener('click', async ()=> { if (await saveCurrentEvent()) { alert('Modifiche salvate.'); } });
+  $('#edSaveNext').addEventListener('click', async ()=>{
     if (await saveCurrentEvent()){
       if (CUR_INDEX < CURRENT_IDS.length-1) openEditorFor(CUR_INDEX+1);
       else { alert('Modifiche salvate su tutti gli eventi selezionati.'); closeEditor(); }
     }
   });
 
-  /* ===== AVVIO ===== */
+  // ====== AVVIO ======
   const ok = await requireLogin();
   if (ok){
     initLeaf();
@@ -1172,6 +1232,7 @@
 <footer class="page-footer"><a class="btn" href="index.html">← Torna alla mappa</a></footer>
 
 <script>
+  // Segnale di refresh per altre pagine (se in ascolto)
   window.notifyEventsChanged = function () {
     try { localStorage.setItem('sq-last-change', String(Date.now())); } catch (e) {}
   };
