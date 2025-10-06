@@ -1,529 +1,461 @@
 <!doctype html>
 <html lang="it">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Importa Eventi — Stasera Qui</title>
-
-  <!-- Font & base -->
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600&display=swap" rel="stylesheet">
-
-  <!-- Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- PapaParse per CSV -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
-  <!-- Config condivisa del sito (deve definire window.APP_CONFIG.SUPABASE_URL / SUPABASE_ANON_KEY) -->
-  <script src="/js/app-config.js?v=6"></script>
-
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Importa eventi — Stasera Qui</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=24">
+  <script src="assets/app-config.js?v=3"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
-    :root { --bg:#081623; --fg:#fff; --muted:#9bb0c3; --pin:#1E88E5; }
-    *{box-sizing:border-box}
-    body{margin:0;background:#000; font-family:Rubik,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial; color:var(--fg)}
-    header{background:var(--bg); padding:20px 16px; border-bottom:1px solid #0f263a}
-    .brand{display:flex; align-items:center; gap:12px}
-    .pin{width:28px;height:28px;background:var(--pin);border-radius:8px}
-    h1{margin:0;font-size:20px;font-weight:600}
-    main{padding:18px; max-width:980px; margin:0 auto}
-    .card{background:#0c1b2b;border:1px solid #14314a;border-radius:12px;padding:16px;margin-bottom:16px}
-    .row{display:flex; gap:12px; flex-wrap:wrap}
-    .col{flex:1 1 280px}
-    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-    input[type="text"], input[type="file"], textarea, select{
-      width:100%; padding:10px 12px; border-radius:10px; border:1px solid #18344d;
-      background:#0a1826; color:#e7f0f8; font-size:14px
-    }
-    textarea{min-height:120px; resize:vertical}
-    button{
-      background:var(--pin); color:#fff; border:0; border-radius:10px; padding:10px 14px;
-      font-weight:600; cursor:pointer
-    }
-    button[disabled]{opacity:0.5; cursor:not-allowed}
-    table{width:100%; border-collapse:collapse; font-size:13px}
-    th,td{padding:8px 10px; border-bottom:1px solid #14314a; vertical-align:top}
-    th{position:sticky; top:0; background:#0f2236; z-index:1}
-    .muted{color:var(--muted)}
-    .ok{color:#66ffb2}
-    .warn{color:#ffd166}
-    .err{color:#ff6b6b}
-    .small{font-size:12px}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #2b4f6b;background:#0c1e2e}
-    details{border:1px dashed #20415d;border-radius:10px;padding:10px 12px}
-    details>summary{cursor:pointer;font-weight:600}
-    .grid-2{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
-    .progress{height:8px;background:#07101a;border-radius:999px;overflow:hidden;border:1px solid #1a3850}
-    .bar{height:100%; background:linear-gradient(90deg,#1E88E5,#49a2ff); width:0%}
-    .legend{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .uploader{border:2px dashed rgba(255,255,255,.25);padding:14px;border-radius:12px;text-align:center}
+    .small{color:#b8c2ce}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top}
+    th{text-align:left;color:#b8c2ce;white-space:nowrap}
+    tbody tr:hover{background:rgba(255,255,255,.03)}
+    input[type="file"]{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:8px}
+    input[type="text"], input[type="date"], input[type="time"], input[type="url"]{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:8px}
+    select{background:#fff;color:#1c2a3a;border:1px solid rgba(0,0,0,.18);border-radius:10px;padding:8px}
+    #err{color:#ffb4b4;font-weight:700;margin:10px 0}
+    .ok{color:#7be28c}
+    code{white-space:pre-wrap}
   </style>
 </head>
 <body>
-  <header>
-    <div class="brand">
-      <div class="pin"></div>
-      <h1>Importa Eventi — Stasera Qui</h1>
-    </div>
-  </header>
+<header class="header">
+  <a href="admin.html" class="logo" aria-label="Stasera Qui - admin">
+    <svg class="pin" viewBox="0 0 64 72" aria-hidden="true"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>
+    <span class="wordmark">stasera qui</span>
+  </a>
+</header>
 
-  <main>
-    <div class="card">
-      <p class="muted small">Carica un CSV con intestazioni colonne come nel file che mi hai passato. Anteprima, controlli, poi importazione su Supabase (tabelle <code>events</code> e <code>occurrences</code>).</p>
+<main class="wrap">
+  <h1 style="margin:8px 0 12px">Importa eventi</h1>
+  <div id="err"></div>
 
-      <div class="row">
-        <div class="col">
-          <label for="csvfile">Carica CSV</label>
-          <input id="csvfile" type="file" accept=".csv">
+  <div class="card">
+    <div class="grid">
+      <div>
+        <h3 style="margin:0 0 8px">1) Carica CSV</h3>
+        <div class="uploader">
+          <input id="csvFile" type="file" accept=".csv">
+          <div class="small" style="margin-top:6px">
+            Template colonne supportate (quelle in <b>grassetto</b> sono consigliate/chiave):<br>
+            <code><b>titolo</b>, <b>descrizione</b>, <b>categorie</b>, locandina_url(opz), website(opz),
+<b>luogo</b>, <b>indirizzo</b>, <b>citta</b>,
+data(YYYY-MM-DD) <i>oppure</i> dal(YYYY-MM-DD), al(YYYY-MM-DD),
+ora(HH:MM) <i>oppure</i> sched_mode(none|single|split),
+time_from,time_to,wd_from,wd_to,we_from,we_to,
+lat(opz), lng(opz)</code>
+          </div>
         </div>
-        <div class="col">
-          <label>&nbsp;</label>
-          <button id="parseBtn">Anteprima CSV</button>
-        </div>
-      </div>
-
-      <details style="margin-top:12px">
-        <summary>Oppure incolla righe CSV</summary>
-        <textarea id="csvpaste" placeholder="Incolla qui il contenuto CSV (inclusa la riga header)…"></textarea>
-      </details>
-    </div>
-
-    <div class="card">
-      <div class="legend small">
-        <span class="pill">Richiesti: titolo, data_inizio, indirizzo, citta, provincia</span>
-        <span class="muted">Suggeriti: categoria, sottocategorie, orari, descrizione_breve</span>
-      </div>
-      <div id="previewWrap" style="margin-top:12px"></div>
-    </div>
-
-    <div class="card">
-      <div class="grid-2">
-        <div>
-          <label>Modalità</label>
-          <select id="mode">
-            <option value="create">Crea sempre nuovi eventi</option>
-            <option value="upsert">Evita duplicati (match: titolo+città+data_inizio)</option>
-          </select>
-        </div>
-        <div>
-          <label>Generazione occorrenze</label>
-          <select id="occMode">
-            <option value="daily">Giornaliera tra data_inizio e data_fine (inclusi)</option>
-            <option value="single">Una sola occorrenza su data_inizio</option>
-          </select>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="dlTemplate" type="button">Scarica template CSV</button>
+          <a class="btn" href="#help">Guida rapida formati</a>
         </div>
       </div>
-
-      <div class="row" style="margin-top:12px">
-        <div class="col">
-          <label class="small">Seleziona righe da importare</label>
-          <div id="selectInfo" class="muted small">Nessuna riga caricata.</div>
+      <div>
+        <h3 style="margin:0 0 8px">2) Opzioni</h3>
+        <div class="grid">
+          <div>
+            <label>PIN admin</label>
+            <input id="pin" type="text" placeholder="Il PIN che hai messo nei Secrets">
+          </div>
+          <div>
+            <label>Funzione (URL)</label>
+            <input id="fnUrl" type="text" placeholder="Edge Function URL (…/admin-insert-events)" />
+          </div>
         </div>
-        <div class="col" style="display:flex; gap:8px; align-items:flex-end; justify-content:flex-end">
-          <button id="importBtn" disabled>Importa selezionati</button>
-          <button id="resetBtn" class="pill" style="border-color:#3a5b77">Reset</button>
-        </div>
-      </div>
-
-      <div style="margin-top:14px">
-        <div class="progress"><div class="bar" id="progBar"></div></div>
-        <div id="log" class="small muted" style="margin-top:8px; white-space:pre-wrap;"></div>
+        <p class="small" style="margin-top:6px">
+          Usa <b>assets/app-config.js</b> per Supabase (URL/ANON) e Google.  
+          Per la URL funzione: in Supabase apri <i>admin-insert-events</i> e copia la <b>Function URL</b>.
+        </p>
       </div>
     </div>
+  </div>
 
-    <details class="card">
-      <summary>ⓘ MAPPATURA CAMPI (modifica solo se i nomi nel database sono diversi)</summary>
-      <pre class="small muted" id="mappingView"></pre>
-    </details>
-  </main>
+  <div class="card">
+    <h3 style="margin:0 0 8px">3) Geocoding & locandine</h3>
+    <div class="small" style="margin-bottom:6px">
+      Almeno uno tra <b>locandina_url</b> e <b>website</b> deve essere presente (come da pubblicazione singola).  
+      Per upload immagine singola riga supportiamo <b>JPG/PNG/WebP</b>.
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="geoAll" type="button">Geocodifica tutte le righe senza lat/lng</button>
+      <span class="small">Oppure geocodifica singolarmente modificando le celle Lat/Lng.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">Anteprima CSV</h3>
+    <div style="overflow:auto">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Titolo</th><th>Descrizione</th><th>Categorie</th>
+            <th>Locandina URL</th><th>Website</th>
+            <th>Luogo</th><th>Indirizzo</th><th>Città</th>
+            <th>Data</th><th>Dal</th><th>Al</th>
+            <th>Ora</th><th>Sched&nbsp;mode</th><th>time_from</th><th>time_to</th><th>wd_from</th><th>wd_to</th><th>we_from</th><th>we_to</th>
+            <th>Lat</th><th>Lng</th><th>Upload img</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">4) Invia</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" id="sendBtn" type="button">Invia a Supabase (PIN richiesto)</button>
+      <a class="btn" href="index.html">← Torna alla mappa</a>
+    </div>
+    <div id="out" class="small" style="margin-top:8px"></div>
+  </div>
+
+  <div id="help" class="card">
+    <h3 style="margin:0 0 8px">Guida rapida</h3>
+    <ul class="small" style="margin-top:0">
+      <li><b>categorie</b>: separa con <code>|</code> (pipe) o virgole. Es: <code>Musica|Food &amp; Drink</code>.</li>
+      <li><b>data</b> singola oppure <b>dal/al</b> per un periodo (esteso in giorni). Se compili <code>dal</code>/<code>al</code>, puoi lasciare vuoto <code>data</code>.</li>
+      <li><b>ora</b>: opzionale. Alternativa: usa <b>sched_mode</b>:
+        <ul>
+          <li><code>none</code>: nessun orario (tutto il giorno)</li>
+          <li><code>single</code>: usa <code>time_from</code>/<code>time_to</code> → “HH:MM–HH:MM”</li>
+          <li><code>split</code>: feriali vs weekend con <code>wd_from/wd_to</code> e <code>we_from/we_to</code> (l’ora viene calcolata in base al giorno).</li>
+        </ul>
+      </li>
+      <li><b>locandina_url</b> o <b>website</b>: almeno uno. Website può essere anche una pagina Facebook/Eventbrite/Comune.</li>
+      <li><b>lat/lng</b>: opzionali; se mancano, usa “Geocodifica” (Italia).</li>
+    </ul>
+  </div>
+</main>
 
 <script>
 (function(){
-  // =========================
-  // CONFIG / SUPABASE CLIENT
-  // =========================
-  if(!window.APP_CONFIG || !APP_CONFIG.SUPABASE_URL || !APP_CONFIG.SUPABASE_ANON_KEY){
-    alert("app-config.js non trovato o privo di SUPABASE_URL / SUPABASE_ANON_KEY.");
-  }
-  const supabase = window.supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_ANON_KEY, {
-    auth: { persistSession: false }
-  });
+  // === CONFIG ===
+  const CFG = window.SQ_CONFIG || {};
+  const SB_URL  = CFG.SUPABASE_URL;
+  const SB_ANON = CFG.SUPABASE_ANON;
+  const GOOGLE  = CFG.GOOGLE_MAPS_API_KEY;
+  const sb = (SB_URL && SB_ANON) ? supabase.createClient(SB_URL, SB_ANON) : null;
 
-  // =========================
-  // MAPPATURA COLONNE CSV -> DB
-  // =========================
-  // CSV headers reali dal tuo file allegato:
-  // titolo, categoria, sottocategorie, data_inizio, data_fine, ora_inizio, ora_fine,
-  // indirizzo, citta, provincia, descrizione_breve, prezzo_testo,
-  // referente_nome, referente_tel, referente_email, sito_evento, evento_esteso_flag, locandina_url
-  //
-  // Adatta qui i nomi DB se i tuoi sono diversi.
-  const MAP = {
-    // Tabella EVENTS
-    eventsTable: "events",
-    events: {
-      title:            "title",
-      category:         "category",
-      subcategories:    "subcategories",   // array di stringhe
-      address:          "address",
-      city:             "city",
-      province:         "province",
-      region:           "region",          // opzionale: deriviamo NULL (puoi popolarla in seguito)
-      description:      "description_short",
-      price_text:       "price_text",
-      contact_name:     "contact_name",
-      contact_phone:    "contact_phone",
-      contact_email:    "contact_email",
-      website_url:      "website_url",
-      is_extended:      "is_evento_esteso",
-      cover_image_url:  "cover_image_url",
-      // per deduplica/ricerche:
-      slug:             "slug"             // opzionale: se esiste, lo creiamo
-    },
-
-    // Tabella OCCURRENCES
-    occTable: "occurrences",
-    occurrences: {
-      event_id:   "event_id",
-      date:       "date",        // se hai start_date/end_date separati, adatta qui
-      start_time: "start_time",
-      end_time:   "end_time"
-    },
-
-    // Colonne CSV attese -> alias locali
-    csv: {
-      titolo: "titolo",
-      categoria: "categoria",
-      sottocategorie: "sottocategorie",
-      data_inizio: "data_inizio",
-      data_fine: "data_fine",
-      ora_inizio: "ora_inizio",
-      ora_fine: "ora_fine",
-      indirizzo: "indirizzo",
-      citta: "citta",
-      provincia: "provincia",
-      descrizione_breve: "descrizione_breve",
-      prezzo_testo: "prezzo_testo",
-      referente_nome: "referente_nome",
-      referente_tel: "referente_tel",
-      referente_email: "referente_email",
-      sito_evento: "sito_evento",
-      evento_esteso_flag: "evento_esteso_flag",
-      locandina_url: "locandina_url"
-    }
-  };
-
-  document.getElementById("mappingView").textContent = JSON.stringify(MAP, null, 2);
-
-  // =========================
-  // HELPER
-  // =========================
-  const $ = (sel)=>document.querySelector(sel);
-  const previewWrap = $("#previewWrap");
-  const parseBtn = $("#parseBtn");
-  const importBtn = $("#importBtn");
-  const resetBtn = $("#resetBtn");
-  const progBar = $("#progBar");
-  const logEl = $("#log");
-  const selectInfo = $("#selectInfo");
-  const modeSel = $("#mode");
-  const occModeSel = $("#occMode");
-
-  let rows = [];            // righe CSV parsed (oggetti)
-  let selectedIdx = new Set(); // indici selezionati per import
-  let csvHeaders = [];
-
-  function log(msg, type="info"){
-    const color = type==="error"?"err":(type==="warn"?"warn":"muted");
-    logEl.innerHTML += `<div class="${color}">${msg}</div>`;
-    logEl.scrollTop = logEl.scrollHeight;
-  }
-  function setProgress(pct){
-    progBar.style.width = Math.max(0, Math.min(100, pct)) + "%";
-  }
-  function norm(t){ return (t??"").toString().trim(); }
-  function isEmpty(v){ return v===null || v===undefined || norm(v)===""; }
-  function toBool(v){
-    if (typeof v==="number") return v!==0;
-    const s = norm(v).toLowerCase();
-    return ["1","true","si","sì","yes","y"].includes(s);
-  }
-  function parseDate(s){
-    // atteso YYYY-MM-DD
-    const n = norm(s);
-    if(!n) return null;
-    // quick sanity
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(n)) return null;
-    const d = new Date(n+"T00:00:00");
-    return isNaN(d.getTime())?null:d;
-  }
-  function* eachDay(d1,d2){
-    const dd = new Date(d1.getTime());
-    while(dd <= d2){
-      yield new Date(dd);
-      dd.setDate(dd.getDate()+1);
-    }
-  }
-  function makeSlug(str){
-    return norm(str).toLowerCase()
-      .replace(/[àáâä]/g,"a").replace(/[èéêë]/g,"e").replace(/[ìíîï]/g,"i")
-      .replace(/[òóôö]/g,"o").replace(/[ùúûü]/g,"u").replace(/[^a-z0-9]+/g,"-")
-      .replace(/(^-|-$)/g,"");
+  if (!sb) {
+    document.getElementById('err').textContent = 'Chiavi Supabase mancanti in assets/app-config.js';
   }
 
-  // =========================
-  // PARSE CSV
-  // =========================
-  parseBtn.addEventListener("click", ()=>{
-    logEl.textContent = "";
-    setProgress(0);
-    const file = document.getElementById("csvfile").files[0];
-    const pasted = document.getElementById("csvpaste").value.trim();
-
-    if(!file && !pasted){
-      alert("Carica un file CSV oppure incolla il contenuto CSV.");
-      return;
-    }
-
-    const papaOpts = {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: h => h.trim(),
-      complete: onParsed,
-      error: err => { log("Errore parsing CSV: "+err.message, "error"); }
-    };
-
-    if(file){
-      Papa.parse(file, papaOpts);
-    } else {
-      Papa.parse(pasted, papaOpts);
-    }
-  });
-
-  function onParsed(res){
-    rows = res.data.map(r => Object.fromEntries(Object.entries(r).map(([k,v])=>[k.trim(), v])));
-    csvHeaders = res.meta?.fields||[];
-    if(!rows.length){
-      previewWrap.innerHTML = `<div class="muted">Nessuna riga valida rilevata.</div>`;
-      importBtn.disabled = true;
-      selectInfo.textContent = "Nessuna riga caricata.";
-      return;
-    }
-    drawPreview();
-  }
-
-  function drawPreview(){
-    selectedIdx = new Set(rows.map((_,i)=>i)); // seleziona tutto di default
-    selectInfo.textContent = `${selectedIdx.size} righe selezionate su ${rows.length}.`;
-
-    // Validazione minima
-    const miss = [];
-    ["titolo","data_inizio","indirizzo","citta","provincia"].forEach(h=>{
-      if(!csvHeaders.includes(h)) miss.push(h);
+  // carico Google Maps Geocoder
+  let mapsLoaded = null;
+  function loadGoogle(){
+    if (window.google && window.google.maps) return Promise.resolve();
+    if (mapsLoaded) return mapsLoaded;
+    mapsLoaded = new Promise((resolve, reject)=>{
+      if (!GOOGLE) { reject(new Error('GOOGLE_MAPS_API_KEY mancante in app-config.js')); return; }
+      const s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GOOGLE)+'&libraries=places&v=quarterly';
+      s.async = true; s.defer = true;
+      s.onload = resolve; s.onerror = ()=>reject(new Error('Google Maps JS load failed'));
+      document.head.appendChild(s);
     });
-    const missHtml = miss.length ? `<div class="err small">ATTENZIONE: mancano colonne richieste: ${miss.join(", ")}</div>` : "";
-
-    // Tabella anteprima (prime 50 righe per non appesantire)
-    const maxShow = Math.min(rows.length, 50);
-    const headers = [
-      "Sel","titolo","categoria","sottocategorie",
-      "data_inizio","data_fine","ora_inizio","ora_fine",
-      "indirizzo","citta","provincia",
-      "descrizione_breve","prezzo_testo",
-      "referente_nome","referente_tel","referente_email",
-      "sito_evento","evento_esteso_flag","locandina_url"
-    ].filter(h=>csvHeaders.includes(h) || ["Sel"].includes(h));
-
-    let thead = headers.map(h=>`<th>${h}</th>`).join("");
-    let tbody = "";
-    for(let i=0;i<maxShow;i++){
-      const r = rows[i];
-      const cells = headers.map(h=>{
-        if(h==="Sel"){
-          return `<td><input type="checkbox" data-idx="${i}" class="rowSel" checked></td>`;
-        }
-        const v = r[h] ?? "";
-        return `<td>${String(v).length>120 ? `<span title="${String(v).replace(/"/g,'&quot;')}">${String(v).slice(0,120)}…</span>` : String(v)}</td>`;
-      }).join("");
-      tbody += `<tr>${cells}</tr>`;
-    }
-
-    previewWrap.innerHTML = `
-      ${missHtml}
-      <div class="small muted" style="margin-bottom:8px">Visualizzate ${maxShow}/${rows.length} righe (tutte saranno importabili).</div>
-      <table>
-        <thead><tr>${thead}</tr></thead>
-        <tbody>${tbody}</tbody>
-      </table>
-    `;
-
-    previewWrap.querySelectorAll(".rowSel").forEach(cb=>{
-      cb.addEventListener("change", (e)=>{
-        const idx = Number(e.target.getAttribute("data-idx"));
-        if(e.target.checked) selectedIdx.add(idx); else selectedIdx.delete(idx);
-        selectInfo.textContent = `${selectedIdx.size} righe selezionate su ${rows.length}.`;
-        importBtn.disabled = selectedIdx.size===0;
-      });
-    });
-
-    importBtn.disabled = selectedIdx.size===0 || miss.length>0;
+    return mapsLoaded;
   }
 
-  resetBtn.addEventListener("click", ()=>{
-    rows = [];
-    selectedIdx.clear();
-    document.getElementById("csvfile").value = "";
-    document.getElementById("csvpaste").value = "";
-    previewWrap.innerHTML = "";
-    selectInfo.textContent = "Nessuna riga caricata.";
-    importBtn.disabled = true;
-    logEl.textContent = "";
-    setProgress(0);
+  // === CSV PARSE SEMPLICE ===
+  function parseCSV(text){
+    const rows = [];
+    let i=0, cur=[], cell='', inQ=false;
+    while (i < text.length){
+      const ch = text[i++];
+      if (inQ){
+        if (ch === '"'){
+          if (text[i] === '"'){ cell+='"'; i++; }
+          else inQ=false;
+        } else cell += ch;
+      } else {
+        if (ch === '"'){ inQ=true; }
+        else if (ch === ','){ cur.push(cell); cell=''; }
+        else if (ch === '\n'){ cur.push(cell); rows.push(cur); cur=[]; cell=''; }
+        else if (ch === '\r'){ /* skip */ }
+        else cell += ch;
+      }
+    }
+    if (cell.length || cur.length) { cur.push(cell); rows.push(cur); }
+    return rows;
+  }
+
+  // === HELPERS ===
+  const $ = s => document.querySelector(s);
+  const tbody = $('#tbl tbody');
+  const out = $('#out');
+  const err = $('#err');
+
+  function esc(s){ return String(s||'').replace(/"/g,'&quot;'); }
+  function isISO(d){ return /^\d{4}-\d{2}-\d{2}$/.test(d||''); }
+  function isTime(t){ return /^\d{2}:\d{2}$/.test(t||''); }
+  function fmtRange(a,b){ return (a&&b)? `${a}-${b}` : (a||b||''); }
+  function weekdayOfISO(iso){ try { return new Date(iso+'T00:00:00').getDay(); } catch(_){ return null; } } // 0=dom…6=sab
+  function normalizeUrl(u){
+    u = (u||'').trim(); if(!u) return '';
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    try { new URL(u); return u; } catch(_){ return ''; }
+  }
+
+  // === STATE ===
+  let rows = []; // oggetti normalizzati
+  let geocoder = null;
+
+  // Template CSV
+  $('#dlTemplate').addEventListener('click', ()=>{
+    const csv = [
+      'titolo,descrizione,categorie,locandina_url,website,luogo,indirizzo,citta,data,dal,al,ora,sched_mode,time_from,time_to,wd_from,wd_to,we_from,we_to,lat,lng',
+      'Festa in piazza,Musica dal vivo e street food,Musica|Food & Drink,,https://facebook.com/event/123,Piazza Castello,Via Roma 1,Torino,2025-12-24,,21:00,none,,,,,,,' ,
+      'Mercatino di Natale,Bancarelle e vin brulé,Shopping|Mercatini,,,Piazza Duomo,Piazza Duomo,Milano,,2025-12-08,2025-12-23,,split,,,15:00,21:00,10:00,21:00,,' ,
+      'Mostra permanente,Ingresso gratuito,Cultura/Spettacolo,https://cdn.site/img.jpg,,Museo Civico,Via Verdi 5,Bologna,2025-11-10,,,single,10:00,18:00,,,,,,'
+    ].join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='template_import.csv';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   });
 
-  // =========================
-  // IMPORT
-  // =========================
-  importBtn.addEventListener("click", async ()=>{
-    if(selectedIdx.size===0){ alert("Seleziona almeno una riga."); return; }
-    logEl.textContent = "";
-    setProgress(0);
+  // Carica CSV
+  $('#csvFile').addEventListener('change', async (e)=>{
+    const f = e.target.files?.[0]; if (!f) return;
+    const text = await f.text();
+    const raw = parseCSV(text);
+    if (!raw.length) { err.textContent='CSV vuoto'; return; }
+    const header = raw[0].map(h => (h||'').trim().toLowerCase());
+    const idx = (name)=> header.indexOf(name);
 
-    const idxList = Array.from(selectedIdx.values());
-    const total = idxList.length;
-    let ok=0, skip=0, fail=0;
+    const must = ['titolo','descrizione','categorie','luogo','indirizzo','citta'];
+    for (const m of must){ if (idx(m)===-1){ err.textContent='Colonna mancante: '+m; return; } }
 
-    for(let n=0; n<idxList.length; n++){
-      const i = idxList[n];
-      const r = rows[i];
+    err.textContent='';
 
-      try{
-        // --- Estrazione & normalizzazione ---
-        const titolo  = norm(r[MAP.csv.titolo]);
-        const cat     = norm(r[MAP.csv.categoria]);
-        const subcats = norm(r[MAP.csv.sottocategorie]);
-        const di      = parseDate(r[MAP.csv.data_inizio]);
-        const df      = parseDate(r[MAP.csv.data_fine]) || di;
-        const tStart  = norm(r[MAP.csv.ora_inizio]) || null;
-        const tEnd    = norm(r[MAP.csv.ora_fine]) || null;
-        const addr    = norm(r[MAP.csv.indirizzo]);
-        const citta   = norm(r[MAP.csv.citta]);
-        const prov    = norm(r[MAP.csv.provincia]);
-        const desc    = norm(r[MAP.csv.descrizione_breve]);
-        const price   = norm(r[MAP.csv.prezzo_testo]);
-        const refN    = norm(r[MAP.csv.referente_nome]);
-        const refT    = norm(r[MAP.csv.referente_tel]);
-        const refE    = norm(r[MAP.csv.referente_email]);
-        const site    = norm(r[MAP.csv.sito_evento]);
-        const esteso  = toBool(r[MAP.csv.evento_esteso_flag]);
-        const cover   = norm(r[MAP.csv.locandina_url]);
+    rows = raw.slice(1)
+      .filter(r=>r.some(x=>String(x).trim().length))
+      .map((r, i)=>({
+        i: i+1,
+        titolo: (r[idx('titolo')]||'').trim(),
+        descrizione: (r[idx('descrizione')]||'').trim(),
+        categorie: (r[idx('categorie')]||'').trim(),
+        locandina_url: (r[idx('locandina_url')]||'').trim(),
+        website: (idx('website')>-1 ? (r[idx('website')]||'').trim() : ''),
+        luogo: (r[idx('luogo')]||'').trim(),
+        indirizzo: (r[idx('indirizzo')]||'').trim(),
+        citta: (r[idx('citta')]||'').trim(),
+        data: (idx('data')>-1 ? (r[idx('data')]||'').trim().slice(0,10) : ''),
+        dal:  (idx('dal')>-1 ? (r[idx('dal')]||'').trim().slice(0,10) : ''),
+        al:   (idx('al')>-1 ? (r[idx('al')]||'').trim().slice(0,10) : ''),
+        ora:  (idx('ora')>-1 ? (r[idx('ora')]||'').trim().slice(0,5) : ''),
+        sched_mode: (idx('sched_mode')>-1 ? (r[idx('sched_mode')]||'none').trim() : 'none'),
+        time_from: (idx('time_from')>-1 ? (r[idx('time_from')]||'').trim().slice(0,5) : ''),
+        time_to:   (idx('time_to')>-1   ? (r[idx('time_to')]||'').trim().slice(0,5)   : ''),
+        wd_from:   (idx('wd_from')>-1   ? (r[idx('wd_from')]||'').trim().slice(0,5)   : ''),
+        wd_to:     (idx('wd_to')>-1     ? (r[idx('wd_to')]||'').trim().slice(0,5)     : ''),
+        we_from:   (idx('we_from')>-1   ? (r[idx('we_from')]||'').trim().slice(0,5)   : ''),
+        we_to:     (idx('we_to')>-1     ? (r[idx('we_to')]||'').trim().slice(0,5)     : ''),
+        lat: (idx('lat')>-1 ? (r[idx('lat')]||'').trim() : ''),
+        lng: (idx('lng')>-1 ? (r[idx('lng')]||'').trim() : '')
+      }));
 
-        if(isEmpty(titolo) || !di || isEmpty(addr) || isEmpty(citta) || isEmpty(prov)){
-          fail++; log(`Riga ${i+1}: campi richiesti mancanti (titolo/data_inizio/indirizzo/citta/provincia).`, "error");
-          setProgress(Math.round((n+1)*100/total)); continue;
-        }
+    renderTable();
+  });
 
-        const subsArr = subcats ? subcats.split(",").map(s=>norm(s)).filter(Boolean) : [];
+  function renderTable(){
+    tbody.innerHTML = rows.map((r, n)=>`
+      <tr>
+        <td>${n+1}</td>
+        <td><input value="${esc(r.titolo)}" onchange="upd(${n},'titolo',this.value)"></td>
+        <td><input value="${esc(r.descrizione)}" onchange="upd(${n},'descrizione',this.value)"></td>
+        <td><input value="${esc(r.categorie)}" onchange="upd(${n},'categorie',this.value)"></td>
+        <td><input value="${esc(r.locandina_url)}" onchange="upd(${n},'locandina_url',this.value)"></td>
+        <td><input value="${esc(r.website)}" onchange="upd(${n},'website',this.value)"></td>
+        <td><input value="${esc(r.luogo)}" onchange="upd(${n},'luogo',this.value)"></td>
+        <td><input value="${esc(r.indirizzo)}" onchange="upd(${n},'indirizzo',this.value)"></td>
+        <td><input value="${esc(r.citta)}" onchange="upd(${n},'citta',this.value)"></td>
+        <td><input type="date" value="${esc(r.data)}" onchange="upd(${n},'data',this.value)"></td>
+        <td><input type="date" value="${esc(r.dal)}" onchange="upd(${n},'dal',this.value)"></td>
+        <td><input type="date" value="${esc(r.al)}" onchange="upd(${n},'al',this.value)"></td>
+        <td><input type="time" value="${esc(r.ora)}" onchange="upd(${n},'ora',this.value)"></td>
+        <td>
+          <select onchange="upd(${n},'sched_mode',this.value)">
+            <option value="none"  ${r.sched_mode==='none'?'selected':''}>none</option>
+            <option value="single"${r.sched_mode==='single'?'selected':''}>single</option>
+            <option value="split" ${r.sched_mode==='split'?'selected':''}>split</option>
+          </select>
+        </td>
+        <td><input type="time" value="${esc(r.time_from)}" onchange="upd(${n},'time_from',this.value)"></td>
+        <td><input type="time" value="${esc(r.time_to)}"   onchange="upd(${n},'time_to',this.value)"></td>
+        <td><input type="time" value="${esc(r.wd_from)}"   onchange="upd(${n},'wd_from',this.value)"></td>
+        <td><input type="time" value="${esc(r.wd_to)}"     onchange="upd(${n},'wd_to',this.value)"></td>
+        <td><input type="time" value="${esc(r.we_from)}"   onchange="upd(${n},'we_from',this.value)"></td>
+        <td><input type="time" value="${esc(r.we_to)}"     onchange="upd(${n},'we_to',this.value)"></td>
+        <td><input value="${esc(r.lat)}" onchange="upd(${n},'lat',this.value)"></td>
+        <td><input value="${esc(r.lng)}" onchange="upd(${n},'lng',this.value)"></td>
+        <td><input type="file" accept="image/png,image/jpeg,image/webp" onchange="uploadImg(${n}, this.files[0])"></td>
+      </tr>
+    `).join('');
+    // esponi funzioni globali per gli onchange
+    window.upd = (i,k,v)=>{ rows[i][k]=v; };
+    window.uploadImg = uploadImg;
+  }
 
-        // --- Deduplica (modalità upsert) ---
-        let existingId = null;
-        if(modeSel.value === "upsert"){
-          const diStr = di.toISOString().slice(0,10);
-          const { data: found, error: qErr } = await supabase
-            .from(MAP.eventsTable)
-            .select("id, "+MAP.events.title+" , "+MAP.events.city+", created_at")
-            .ilike(MAP.events.title, titolo)
-            .ilike(MAP.events.city, citta)
-            .limit(1);
-          if(qErr){ throw qErr; }
-          if(found && found.length){
-            existingId = found[0].id;
-          }
-        }
+  // Upload immagine → Storage (event-images) → set locandina_url
+  async function uploadImg(i, file){
+    try{
+      if (!file || !sb){ alert('File mancante o Supabase non configurato'); return; }
+      const ext = file.type==='image/png' ? 'png' : (file.type==='image/webp' ? 'webp' : 'jpg');
+      const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+      const rand = Math.random().toString(36).slice(2,10);
+      const path = `events/${stamp}_${rand}.${ext}`;
+      const up = await sb.storage.from('event-images').upload(path, file, { upsert:false, contentType:file.type });
+      if (up.error){ alert('Upload fallito: '+up.error.message); return; }
+      const pub = sb.storage.from('event-images').getPublicUrl(path);
+      const url = pub?.data?.publicUrl || '';
+      rows[i].locandina_url = url;
+      renderTable();
+    }catch(e){ alert('Errore upload: '+String(e.message||e)); }
+  }
 
-        // --- INSERT/UPDATE events ---
-        const payloadEvent = {};
-        payloadEvent[MAP.events.title] = titolo;
-        if(MAP.events.category)      payloadEvent[MAP.events.category] = cat || null;
-        if(MAP.events.subcategories) payloadEvent[MAP.events.subcategories] = subsArr.length? subsArr : null;
-        if(MAP.events.address)       payloadEvent[MAP.events.address] = addr;
-        if(MAP.events.city)          payloadEvent[MAP.events.city] = citta;
-        if(MAP.events.province)      payloadEvent[MAP.events.province] = prov;
-        if(MAP.events.region)        payloadEvent[MAP.events.region] = null; // opzionale
-        if(MAP.events.description)   payloadEvent[MAP.events.description] = desc || null;
-        if(MAP.events.price_text)    payloadEvent[MAP.events.price_text] = price || null;
-        if(MAP.events.contact_name)  payloadEvent[MAP.events.contact_name] = refN || null;
-        if(MAP.events.contact_phone) payloadEvent[MAP.events.contact_phone] = refT || null;
-        if(MAP.events.contact_email) payloadEvent[MAP.events.contact_email] = refE || null;
-        if(MAP.events.website_url)   payloadEvent[MAP.events.website_url] = site || null;
-        if(MAP.events.is_extended)   payloadEvent[MAP.events.is_extended] = esteso;
-        if(MAP.events.cover_image_url) payloadEvent[MAP.events.cover_image_url] = cover || null;
-        if(MAP.events.slug)          payloadEvent[MAP.events.slug] = makeSlug(`${titolo}-${citta}-${di.toISOString().slice(0,10)}`);
+  // Geocoding tutte le righe senza lat/lng
+  $('#geoAll').addEventListener('click', async ()=>{
+    try{
+      await loadGoogle(); geocoder = geocoder || new google.maps.Geocoder();
+      const toDo = rows.map((r,idx)=>({idx,r})).filter(x=>!(Number(x.r.lat)&&Number(x.r.lng)));
+      if (!toDo.length){ alert('Tutte le righe hanno già lat/lng.'); return; }
+      for (const item of toDo){
+        const q = `${item.r.indirizzo}, ${item.r.citta}, Italia`;
+        const res = await new Promise((res)=> geocoder.geocode({ address:q, componentRestrictions:{country:'IT'}}, (results, status)=>{
+          if(status==='OK' && results && results[0]){
+            const loc = results[0].geometry.location;
+            res({lat:loc.lat(), lng:loc.lng()});
+          } else res(null);
+        }));
+        if (res){ rows[item.idx].lat = (+res.lat).toFixed(6); rows[item.idx].lng = (+res.lng).toFixed(6); }
+        await new Promise(r=>setTimeout(r, 150)); // piccola pausa anti-rate
+      }
+      renderTable();
+      alert('Geocoding completato.');
+    }catch(e){
+      alert('Geocoding fallito: '+String(e.message||e));
+    }
+  });
 
-        let eventId = existingId;
-        if(existingId){
-          const { error: upErr } = await supabase.from(MAP.eventsTable).update(payloadEvent).eq("id", existingId);
-          if(upErr) throw upErr;
+  // Espansione date inclusive
+  function datesBetweenInclusive(from, to){
+    const out=[]; if(!from && !to) return out;
+    const a = from || to, b = to || from;
+    if (!isISO(a) || !isISO(b)) return out;
+    let d = new Date(a+'T00:00:00'); const end = new Date(b+'T00:00:00');
+    while (d.getTime() <= end.getTime()){
+      out.push(d.toISOString().slice(0,10));
+      d.setDate(d.getDate()+1);
+    }
+    return out;
+  }
+
+  function timeFromSchedule(row, isoDate){
+    if (row.ora && isTime(row.ora)) return row.ora; // override diretto
+    const mode = (row.sched_mode||'none').toLowerCase();
+    if (mode==='single'){
+      if (isTime(row.time_from) || isTime(row.time_to)) return fmtRange(row.time_from,row.time_to);
+      return '';
+    }
+    if (mode==='split'){
+      const wd = weekdayOfISO(isoDate);
+      const weekend = (wd===0 || wd===6);
+      const f = weekend ? row.we_from : row.wd_from;
+      const t = weekend ? row.we_to   : row.wd_to;
+      if (isTime(f) || isTime(t)) return fmtRange(f,t);
+      return '';
+    }
+    return ''; // none
+  }
+
+  // Invio a funzione
+  $('#sendBtn').addEventListener('click', async ()=>{
+    try{
+      err.textContent=''; out.textContent='';
+      const pin = ($('#pin').value||'').trim();
+      const url = ($('#fnUrl').value||'').trim();
+      if (!pin){ err.textContent='Inserisci il PIN admin.'; return; }
+      if (!url){ err.textContent='Inserisci la Function URL (admin-insert-events).'; return; }
+      if (!rows.length){ err.textContent='Nessuna riga importata.'; return; }
+
+      // Raggruppa per titolo → 1 evento con più occorrenze
+      const byTitle = new Map();
+      for (const r of rows){
+        const key = (r.titolo||'').trim();
+        if (!key) continue;
+
+        // normalizza website
+        const website = normalizeUrl(r.website);
+
+        if (!byTitle.has(key)){
+          byTitle.set(key, {
+            title: r.titolo,
+            description: r.descrizione,
+            categories: (r.categorie||'')
+              .split(/[|,]+/).map(s=>s.trim()).filter(Boolean),
+            locandina_url: (r.locandina_url||'').trim(),
+            website: website || '',
+            occurrences: []
+          });
         } else {
-          const { data: ins, error: insErr } = await supabase
-            .from(MAP.eventsTable)
-            .insert(payloadEvent)
-            .select("id")
-            .single();
-          if(insErr) throw insErr;
-          eventId = ins.id;
+          // se non impostati a livello evento, ereditali dalla prima riga utile
+          const ev0 = byTitle.get(key);
+          if (!ev0.locandina_url && r.locandina_url) ev0.locandina_url = r.locandina_url.trim();
+          if (!ev0.website && website) ev0.website = website;
         }
 
-        // --- OCCORRENZE ---
-        if(eventId){
-          // opzionale: cancella occorrenze esistenti in upsert (per rigenerare pulito)
-          if(existingId && modeSel.value==="upsert"){
-            await supabase.from(MAP.occTable).delete().eq(MAP.occurrences.event_id, eventId);
-          }
+        // genera le date della riga
+        let dates = [];
+        if (isISO(r.data)) dates = [r.data];
+        else if (isISO(r.dal) || isISO(r.al)) dates = datesBetweenInclusive(r.dal, r.al);
+        else { /* nessuna data valida -> salta occorrenza */ }
 
-          const occs = [];
-          if(occModeSel.value==="single"){
-            const diStr = di.toISOString().slice(0,10);
-            const occ = {};
-            occ[MAP.occurrences.event_id] = eventId;
-            occ[MAP.occurrences.date] = diStr;
-            if(MAP.occurrences.start_time) occ[MAP.occurrences.start_time] = tStart || null;
-            if(MAP.occurrences.end_time)   occ[MAP.occurrences.end_time] = tEnd || null;
-            occs.push(occ);
-          } else {
-            const end = df || di;
-            for(const d of eachDay(di, end)){
-              const dStr = d.toISOString().slice(0,10);
-              const occ = {};
-              occ[MAP.occurrences.event_id] = eventId;
-              occ[MAP.occurrences.date] = dStr;
-              if(MAP.occurrences.start_time) occ[MAP.occurrences.start_time] = tStart || null;
-              if(MAP.occurrences.end_time)   occ[MAP.occurrences.end_time] = tEnd || null;
-              occs.push(occ);
-            }
-          }
-
-          if(occs.length){
-            // Inserimento batch a chunk per non superare limiti
-            const chunkSize = 500;
-            for(let k=0; k<occs.length; k+=chunkSize){
-              const slice = occs.slice(k, k+chunkSize);
-              const { error: occErr } = await supabase.from(MAP.occTable).insert(slice);
-              if(occErr) throw occErr;
-            }
-          }
+        for (const d of dates){
+          const ora = timeFromSchedule(r, d);
+          byTitle.get(key).occurrences.push({
+            luogo: r.luogo, indirizzo: r.indirizzo, citta: r.citta,
+            data: d, ora,
+            lat: r.lat ? Number(r.lat) : null,
+            lng: r.lng ? Number(r.lng) : null
+          });
         }
-
-        ok++;
-        log(`Riga ${i+1}: OK — ${titolo} (${citta})`);
-      } catch(e){
-        fail++;
-        log(`Riga ${i+1}: ERRORE — ${e.message||e}`, "error");
       }
 
-      setProgress(Math.round((n+1)*100/total));
-    }
+      const events = Array.from(byTitle.values());
 
-    const msg = `Completato. OK: ${ok} — Fallite: ${fail} — Saltate: ${skip}`;
-    log(msg, fail ? "warn" : "info");
-    alert(msg);
+      // Validazione minima: ogni evento deve avere almeno 1 occorrenza e (locandina o website)
+      for (const ev of events){
+        if (!ev.occurrences.length){ throw new Error(`Evento "${ev.title}": nessuna occorrenza valida (manca data/dal/al).`); }
+        if (!ev.locandina_url && !ev.website){
+          throw new Error(`Evento "${ev.title}": serve almeno una locandina_url o un website.`);
+        }
+      }
+
+      const payload = { pin, events };
+
+      const resp = await fetch(url, {
+        method:'POST',
+        headers:{ 'content-type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const j = await resp.json().catch(()=> ({}));
+      if (!resp.ok){ throw new Error(j?.error || 'Errore funzione'); }
+
+      out.innerHTML = `<span class="ok">OK</span> — Inseriti <b>${j.inserted_events}</b> eventi e <b>${j.inserted_occurrences}</b> occorrenze`;
+    }catch(e){
+      err.textContent = String(e.message||e);
+    }
   });
 })();
 </script>
