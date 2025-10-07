@@ -686,8 +686,11 @@ function normSubcats(raw){
   const where = whereParts.join(', ');
   const cats  = (ev._cats||[]).join(', ');
     const subcatsTxt = (ev._subcats||[]).join(', ');
-    const theDescr = ev.description||ev.descrizione||'';
-
+    // Descrizione: prendi tutto, preserva le nuove righe
+const theDescr = ((ev.description ?? ev.descrizione) || '')
+  .toString()
+  .trim();
+    
   // ===== PREZZO/INGRESSO (robusto) =====
   function getPrice(evObj){
     const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso]
@@ -770,7 +773,11 @@ function normSubcats(raw){
     for (let i=1;i<=10;i++){
       push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
     }
-    rawContacts = flat;
+    // eventuale testo libero
+  if (!flat.length && typeof ev.referenti_text==='string'){
+    flat.push({ nome: ev.referenti_text, tel:'', email:'' });
+  }
+  rawContacts = flat;
   }
 
   // 3) normalizza + dedup
@@ -848,7 +855,7 @@ function normSubcats(raw){
       ${dateLine}<br>${where}
       ${prezzoHtml}
       ${referentiHtml}
-      ${theDescr ? `<br><br>${theDescr}` : ''}
+      ${theDescr ? `<div style="margin-top:10px; white-space:pre-wrap">${theDescr}</div>` : ``}      
       ${listHtml}
       <div class="popup-actions">
         <button class="btn accent" data-calc="1">Calcola percorso</button>
