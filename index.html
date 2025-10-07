@@ -99,48 +99,31 @@
 
   /* Barra condividi */
   .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
-.leaflet-popup-content .popup-actions .btn{display:inline-block}
-.leaflet-popup-content a.btn{text-decoration:none}
+  .leaflet-popup-content .popup-actions .btn{display:inline-block}
+  .leaflet-popup-content a.btn{text-decoration:none}
 
-.leaflet-popup-content a.btn{text-decoration:none}
+  /* Mantieni maiuscole/minuscole + evita troncamenti nel popup */
+  .leaflet-popup-content, .leaflet-popup-content *, .sq-popup, .sq-popup * { text-transform:none !important; white-space:normal !important; overflow-wrap:anywhere; word-break:break-word; }
+  .sq-price, .sq-ref { white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }
+  #subchips { margin-top:8px }
+  #subchips .chip { opacity:.95 }
+  #subchips .chip.group-label { cursor:default; font-weight:700; opacity:.75; border-style:dashed }
 
-/* Mantieni maiuscole/minuscole nel popup */
-.leaflet-popup-content,
-.leaflet-popup-content *,
-.sq-popup,
-.sq-popup * { text-transform: none !important; }  
-/* Evita che prezzo/referenti vadano fuori o vengano troncati */
-.sq-price, .sq-ref { white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }  
-#subchips { margin-top:8px }
-#subchips .chip { opacity:.95 }
-#subchips .chip.group-label { cursor:default; font-weight:700; opacity:.75; border-style:dashed }  
+  /* Lista eventi visibili (modale semplice) */
+  #listOverlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:10002}
+  #listBox{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;max-width:740px;width:92%;max-height:80vh;overflow:auto}
+  #listBox h3{margin:0 0 10px}
+  #listBox ul{margin:0;padding-left:18px}
 </style>
 
 <!-- Dati strutturati: Organization -->
 <script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "Stasera Qui",
-  "url": "https://www.staseraqui.it/",
-  "logo": "https://www.staseraqui.it/favicon.ico",
-  "sameAs": []
-}
+{"@context":"https://schema.org","@type":"Organization","name":"Stasera Qui","url":"https://www.staseraqui.it/","logo":"https://www.staseraqui.it/favicon.ico","sameAs":[]}
 </script>
 
 <!-- Dati strutturati: WebSite con SearchAction -->
 <script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  "name": "Stasera Qui",
-  "url": "https://www.staseraqui.it/",
-  "potentialAction": {
-    "@type": "SearchAction",
-    "target": "https://www.staseraqui.it/?q={search_term_string}",
-    "query-input": "required name=search_term_string"
-  }
-}
+{"@context":"https://schema.org","@type":"WebSite","name":"Stasera Qui","url":"https://www.staseraqui.it/","potentialAction":{"@type":"SearchAction","target":"https://www.staseraqui.it/?q={search_term_string}","query-input":"required name=search_term_string"}}
 </script>
 
 <!-- ✅ Cookie banner / GA dopo consenso -->
@@ -152,7 +135,6 @@
 </head>
 <body>
 <header class="header">
-  <!-- Logo approvato -->
   <a href="index.html" class="logo" aria-label="Stasera Qui - home">
     <svg class="pin" viewBox="0 0 64 72" aria-hidden="true">
       <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="#22b3f0"/>
@@ -163,10 +145,8 @@
 </header>
 
 <main class="container">
-  <!-- Claim -->
   <div class="claim">Scopri cosa fare, dove vuoi, quando vuoi</div>
 
-  <!-- Tabs -->
   <div class="tabs">
     <a class="tab" href="mission.html">Mission</a>
     <a class="tab" href="chi-siamo.html">Chi siamo</a>
@@ -174,7 +154,6 @@
     <a class="tab" href="come-funziona.html">Come funziona</a>
   </div>
 
-  <!-- Condividi -->
   <div class="share" id="shareBar">
     <span class="small">Ti piace Stasera Qui? Condividilo:</span>
     <button class="btn primary" id="shareNative" type="button">Condividi</button>
@@ -210,11 +189,11 @@
     <div class="chip" data-cat="Mercatini">Mercatini</div>
   </div>
   <div style="margin-top:6px">
-  <button class="btn small" id="resetCatsBtn" type="button">Reset categorie</button>
-</div>
-  
-<!-- Filtri sotto-categorie (si popola dinamicamente) -->
-<div class="chips" id="subchips" style="display:none"></div>
+    <button class="btn small" id="resetCatsBtn" type="button">Reset categorie</button>
+  </div>
+
+  <!-- Filtri sotto-categorie (si popola dinamicamente) -->
+  <div class="chips" id="subchips" style="display:none"></div>
   
   <!-- Contatore + lista -->
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -222,15 +201,13 @@
     <button class="btn light" id="listBtn" type="button">Mostra lista eventi visibili</button>
   </div>
 
-  <!-- Mappa principale (Leaflet) -->
+  <!-- Mappe -->
   <div id="map" class="map"></div>
-  <!-- Contenitore mappa per il percorso Google (nascosto fino a richiesta percorso) -->
   <div id="gmap" class="map" style="display:none"></div>
 
-  <!-- CTA -->
   <div class="cta-row">
     <a class="cta primary" href="pubblica-evento.html">Pubblica evento</a>
-    
+    <a class="cta success"  href="lavora-con-noi.html">Lavora con noi</a>
   </div>
 </main>
 
@@ -247,7 +224,7 @@
   </div>
 </div>
 
-<!-- Overlay area iniziale se geolocalizzazione negata -->
+<!-- Overlay area iniziale -->
 <div id="geoOverlay">
   <div id="geoBox">
     <h3>Da dove vuoi iniziare?</h3>
@@ -260,38 +237,44 @@
   </div>
 </div>
 
+<!-- Modale lista eventi visibili -->
+<div id="listOverlay">
+  <div id="listBox">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <h3>Eventi visibili sulla mappa</h3>
+      <button class="btn" id="listClose" type="button">Chiudi</button>
+    </div>
+    <div id="listBody" class="small"></div>
+  </div>
+</div>
+
 <script>
   // ====== CONFIG ======
   const SB_URL  = 'https://rubdzlnolxcgpjklfggk.supabase.co';
   const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmR6bG5vbHhjZ3Bqa2xmZ2drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY4OTI3NjQsImV4cCI6MjA3MjQ2ODc2NH0.Fhq7lKdx1OcyuCWOnHqNH7Omsg7qjdQVzxvNqZyeQQ8';
-  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg'; // usato per percorso + autocomplete + geocoding
+  const GMAPS_API_KEY = 'AIzaSyCfLAJyhmA_lu6jP0Y1GbgVTvSn2nIICsg';
 
   const sb = supabase.createClient(SB_URL, SB_ANON);
 
   let USE_GMAPS = false; // mappa principale = Leaflet
 
-// Leggi tassonomia da config centrale
-const CFG = window.SQ_CONFIG || {};
-const EB_TAXONOMY = CFG.EB_TAXONOMY || {};
-const EB_ORDER = (CFG.EB_CATEGORIES_ORDER && CFG.EB_CATEGORIES_ORDER.length)
-  ? CFG.EB_CATEGORIES_ORDER
-  : Object.keys(EB_TAXONOMY);
+  // ====== Tassonomia condivisa (categorie/sotto-categorie) ======
+  const CFG = window.SQ_CONFIG || {};
+  const EB_TAXONOMY = CFG.EB_TAXONOMY || {};
+  const EB_ORDER = (CFG.EB_CATEGORIES_ORDER && CFG.EB_CATEGORIES_ORDER.length)
+    ? CFG.EB_CATEGORIES_ORDER
+    : Object.keys(EB_TAXONOMY);
 
-// Mappa inversa: sotto-cat -> categoria padre
-const SUBCAT_PARENT = {};
-Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
-  (subs||[]).forEach(s => { SUBCAT_PARENT[s] = cat; });
-});
-  
-  // Namespace utili
+  // mappa inversa: sotto-cat -> categoria madre
+  const SUBCAT_PARENT = {};
+  Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
+    (subs||[]).forEach(s => { SUBCAT_PARENT[s] = cat; });
+  });
+
+  // ===== Namespace utili =====
   let GMAPS = {
-    map:null,            // mappa Google SOLO per il percorso
-    infowindow:null,
-    directionsService:null,
-    directionsRenderer:null,
-    geocoder:null,
-    osrmPolyline:null,
-    myPosMarker:null
+    map:null, infowindow:null, directionsService:null, directionsRenderer:null,
+    geocoder:null, osrmPolyline:null, myPosMarker:null
   };
   let LEAF = { map:null, pinIcon:null, routeLayer:null, myPosMarker:null };
 
@@ -299,7 +282,6 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
   let state = { day:null, customDate:null, cats:new Set(), subcats:new Set(), query:'' };
   let ORIGIN = null;
 
-  // Auto-fit: consentito solo prima di geoloc o ricerca
   let _refitTried = false;
   let allowAutoFit = true;
 
@@ -309,55 +291,43 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
   const todayISO = () => new Date().toISOString().slice(0,10);
   const addDays  = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); };
   const weekday  = s => (new Date(s+'T00:00:00')).getDay();
+  const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
 
   // ===== Helpers robusti =====
   const isTruthyPub = v => (v===true || v===1 || v==='1' || v==='t' || v==='true' || v==='T' || v==='TRUE');
+  function firstNonEmpty(...vals){
+    for (const v of vals){
+      const s = (v ?? '').toString().trim();
+      if (s) return s;
+    }
+    return '';
+  }
   function normCats(raw){
     const c = (raw?.categories ?? raw?.categorie ?? []);
     if (Array.isArray(c)) return c.filter(Boolean).map(String);
     if (c == null) return [];
     if (typeof c === 'string'){
-      try{
-        const j = JSON.parse(c);
-        if (Array.isArray(j)) return j.filter(Boolean).map(String);
-      }catch(_){}
+      try{ const j = JSON.parse(c); if (Array.isArray(j)) return j.filter(Boolean).map(String); }catch(_){}
       if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
       return c.trim() ? [c.trim()] : [];
     }
     return [];
   }
-function normSubcats(raw){
-  // Accetta colonne: subcats | subcategories | sottocategorie
-  const c = (raw?.subcats ?? raw?.subcategories ?? raw?.sottocategorie ?? []);
-  if (Array.isArray(c)) return c.filter(Boolean).map(String);
-  if (c == null) return [];
-  if (typeof c === 'string'){
-    try{
-      const j = JSON.parse(c);
-      if (Array.isArray(j)) return j.filter(Boolean).map(String);
-    }catch(_){}
-    if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
-    return c.trim() ? [c.trim()] : [];
+  function normSubcats(raw){
+    const c = (raw?.subcats ?? raw?.subcategories ?? raw?.sottocategorie ?? []);
+    if (Array.isArray(c)) return c.filter(Boolean).map(String);
+    if (c == null) return [];
+    if (typeof c === 'string'){
+      try{ const j = JSON.parse(c); if (Array.isArray(j)) return j.filter(Boolean).map(String); }catch(_){}
+      if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
+      return c.trim() ? [c.trim()] : [];
+    }
+    return [];
   }
-  return [];
-}  
   function safeUrl(u){
     if (u == null) return '';
-    if (Array.isArray(u)){
-      for (const item of u){
-        const s = safeUrl(item);
-        if (s) return s;
-      }
-      return '';
-    }
-    if (typeof u === 'object'){
-      const candidates = [u.url, u.href, u.link, u.src];
-      for (const c of candidates){
-        const s = safeUrl(c);
-        if (s) return s;
-      }
-      return '';
-    }
+    if (Array.isArray(u)){ for (const item of u){ const s = safeUrl(item); if (s) return s; } return ''; }
+    if (typeof u === 'object'){ for (const c of [u.url,u.href,u.link,u.src]){ const s=safeUrl(c); if (s) return s; } return ''; }
     let s = String(u).trim();
     if (!s) return '';
     if (/^data:image\//i.test(s)) return s;
@@ -371,24 +341,11 @@ function normSubcats(raw){
       const s = safeUrl(f);
       if (s) return s;
       if (typeof f === 'string'){
-        try{
-          const j = JSON.parse(f);
-          const s2 = safeUrl(j);
-          if (s2) return s2;
-        }catch(_){}
+        try{ const j = JSON.parse(f); const s2 = safeUrl(j); if (s2) return s2; }catch(_){}
       }
     }
     return '';
-  }  
-  function firstNonEmpty(...vals){
-    for (const v of vals){
-      const s = (v ?? '').toString().trim();
-      if (s) return s;
-    }
-    return '';
   }
-  // 🔹 arrotondamento stabile per raggruppare posizioni (5 decimali ~ 1 m)
-  const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
 
   // ======= GOOGLE: loader unico (Places + Geometry) =======
   let _gmapsLoading = null;
@@ -680,254 +637,181 @@ function normSubcats(raw){
     loadData().then(requestInitialLocation);
   }
 
-  
-// --- SOSTITUISCI TUTTA LA FUNZIONE CON QUESTA ---
-function lAddMarker(occ, ev){
-  const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
-    .map(s => (s||'').toString().trim()).filter(Boolean);
-  const where = whereParts.join(', ');
-  const cats  = (ev._cats||[]).join(', ');
-  const subcatsTxt = (ev._subcats||[]).join(', ');
-  const theDescr = ev.description||ev.descrizione||'';
+  function lAddMarker(occ, ev){
+    const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
+      .map(s => (s||'').toString().trim()).filter(Boolean);
+    const where = whereParts.join(', ');
+    const cats  = (ev._cats||[]).join(', ');
+    const subcatsTxt = (ev._subcats||[]).join(', ');
 
-  // ===== PREZZO/INGRESSO (robusto) =====
-  function getPrice(evObj){
-    const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso]
-      .map(v => (v ?? '').toString().trim())
-      .find(Boolean);
-    if (direct) return direct;
-    for (const [k,v] of Object.entries(evObj||{})){
-      if (/price|prezzo|ingresso/i.test(k)){
-        const s = (v ?? '').toString().trim();
-        if (s) return s;
-        if (typeof v === 'string' && v.trim().startsWith('{')) {
-          try {
-            const j = JSON.parse(v);
-            const inner = [j.price_text, j.prezzo, j.price, j.ingresso]
-              .map(x => (x ?? '').toString().trim()).find(Boolean);
-            if (inner) return inner;
-          } catch(_){}
+    // Descrizione: prendi il primo campo non vuoto e MOSTRALO TUTTO
+    const theDescr = firstNonEmpty(ev.descrizione, ev.descr, ev.description, ev.testo, ev.note);
+
+    // ===== PREZZO/INGRESSO =====
+    function getPrice(evObj){
+      const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso]
+        .map(v => (v ?? '').toString().trim())
+        .find(Boolean);
+      if (direct) return direct;
+      for (const [k,v] of Object.entries(evObj||{})){
+        if (/price|prezzo|ingresso/i.test(k)){
+          const s = (v ?? '').toString().trim();
+          if (s) return s;
+          if (typeof v === 'string' && v.trim().startsWith('{')) {
+            try {
+              const j = JSON.parse(v);
+              const inner = [j.price_text, j.prezzo, j.price, j.ingresso]
+                .map(x => (x ?? '').toString().trim()).find(Boolean);
+              if (inner) return inner;
+            } catch(_){}
+          }
         }
       }
+      const m = (theDescr||'').match(/\b(gratis|€\s?\d{1,3}(?:[.,]\d{1,2})?|\d{1,3}(?:[.,]\d{1,2})?\s?€)\b/i);
+      return m ? m[0] : '';
     }
-    const m = (theDescr||'').match(/\b(gratis|€\s?\d{1,3}(?:[.,]\d{1,2})?|\d{1,3}(?:[.,]\d{1,2})?\s?€)\b/i);
-    return m ? m[0] : '';
-  }
-  const prezzoIngresso = getPrice(ev);
+    const prezzoIngresso = getPrice(ev);
 
-  // ===== URL utili =====
-  function safeUrl(u){
-    if (u == null) return '';
-    if (Array.isArray(u)){ for (const item of u){ const s = safeUrl(item); if (s) return s; } return ''; }
-    if (typeof u === 'object'){ for (const c of [u.url,u.href,u.link,u.src]){ const s=safeUrl(c); if (s) return s; } return ''; }
-    let s = String(u).trim();
-    if (!s) return '';
-    if (/^data:image\//i.test(s)) return s;
-    if (/^\/\//.test(s)) s = 'https:' + s;
-    if (/^\//.test(s)) return s;
-    if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
-    try { new URL(s); return s; } catch(_){ return ''; }
-  }
-  function pickFirstUrl(...fields){
-    for (const f of fields){
-      const s = safeUrl(f);
-      if (s) return s;
-      if (typeof f === 'string'){
-        try{ const j = JSON.parse(f); const s2 = safeUrl(j); if (s2) return s2; }catch(_){}
+    // ===== URL utili =====
+    const website = (ev.website_url || '').toString().trim() || pickFirstUrl(
+      ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento
+    );
+    let locandinaUrl = (ev.locandina_url || ev.image_url || '').toString().trim();
+    if (!locandinaUrl) locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb);
+    if (locandinaUrl && locandinaUrl.startsWith('/')) {
+      try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
+    }
+    const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+    const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
+
+    // ===== REFERENTI (compatibili con pubblica-evento.html) =====
+    function pickArray(val){
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string' && val.trim().startsWith('[')){
+        try { const j=JSON.parse(val); return Array.isArray(j) ? j : []; } catch(_){ return []; }
       }
+      return [];
     }
-    return '';
-  }
-  const website = (ev.website_url || '').toString().trim() || pickFirstUrl(
-    ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento
-  );
-  let locandinaUrl = (ev.locandina_url || ev.image_url || '').toString().trim();
-  if (!locandinaUrl) locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb);
-  if (locandinaUrl && locandinaUrl.startsWith('/')) {
-    try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
-  }
-  const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-  const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
+    function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
 
-  // ===== REFERENTI — estrazione robusta (array, metadata, campi piatti) =====
-  function pickArray(val){
-    if (Array.isArray(val)) return val;
-    if (typeof val === 'string' && val.trim().startsWith('[')){
-      try { const j = JSON.parse(val); return Array.isArray(j) ? j : []; } catch(_){ return []; }
+    let rawContacts = pickArray(ev.contacts);
+    if (!rawContacts.length) rawContacts = pickArray(ev.referenti);
+    if (!rawContacts.length) rawContacts = pickArray(ev.contatti);
+
+    if (!rawContacts.length){
+      const flat = [];
+      const push=(n,t,e)=>{ if (n||t||e) flat.push({nome:n||'', tel:t||'', email:e||''}); };
+      push(ev.nome_referente, ev.numero_referente, ev.email_referente);
+      for (let i=1;i<=10;i++){
+        push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
+      }
+      rawContacts = flat;
     }
-    return [];
-  }
-  function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
 
-  let rawContacts = pickArray(ev.contacts);
-  if (!rawContacts.length) rawContacts = pickArray(ev.referenti);
-  if (!rawContacts.length) rawContacts = pickArray(ev.contatti);
+    const referenti = [];
+    const seen = new Set();
+    (rawContacts||[]).forEach(r=>{
+      const nome  = (r?.nome||r?.name||'').toString().trim();
+      const tel   = sanitizeTel(r?.tel||r?.telefono||r?.phone||'');
+      const email = (r?.email||'').toString().trim().toLowerCase();
+      if (!(nome||tel||email)) return;
+      const key = [nome.toLowerCase(), tel, email].join('|');
+      if (!seen.has(key)){ seen.add(key); referenti.push({nome, tel, email}); }
+    });
 
-  // prova anche in ev.metadata.contacts (stringa JSON o array)
-  if (!rawContacts.length && ev.metadata){
-    try {
-      const md = (typeof ev.metadata==='string') ? JSON.parse(ev.metadata) : ev.metadata;
-      let mc = md?.contacts || md?.referenti || md?.contatti;
-      if (typeof mc === 'string' && mc.trim().startsWith('[')) mc = JSON.parse(mc);
-      if (Array.isArray(mc)) rawContacts = mc;
-    } catch(_){}
-  }
+    const referentiHtml = referenti.length ? `
+      <div class="small sq-ref" style="margin-top:6px">
+        <b>Referenti:</b>
+        <ul style="margin:6px 0 0 18px">
+          ${referenti.map(r => {
+            const name   = r.nome ? `<b>${r.nome}</b>` : '';
+            const tel    = r.tel  ? ` · <a href="tel:${r.tel}">${r.tel}</a>` : '';
+            const email  = r.email? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
+            return `<li>${name}${tel}${email}</li>`;
+          }).join('')}
+        </ul>
+      </div>` : '';
 
-  // fallback campi piatti/numerati
-  if (!rawContacts.length){
-    const flat = [];
-    const push=(n,t,e)=>{ if (n||t||e) flat.push({ nome:n||'', tel:t||'', email:e||'' }); };
-    push(ev.nome_referente, ev.numero_referente, ev.email_referente);
-    for (let i=1;i<=10;i++){
-      push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
+    // ===== Date stesse coordinate =====
+    const today = todayISO();
+    const latKey = round5(occ.lat), lngKey = round5(occ.lng);
+    const allDates = OCCS
+      .filter(o => o.event_id === occ.event_id && o.data && o.data >= today &&
+                   round5(o.lat) === latKey && round5(o.lng) === lngKey)
+      .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora));
+
+    let dateLine = '';
+    if (allDates.length > 1) {
+      const start = allDates[0], end = allDates[allDates.length - 1];
+      const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
+      const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
+      dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
+    } else {
+      const only = allDates[0] || occ;
+      dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
     }
-    rawContacts = flat;
-  }
 
-  const referenti = [];
-  const seen = new Set();
-  (rawContacts||[]).forEach(r=>{
-    const nome  = (r?.nome||r?.name||'').toString().trim();
-    const tel   = sanitizeTel(r?.tel||r?.telefono||r?.phone||'');
-    const email = (r?.email||'').toString().trim().toLowerCase();
-    if (!(nome||tel||email)) return;
-    const key = [nome.toLowerCase(), tel, email].join('|');
-    if (!seen.has(key)){ seen.add(key); referenti.push({nome, tel, email}); }
-  });
+    const otherDates = allDates.filter(o => o.id !== occ.id);
+    const multiBadge = allDates.length > 1
+      ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
+      : '';
 
-  const referentiHtml = referenti.length ? `
-    <div class="small sq-ref" style="margin-top:6px">
-      <b>Referenti:</b>
-      <ul style="margin:6px 0 0 18px">
-        ${referenti.map(r => {
-          const name   = r.nome ? `<b>${r.nome}</b>` : '';
-          const tel    = r.tel  ? ` · <a href="tel:${r.tel}">${r.tel}</a>` : '';
-          const email  = r.email? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
-          return `<li>${name}${tel}${email}</li>`;
-        }).join('')}
-      </ul>
-    </div>` : '';
+    const listHtml = otherDates.length
+      ? `<div style="margin-top:6px">
+           <b>Altre date:</b>
+           <ul style="margin:6px 0 0 18px">
+             ${otherDates.slice(0,8).map(o =>
+               `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
+             ).join('')}
+           </ul>
+           ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
+         </div>`
+      : '';
 
-  // ===== DESCRIZIONE con "Mostra tutto" (senza cambiare la larghezza del popup) =====
-  const esc = s => (s||'').toString().replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
-  const descrFull = esc(theDescr).replace(/\n/g,'<br>');
-  const DESCR_MAX = 900; // limite visivo; l'utente può espandere
-  let descrShort = descrFull;
-  let needToggle = false;
-  if (descrFull.length > DESCR_MAX){
-    needToggle = true;
-    const cut = descrFull.slice(0, DESCR_MAX);
-    descrShort = cut.replace(/[\s,.;:!-]\S*$/, '…'); // tronca su parola
-  }
-  const descrHtml = theDescr
-    ? `<div class="sq-desc" style="margin-top:10px">
-         <div class="short">${descrShort}</div>
-         ${needToggle ? `<div class="full" style="display:none">${descrFull}</div>
-           <button class="btn small" data-toggle-desc="1" type="button">Mostra tutto</button>` : ``}
-       </div>`
-    : '';
+    // Marker + popup (N.B. maxWidth per non farlo “strettino”, altezza auto)
+    const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
 
-  // ===== Date raggruppate stessa posizione (future) =====
-  const today = todayISO();
-  const latKey = round5(occ.lat), lngKey = round5(occ.lng);
-  const allDates = OCCS
-    .filter(o => o.event_id === occ.event_id && o.data && o.data >= today &&
-                 round5(o.lat) === latKey && round5(o.lng) === lngKey)
-    .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora));
+    const prezzoHtml = prezzoIngresso
+      ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
+      : '';
 
-  let dateLine = '';
-  if (allDates.length > 1) {
-    const start = allDates[0], end = allDates[allDates.length - 1];
-    const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
-    const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
-    dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
-  } else {
-    const only = allDates[0] || occ;
-    dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
-  }
+    const html = `<div class="sq-popup" style="color:#081421;max-width:520px">
+        <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
+        <small>${cats||''}</small><br>
+        ${subcatsTxt ? `<small><i>${subcatsTxt}</i></small><br>` : ``}
+        ${dateLine}<br>${where}
+        ${prezzoHtml}
+        ${referentiHtml}
+        ${theDescr ? `<div style="margin-top:8px">${theDescr}</div>` : ''}
+        ${listHtml}
+        <div class="popup-actions">
+          <button class="btn accent" data-calc="1">Calcola percorso</button>
+          ${btnSite}
+          ${btnPoster}
+        </div>
+      </div>`;
 
-  const otherDates = allDates.filter(o => o.id !== occ.id);
-  const multiBadge = allDates.length > 1
-    ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
-    : '';
+    m.bindPopup(html, {maxWidth: 520, closeButton:true, autoPan:true}).on('popupopen', ()=>{
+      const btn = document.querySelector('button[data-calc="1"]');
+      if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
 
-  const listHtml = otherDates.length
-    ? `<div style="margin-top:6px">
-         <b>Altre date:</b>
-         <ul style="margin:6px 0 0 18px">
-           ${otherDates.slice(0,8).map(o =>
-             `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
-           ).join('')}
-         </ul>
-         ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
-       </div>`
-    : '';
-
-  // ===== Marker + popup (NB: NESSUNA larghezza forzata) =====
-  const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
-
-  const prezzoHtml = prezzoIngresso
-    ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
-    : '';
-
-  const html = `<div class="sq-popup" style="color:#081421">
-      <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
-      <small>${cats||''}</small><br>
-      ${subcatsTxt ? `<small><i>${subcatsTxt}</i></small><br>` : ``}
-      ${dateLine}<br>${where}
-      ${prezzoHtml}
-      ${referentiHtml}
-      ${descrHtml}
-      ${listHtml}
-      <div class="popup-actions">
-        <button class="btn accent" data-calc="1">Calcola percorso</button>
-        ${btnSite}
-        ${btnPoster}
-      </div>
-    </div>`;
-
-  m.bindPopup(html).on('popupopen', ()=>{
-    const btn = document.querySelector('button[data-calc="1"]');
-    if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
-
-    document.querySelectorAll('.sq-date').forEach(a=>{
-      a.addEventListener('click', (e)=>{
-        e.preventDefault();
-        const d = a.getAttribute('data-date');
-        state.customDate = d;
-        state.day = null;
-        allowAutoFit = false;
-        const badge = document.getElementById('dateBadge');
-        if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
-        LEAF.map.closePopup();
-        renderMarkers();
+      document.querySelectorAll('.sq-date').forEach(a=>{
+        a.addEventListener('click', (e)=>{
+          e.preventDefault();
+          const d = a.getAttribute('data-date');
+          state.customDate = d;
+          state.day = null;
+          allowAutoFit = false;
+          const badge = document.getElementById('dateBadge');
+          if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
+          LEAF.map.closePopup();
+          renderMarkers();
+        });
       });
     });
 
-    // Toggle "Mostra tutto/Meno" per la descrizione
-    const tgl = document.querySelector('button[data-toggle-desc="1"]');
-    if (tgl){
-      tgl.addEventListener('click', ()=>{
-        const box = tgl.closest('.sq-desc');
-        if (!box) return;
-        const short = box.querySelector('.short');
-        const full  = box.querySelector('.full');
-        const shortOn = short && short.style.display !== 'none';
-        if (shortOn){
-          if (short) short.style.display='none';
-          if (full)  full.style.display='block';
-          tgl.textContent = 'Mostra meno';
-        } else {
-          if (full)  full.style.display='none';
-          if (short) short.style.display='block';
-          tgl.textContent = 'Mostra tutto';
-        }
-      });
-    }
-  });
-
-  markers.push(m);
-}
+    markers.push(m);
+  }
   
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
@@ -971,15 +855,13 @@ function lAddMarker(occ, ev){
 
     const dpOverlay = $('#dpOverlay');
     const dpInput = $('#dpInput');
-    const dpAnnulla = $('#dpAnnulla');
-    const selBtn = $('#selDataBtn');
-
-    selBtn.addEventListener('click', ()=>{
+    theSelBtn = $('#selDataBtn');
+    $('#dpAnnulla').addEventListener('click', ()=> dpOverlay.style.display='none');
+    theSelBtn.addEventListener('click', ()=>{
       dpInput.value = state.customDate || todayISO();
       dpOverlay.style.display='flex';
       setTimeout(()=> dpInput.focus(), 0);
     });
-    dpAnnulla.addEventListener('click', ()=> dpOverlay.style.display='none');
     dpOverlay.addEventListener('click', (e)=>{ if(e.target===dpOverlay) dpOverlay.style.display='none'; });
     dpInput.addEventListener('change', ()=>{
       if (dpInput.value){
@@ -994,130 +876,118 @@ function lAddMarker(occ, ev){
     });
   })();
 
+  // Categorie
   (function setupChips(){
-  $$('#chips .chip').forEach(ch=>{
-    ch.addEventListener('click', ()=>{
-      ch.classList.toggle('active');
-      const c = ch.getAttribute('data-cat');
-      if (ch.classList.contains('active')) state.cats.add(c);
-      else state.cats.delete(c);
+    $$('#chips .chip').forEach(ch=>{
+      ch.addEventListener('click', ()=>{
+        ch.classList.toggle('active');
+        const c = ch.getAttribute('data-cat');
+        if (ch.classList.contains('active')) state.cats.add(c);
+        else state.cats.delete(c);
 
-      // Quando cambiano le categorie, ricostruiamo le sotto-categorie mostrate
-      if (window._rebuildSubchips){
-        // Se ho deselezionato tutte le categorie, svuoto anche subcats selezionate
-        if (state.cats.size === 0) state.subcats.clear();
-        window._rebuildSubchips();
-      }
+        // ricostruisci sotto-categorie
+        if (window._rebuildSubchips){
+          if (state.cats.size === 0) state.subcats.clear();
+          window._rebuildSubchips();
+        }
 
-      _refitTried = false;
-      renderMarkers();
+        _refitTried = false;
+        renderMarkers();
+      });
     });
-  });
 
-  // Prima costruzione all’avvio
-  if (window._rebuildSubchips) window._rebuildSubchips();
-})();
-  // ===== RESET FILTRI =====
-(function setupResetButtons(){
-  const btnCats  = document.getElementById('resetCatsBtn');
-  const btnDates = document.getElementById('resetDatesBtn');
+    // prima costruzione all’avvio
+    if (window._rebuildSubchips) window._rebuildSubchips();
+  })();
 
-  if (btnCats){
-    btnCats.addEventListener('click', ()=>{
-      // Pulisci stato
-      state.cats.clear();
-      state.subcats.clear();
+  // RESET categorie/date
+  (function setupResetButtons(){
+    const btnCats  = document.getElementById('resetCatsBtn');
+    const btnDates = document.getElementById('resetDatesBtn');
 
-      // UI: togli "active" da tutte le chip categoria
-      document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
-
-      // Ricostruisci/azzera subchips e nascondi box
-      if (window._rebuildSubchips) window._rebuildSubchips();
-      const subBox = document.getElementById('subchips');
-      if (subBox){ subBox.innerHTML=''; subBox.style.display='none'; }
-
-      _refitTried = false;
-      renderMarkers();
-    });
-  }
-
-  if (btnDates){
-    btnDates.addEventListener('click', ()=>{
-      // Pulisci stato date
-      state.day = null;
-      state.customDate = null;
-
-      // UI: togli "active" da oggi/domani/weekend e nascondi badge
-      document.querySelectorAll('#dayPills .pill.active').forEach(el=> el.classList.remove('active'));
-      const badge = document.getElementById('dateBadge');
-      if (badge){ badge.style.display='none'; badge.textContent=''; }
-
-      _refitTried = false;
-      renderMarkers();
-    });
-  }
-})();  
-  // ===== SOTTO-CATEGORIE: costruzione dinamica + handlers =====
-(function setupSubchips(){
-  const box = document.getElementById('subchips');
-  if (!box) return;
-
-  function renderSubchips(){
-    // Raccogli le sotto-categorie delle categorie selezionate
-    const catsSel = Array.from(state.cats);
-    const subSet = new Set();
-    if (catsSel.length){
-      catsSel.forEach(cat => (EB_TAXONOMY[cat]||[]).forEach(s => subSet.add(s)));
-    } else {
-      // Se nessuna categoria selezionata, mostriamo tutte (opzionale)
-      Object.values(EB_TAXONOMY).forEach(list => (list||[]).forEach(s => subSet.add(s)));
+    if (btnCats){
+      btnCats.addEventListener('click', ()=>{
+        state.cats.clear();
+        state.subcats.clear();
+        document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
+        if (window._rebuildSubchips) window._rebuildSubchips();
+        const subBox = document.getElementById('subchips');
+        if (subBox){ subBox.innerHTML=''; subBox.style.display='none'; }
+        _refitTried = false;
+        renderMarkers();
+      });
     }
 
-    const subs = Array.from(subSet).sort((a,b)=> a.localeCompare(b,'it'));
-    if (!subs.length){ box.style.display='none'; box.innerHTML=''; return; }
+    if (btnDates){
+      btnDates.addEventListener('click', ()=>{
+        state.day = null;
+        state.customDate = null;
+        document.querySelectorAll('#dayPills .pill.active').forEach(el=> el.classList.remove('active'));
+        const badge = document.getElementById('dateBadge');
+        if (badge){ badge.style.display='none'; badge.textContent=''; }
+        _refitTried = false;
+        renderMarkers();
+      });
+    }
+  })();
 
-    // (Facoltativo) piccoli label per gruppi
-    const subsByCat = {};
-    subs.forEach(s=>{
-      const p = SUBCAT_PARENT[s] || 'Altro';
-      (subsByCat[p] = subsByCat[p] || []).push(s);
+  // ===== SOTTO-CATEGORIE: costruzione dinamica + handlers =====
+  (function setupSubchips(){
+    const box = document.getElementById('subchips');
+    if (!box) return;
+
+    function renderSubchips(){
+      const catsSel = Array.from(state.cats);
+      const subSet = new Set();
+      if (catsSel.length){
+        catsSel.forEach(cat => (EB_TAXONOMY[cat]||[]).forEach(s => subSet.add(s)));
+      } else {
+        Object.values(EB_TAXONOMY).forEach(list => (list||[]).forEach(s => subSet.add(s)));
+      }
+
+      const subs = Array.from(subSet).sort((a,b)=> a.localeCompare(b,'it'));
+      if (!subs.length){ box.style.display='none'; box.innerHTML=''; return; }
+
+      const subsByCat = {};
+      subs.forEach(s=>{
+        const p = SUBCAT_PARENT[s] || 'Altro';
+        (subsByCat[p] = subsByCat[p] || []).push(s);
+      });
+
+      const html = Object.entries(subsByCat)
+        .sort((a,b)=> EB_ORDER.indexOf(a[0]) - EB_ORDER.indexOf(b[0]))
+        .map(([parent, list])=>{
+          const chips = list.map(s=>{
+            const active = state.subcats.has(s) ? ' active' : '';
+            return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
+          }).join('');
+          return `
+            <div class="chip group-label" style="pointer-events:none">${parent}</div>
+            ${chips}
+          `;
+        }).join('');
+
+      box.innerHTML = html;
+      box.style.display='block';
+    }
+
+    // click subchip
+    box.addEventListener('click', (e)=>{
+      const el = e.target.closest('.chip');
+      if (!el || el.classList.contains('group-label')) return;
+      el.classList.toggle('active');
+      const sub = el.getAttribute('data-sub');
+      if (!sub) return;
+      if (el.classList.contains('active')) state.subcats.add(sub);
+      else state.subcats.delete(sub);
+      _refitTried = false;
+      renderMarkers();
     });
 
-    const html = Object.entries(subsByCat)
-      .sort((a,b)=> EB_ORDER.indexOf(a[0]) - EB_ORDER.indexOf(b[0]))
-      .map(([parent, list])=>{
-        const chips = list.map(s=>{
-          const active = state.subcats.has(s) ? ' active' : '';
-          return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
-        }).join('');
-        return `
-          <div class="chip group-label" style="pointer-events:none">${parent}</div>
-          ${chips}
-        `;
-      }).join('');
+    window._rebuildSubchips = renderSubchips;
+  })();
 
-    box.innerHTML = html;
-    box.style.display='block';
-  }
-
-  // Delegation click
-  box.addEventListener('click', (e)=>{
-    const el = e.target.closest('.chip');
-    if (!el || el.classList.contains('group-label')) return;
-    el.classList.toggle('active');
-    const sub = el.getAttribute('data-sub');
-    if (!sub) return;
-    if (el.classList.contains('active')) state.subcats.add(sub);
-    else state.subcats.delete(sub);
-    _refitTried = false;
-    renderMarkers();
-  });
-
-  // Espone un hook per ricostruire quando cambiano le categorie
-  window._rebuildSubchips = renderSubchips;
-})();
-  
-  // ===== CERCA — centra mappa con geocoding ibrido + cache =====
+  // CERCA — centra mappa
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
     _refitTried = false;
@@ -1130,7 +1000,7 @@ function lAddMarker(occ, ev){
   });
   $('#searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') $('#searchBtn').click(); });
 
-  // ===== GEO iniziale =====
+  // GEO iniziale
   function requestInitialLocation(){
     if (!navigator.geolocation){ showGeoOverlay(); return; }
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -1140,7 +1010,6 @@ function lAddMarker(occ, ev){
       updateCounter();
     }, _=> showGeoOverlay(), {enableHighAccuracy:true, timeout:8000});
   }
-
   function showGeoOverlay(){
     $('#geoOverlay').style.display='flex';
     $('#geoAddr').focus();
@@ -1189,17 +1058,11 @@ function lAddMarker(occ, ev){
   function occPassesFilters(occ){
     const today = todayISO();
 
-    // Escludi passato
     if (occ.data && occ.data < today) return false;
-
-    // Se è stata scelta una data specifica, ha la precedenza
     if (state.customDate && occ.data !== state.customDate) return false;
-
-    // Giorni rapidi
     if (state.day === 'oggi'   && occ.data !== today) return false;
     if (state.day === 'domani' && occ.data !== addDays(today, 1)) return false;
 
-    // Weekend = SOLO il prossimo sabato/domenica (quelli mostrati nel badge)
     if (state.day === 'weekend'){
       const now = new Date();
       const sat = addDays(today, (6 - now.getDay() + 7) % 7);
@@ -1207,47 +1070,41 @@ function lAddMarker(occ, ev){
       if (occ.data !== sat && occ.data !== sun) return false;
     }
 
-    // Categorie (già esistente)
-if (state.cats.size > 0){
-  const ev = EVENTS_BY_ID.get(occ.event_id);
-  const evCats = (ev?._cats || []);
-  if (!evCats.some(c => state.cats.has(c))) return false;
-}
+    if (state.cats.size > 0){
+      const ev = EVENTS_BY_ID.get(occ.event_id);
+      const evCats = (ev?._cats || []);
+      if (!evCats.some(c => state.cats.has(c))) return false;
+    }
 
-// Sotto-categorie (nuovo)
-if (state.subcats.size > 0){
-  const ev = EVENTS_BY_ID.get(occ.event_id);
-  const evSubs = (ev?._subcats || []);
-  if (evSubs.length > 0){
-    // Richiede almeno un match con una subcat selezionata
-    const ok = evSubs.some(s => state.subcats.has(s));
-    if (!ok) return false;
-  } else {
-    // Fallback legacy: se l’evento NON ha subcats,
-    // lo includiamo SOLO se ha almeno una categoria padre
-    // coerente con una delle subcats selezionate.
-    const evCats = (ev?._cats || []);
-    const parentsOfSelected = new Set(Array.from(state.subcats).map(s => SUBCAT_PARENT[s]).filter(Boolean));
-    const okParent = evCats.some(c => parentsOfSelected.has(c));
-    if (!okParent) return false;
-  }
-}
+    // sotto-categorie
+    if (state.subcats.size > 0){
+      const ev = EVENTS_BY_ID.get(occ.event_id);
+      const evSubs = (ev?._subcats || []);
+      if (evSubs.length > 0){
+        const ok = evSubs.some(s => state.subcats.has(s));
+        if (!ok) return false;
+      } else {
+        // legacy: se l’evento non ha subcats, includi solo se la categoria madre coincide
+        const evCats = (ev?._cats || []);
+        const parentsOfSelected = new Set(Array.from(state.subcats).map(s => SUBCAT_PARENT[s]).filter(Boolean));
+        const okParent = evCats.some(c => parentsOfSelected.has(c));
+        if (!okParent) return false;
+      }
+    }
     return true;
   }
 
-  // ✅ CONTATORE: numero di pin (evento+posizione) visibili, non occorrenze
+  // CONTATORE
   function updateCounter(){
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
     const visibleKeys = new Set();
-
     OCCS.forEach(o=>{
       if (o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o)){
         const key = `${o.event_id}|${round5(o.lat)},${round5(o.lng)}`;
         visibleKeys.add(key);
       }
     });
-
     const count = visibleKeys.size;
     $('#counter').textContent = count===1 ? '1 evento visibile sulla mappa' : `${count} eventi visibili sulla mappa`;
   }
@@ -1258,14 +1115,13 @@ if (state.subcats.size > 0){
     return L.latLngBounds(pts.map(o => [o.lat, o.lng]));
   }
 
-  // ✅ MARKER: deduplica per (evento + posizione)
+  // MARKERS
   function renderMarkers(){
     lClearMarkers();
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
     let rendered = 0;
 
-    // Ordina per data/ora DESC (non critico: scegliamo il primo occ del gruppo)
     const occsToScan = OCCS.slice().sort((a,b)=>{
       const ad = a.data || '', bd = b.data || '';
       if (ad !== bd) return ad > bd ? -1 : 1;
@@ -1273,17 +1129,15 @@ if (state.subcats.size > 0){
       return at > bt ? -1 : (at < bt ? 1 : 0);
     });
 
-    // Raggruppo occorrenze filtrate per chiave (evento+pos)
     const groups = new Map();
     occsToScan.forEach(occ=>{
       if (occ.lat==null || occ.lng==null) return;
       if (bounds && !contains(occ.lat,occ.lng)) return;
       if (!occPassesFilters(occ)) return;
       const key = `${occ.event_id}|${round5(occ.lat)},${round5(occ.lng)}`;
-      if (!groups.has(key)) groups.set(key, occ); // prendi il primo valido
+      if (!groups.has(key)) groups.set(key, occ);
     });
 
-    // Disegno un solo pin per gruppo
     for (const occ of groups.values()){
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
       lAddMarker(occ, ev);
@@ -1311,12 +1165,12 @@ if (state.subcats.size > 0){
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
     EVENTS = EVENTS_ALL
-  .filter(e => !('published' in e) || isTruthyPub(e.published))
-  .map(e => ({ 
-    ...e, 
-    _cats: normCats(e),
-    _subcats: normSubcats(e)
-  }));
+      .filter(e => !('published' in e) || isTruthyPub(e.published))
+      .map(e => ({ 
+        ...e, 
+        _cats: normCats(e),
+        _subcats: normSubcats(e)
+      }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
@@ -1346,41 +1200,34 @@ if (state.subcats.size > 0){
     renderMarkers();
   }
   
-// === AUTO-REFRESH dopo modifiche da admin ===
-(function setupAutoRefresh(){
-  let _lastChangeSeen = localStorage.getItem('sq-last-change') || '0';
-
-  // Se un’altra tab/pagina (es. admin) scrive sq-last-change → ricarico i dati
-  window.addEventListener('storage', (e)=>{
-    if (e.key === 'sq-last-change') {
-      _lastChangeSeen = e.newValue || String(Date.now());
-      loadData();
-    }
-  });
-
-  // Se torno sulla tab e nel frattempo è cambiato qualcosa, ricarico
-  document.addEventListener('visibilitychange', ()=>{
-    if (document.visibilityState === 'visible') {
+  // === AUTO-REFRESH dopo modifiche da admin ===
+  (function setupAutoRefresh(){
+    let _lastChangeSeen = localStorage.getItem('sq-last-change') || '0';
+    window.addEventListener('storage', (e)=>{
+      if (e.key === 'sq-last-change') {
+        _lastChangeSeen = e.newValue || String(Date.now());
+        loadData();
+      }
+    });
+    document.addEventListener('visibilitychange', ()=>{
+      if (document.visibilityState === 'visible') {
+        const v = localStorage.getItem('sq-last-change') || '0';
+        if (v !== _lastChangeSeen) {
+          _lastChangeSeen = v;
+          loadData();
+        }
+      }
+    });
+    setInterval(()=>{
       const v = localStorage.getItem('sq-last-change') || '0';
       if (v !== _lastChangeSeen) {
         _lastChangeSeen = v;
         loadData();
       }
-    }
-  });
+    }, 90000);
+  })();
 
-  // (facoltativo) piccolo polling “gentile” ogni 90s per sicurezza
-  setInterval(()=>{
-    const v = localStorage.getItem('sq-last-change') || '0';
-    if (v !== _lastChangeSeen) {
-      _lastChangeSeen = v;
-      loadData();
-    }
-  }, 90000);
-})();
-
-  
-  // ===== CONDIVIDI (solo bottone giallo) =====
+  // ===== CONDIVIDI =====
   (function(){
     const SHARE_URL  = 'https://www.staseraqui.it/';
     const SHARE_TEXT = 'Scopri cosa fare stasera vicino a te su Stasera Qui';
@@ -1400,12 +1247,54 @@ if (state.subcats.size > 0){
     btnNative.addEventListener('click', async ()=>{
       if (navigator.share){
         try{ await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: SHARE_URL }); }
-        catch(_){ /* utente ha annullato o errore → ignora */ }
+        catch(_){ /* annulla */ }
       } else {
         const ok = await copyToClipboard(SHARE_URL);
         if (ok) alert('Link copiato! Incollalo dove vuoi.');
       }
     });
+  })();
+
+  // ===== LISTA EVENTI VISIBILI =====
+  (function setupVisibleList(){
+    const btn = document.getElementById('listBtn');
+    const ovl = document.getElementById('listOverlay');
+    const body= document.getElementById('listBody');
+    const closeBtn = document.getElementById('listClose');
+
+    function buildList(){
+      const bounds = LEAF.map.getBounds();
+      const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
+      const groups = new Map(); // key -> occ
+      OCCS.forEach(o=>{
+        if (o.lat==null || o.lng==null) return;
+        if (!contains(o.lat,o.lng)) return;
+        if (!occPassesFilters(o)) return;
+        const key = `${o.event_id}|${round5(o.lat)},${round5(o.lng)}`;
+        if (!groups.has(key)) groups.set(key, o);
+      });
+
+      if (groups.size===0){
+        body.innerHTML = '<p class="small">Nessun evento nei filtri/area corrente.</p>';
+        return;
+      }
+
+      const items = [];
+      for (const occ of groups.values()){
+        const ev = EVENTS_BY_ID.get(occ.event_id)||{};
+        const titolo = firstNonEmpty(ev.title, ev.titolo, '(evento)');
+        const cats   = (ev._cats||[]).join(', ');
+        const subtxt = (ev._subcats||[]).join(', ');
+        const when   = occ.ora ? `${fmtIT(occ.data)} · ore ${occ.ora}` : `${fmtIT(occ.data)}`;
+        const where  = [occ.luogo, occ.indirizzo, occ.citta].filter(Boolean).join(', ');
+        items.push(`<li><b>${titolo}</b><br><span class="small">${cats}${subtxt?` — <i>${subtxt}</i>`:''}</span><br><span class="small">${when} — ${where}</span></li>`);
+      }
+      body.innerHTML = `<ul>${items.join('')}</ul>`;
+    }
+
+    btn.addEventListener('click', ()=>{ buildList(); ovl.style.display='flex'; });
+    closeBtn.addEventListener('click', ()=> ovl.style.display='none');
+    ovl.addEventListener('click', (e)=>{ if(e.target===ovl) ovl.style.display='none'; });
   })();
 </script>
 
