@@ -114,6 +114,26 @@
 #subchips { margin-top:8px }
 #subchips .chip { opacity:.95 }
 #subchips .chip.group-label { cursor:default; font-weight:700; opacity:.75; border-style:dashed }  
+
+  /* Popup: niente tagli, lasciare crescere in altezza/ampiezza entro maxWidth */
+.leaflet-popup-content-wrapper.sq-popup-wrap,
+.leaflet-popup-content-wrapper {
+  overflow: visible;
+}
+
+.leaflet-popup-content {
+  max-height: none !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere; /* solo per URL lunghi */
+}
+
+/* pulsanti nel popup sempre su riga, anche se lunghi */
+.leaflet-popup-content .popup-actions .btn{
+  display:inline-block;
+  white-space: normal;
+}  
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -857,7 +877,7 @@ function normSubcats(raw){
       </div>
     </div>`;
 
-  m.bindPopup(html).on('popupopen', ()=>{
+  m.bindPopup(html, { maxWidth: 720, className: 'sq-popup-wrap' }).on('popupopen', ()=>{
     const btn = document.querySelector('button[data-calc="1"]');
     if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
 
