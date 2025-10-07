@@ -20,13 +20,13 @@ window.SQ_CONFIG = {
     ],
     "Food & Drink": [
       "Degustazioni","Birra","Vino","Distillati","Street Food","Festival enogastronomici",
-      "Corsi di cucina","Cene sociali / Supper club","Caffè / Tea","Mixology / Cocktail"
+      "Corsi di cucina","Cene sociali","Caffè / Tea","Mixology / Cocktail"
     ],
     "Nightlife": [
-      "Discoteca / Club","DJ set","Karaoke","Latin Night","Bar Crawl","Aperitivo","Serata a tema"
+      "Discoteca / Club","DJ set","Karaoke","Latin Night","Aperitivo","Serata a tema"
     ],
     "Cultura/Spettacolo": [
-      "Teatro","Arti visive / Mostre","Cinema / Proiezioni","Stand-up / Commedia",
+      "Teatro","Arti visive / Mostre","Cinema / Proiezioni",
       "Danza","Letture / Presentazioni","Opera / Operetta"
     ],
     "Famiglie & Bambini": [
@@ -39,7 +39,7 @@ window.SQ_CONFIG = {
     ],
     "Sagre & Fiere": [
       "Sagra","Fiera / Festival","Enogastronomia","Festa patronale",
-      "Festa della birra","Festa del vino"
+      "Festa della birra","Festa del vino","Festa di partito/movimento politico"
     ],
     "Mercatini": [
       "Antiquariato","Hobbisti / Handmade","Usato / Vintage",
