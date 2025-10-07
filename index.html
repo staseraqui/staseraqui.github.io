@@ -680,17 +680,16 @@ function normSubcats(raw){
     loadData().then(requestInitialLocation);
   }
 
-  function lAddMarker(occ, ev){
+  <script>
+// --- SOSTITUISCI TUTTA LA FUNZIONE CON QUESTA ---
+function lAddMarker(occ, ev){
   const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
     .map(s => (s||'').toString().trim()).filter(Boolean);
   const where = whereParts.join(', ');
   const cats  = (ev._cats||[]).join(', ');
-    const subcatsTxt = (ev._subcats||[]).join(', ');
-    // Descrizione: prendi tutto, preserva le nuove righe
-const theDescr = ((ev.description ?? ev.descrizione) || '')
-  .toString()
-  .trim();
-    
+  const subcatsTxt = (ev._subcats||[]).join(', ');
+  const theDescr = ev.description||ev.descrizione||'';
+
   // ===== PREZZO/INGRESSO (robusto) =====
   function getPrice(evObj){
     const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso]
@@ -750,37 +749,41 @@ const theDescr = ((ev.description ?? ev.descrizione) || '')
   const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
   const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-  // ===== REFERENTI — scegli UNA sorgente + dedup =====
+  // ===== REFERENTI — estrazione robusta (array, metadata, campi piatti) =====
   function pickArray(val){
     if (Array.isArray(val)) return val;
     if (typeof val === 'string' && val.trim().startsWith('[')){
-      try { const j=JSON.parse(val); return Array.isArray(j) ? j : []; } catch(_){ return []; }
+      try { const j = JSON.parse(val); return Array.isArray(j) ? j : []; } catch(_){ return []; }
     }
     return [];
   }
   function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
 
-  // 1) scegliamo una sola colonna array, in ordine di preferenza
   let rawContacts = pickArray(ev.contacts);
   if (!rawContacts.length) rawContacts = pickArray(ev.referenti);
   if (!rawContacts.length) rawContacts = pickArray(ev.contatti);
 
-  // 2) se non c’è una colonna array, costruiamo da flat + numerati
+  // prova anche in ev.metadata.contacts (stringa JSON o array)
+  if (!rawContacts.length && ev.metadata){
+    try {
+      const md = (typeof ev.metadata==='string') ? JSON.parse(ev.metadata) : ev.metadata;
+      let mc = md?.contacts || md?.referenti || md?.contatti;
+      if (typeof mc === 'string' && mc.trim().startsWith('[')) mc = JSON.parse(mc);
+      if (Array.isArray(mc)) rawContacts = mc;
+    } catch(_){}
+  }
+
+  // fallback campi piatti/numerati
   if (!rawContacts.length){
     const flat = [];
-    const push=(n,t,e)=>{ if (n||t||e) flat.push({nome:n||'', tel:t||'', email:e||''}); };
+    const push=(n,t,e)=>{ if (n||t||e) flat.push({ nome:n||'', tel:t||'', email:e||'' }); };
     push(ev.nome_referente, ev.numero_referente, ev.email_referente);
     for (let i=1;i<=10;i++){
       push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
     }
-    // eventuale testo libero
-  if (!flat.length && typeof ev.referenti_text==='string'){
-    flat.push({ nome: ev.referenti_text, tel:'', email:'' });
-  }
-  rawContacts = flat;
+    rawContacts = flat;
   }
 
-  // 3) normalizza + dedup
   const referenti = [];
   const seen = new Set();
   (rawContacts||[]).forEach(r=>{
@@ -805,7 +808,26 @@ const theDescr = ((ev.description ?? ev.descrizione) || '')
       </ul>
     </div>` : '';
 
-  // ===== Raggruppo date stessa posizione (future) =====
+  // ===== DESCRIZIONE con "Mostra tutto" (senza cambiare la larghezza del popup) =====
+  const esc = s => (s||'').toString().replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+  const descrFull = esc(theDescr).replace(/\n/g,'<br>');
+  const DESCR_MAX = 900; // limite visivo; l'utente può espandere
+  let descrShort = descrFull;
+  let needToggle = false;
+  if (descrFull.length > DESCR_MAX){
+    needToggle = true;
+    const cut = descrFull.slice(0, DESCR_MAX);
+    descrShort = cut.replace(/[\s,.;:!-]\S*$/, '…'); // tronca su parola
+  }
+  const descrHtml = theDescr
+    ? `<div class="sq-desc" style="margin-top:10px">
+         <div class="short">${descrShort}</div>
+         ${needToggle ? `<div class="full" style="display:none">${descrFull}</div>
+           <button class="btn small" data-toggle-desc="1" type="button">Mostra tutto</button>` : ``}
+       </div>`
+    : '';
+
+  // ===== Date raggruppate stessa posizione (future) =====
   const today = todayISO();
   const latKey = round5(occ.lat), lngKey = round5(occ.lng);
   const allDates = OCCS
@@ -841,21 +863,21 @@ const theDescr = ((ev.description ?? ev.descrizione) || '')
        </div>`
     : '';
 
-  // Marker + popup
+  // ===== Marker + popup (NB: NESSUNA larghezza forzata) =====
   const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
 
   const prezzoHtml = prezzoIngresso
     ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
     : '';
 
-  const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
+  const html = `<div class="sq-popup" style="color:#081421">
       <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
       <small>${cats||''}</small><br>
       ${subcatsTxt ? `<small><i>${subcatsTxt}</i></small><br>` : ``}
       ${dateLine}<br>${where}
       ${prezzoHtml}
       ${referentiHtml}
-      ${theDescr ? `<div style="margin-top:10px; white-space:pre-wrap">${theDescr}</div>` : ``}      
+      ${descrHtml}
       ${listHtml}
       <div class="popup-actions">
         <button class="btn accent" data-calc="1">Calcola percorso</button>
@@ -881,11 +903,32 @@ const theDescr = ((ev.description ?? ev.descrizione) || '')
         renderMarkers();
       });
     });
+
+    // Toggle "Mostra tutto/Meno" per la descrizione
+    const tgl = document.querySelector('button[data-toggle-desc="1"]');
+    if (tgl){
+      tgl.addEventListener('click', ()=>{
+        const box = tgl.closest('.sq-desc');
+        if (!box) return;
+        const short = box.querySelector('.short');
+        const full  = box.querySelector('.full');
+        const shortOn = short && short.style.display !== 'none';
+        if (shortOn){
+          if (short) short.style.display='none';
+          if (full)  full.style.display='block';
+          tgl.textContent = 'Mostra meno';
+        } else {
+          if (full)  full.style.display='none';
+          if (short) short.style.display='block';
+          tgl.textContent = 'Mostra tutto';
+        }
+      });
+    }
   });
 
   markers.push(m);
 }
-  
+</script>  
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
