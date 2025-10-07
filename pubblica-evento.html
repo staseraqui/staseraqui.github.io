@@ -687,7 +687,7 @@
       const occ   =collectOcc();
       const contacts = collectContactsFromForm();
 
-      if(!titolo||!descr||(!file && !sito)||!occ||!catsArr.length){
+      if(!titolo||!descr||(!file && !site)||!occ||!catsArr.length){
         err.textContent='Compila Titolo, Descrizione, almeno 1 Categoria e (Locandina OPPURE Sito ufficiale). Completa tutte le occorrenze.'; return;
       }
       if (sito_raw && !sito){ err.textContent='URL del sito non valido. Correggilo o lascia vuoto.'; return; }
@@ -772,21 +772,34 @@
         if (actualDays > MAX_DAYS) throw new Error(`Periodo troppo lungo: ${actualDays} giorni (limite ${MAX_DAYS}).`);
 
         const contactsStr = JSON.stringify(ev.contacts || []).slice(0, 4000);
+
+        // ⚠️ CAMBIATO: descr non più troncata; subcats come ARRAY + pipe per compatibilità; cats anche come ARRAY
         const metadata = {
           titolo: (ev.titolo||'').slice(0,80),
-          descr:  (ev.descr||'').slice(0,180),
+          descr:  (ev.descr||''),                 // <— NIENTE slice qui: rispetta il maxlength=400 del form
           prezzo: (ev.prezzo||'').slice(0,120),
           locandina_url: ev.locandina_url,
           website: (ev.sito||'').slice(0,200),
-          cats: catsStr,
-          subcats: subStr,
+
+          // categorie / sottocategorie
+          cats: catsStr,              // legacy string
+          cats_arr: (ev.cats||[]),    // <-- nuovo: array
+          subcats: (ev.subcats||[]),  // <-- nuovo: array (quello da salvare in events.subcats)
+          subcats_pipe: subStr,       // legacy string
+
+          // occorrenze + contatti
           occ:  occStr,
           contacts: contactsStr,
+
+          // submitter
           submitter_email: email.slice(0,120),
           submitter_name: (`${nome} ${cognome}`).slice(0,80),
           submitter_tel: (tel||'').slice(0,32),
+
+          // ambassador
           partner: (partner||'').slice(0,12)
         };
+
         const tipo = (ev.occ && ev.occ.length>1) ? 'multi' : 'single';
         return { tipo, metadata };
       });
