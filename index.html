@@ -102,8 +102,6 @@
 .leaflet-popup-content .popup-actions .btn{display:inline-block}
 .leaflet-popup-content a.btn{text-decoration:none}
 
-.leaflet-popup-content a.btn{text-decoration:none}
-
 /* Mantieni maiuscole/minuscole nel popup */
 .leaflet-popup-content,
 .leaflet-popup-content *,
@@ -313,7 +311,7 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
   // ===== Helpers robusti =====
   const isTruthyPub = v => (v===true || v===1 || v==='1' || v==='t' || v==='true' || v==='T' || v==='TRUE');
   function normCats(raw){
-    const c = (raw?.categories ?? raw?.categorie ?? []);
+    const c = (raw?.categories ?? raw?.categorie ?? raw?.metadata?.categories ?? raw?.metadata?.categorie ?? []);
     if (Array.isArray(c)) return c.filter(Boolean).map(String);
     if (c == null) return [];
     if (typeof c === 'string'){
@@ -321,26 +319,40 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
         const j = JSON.parse(c);
         if (Array.isArray(j)) return j.filter(Boolean).map(String);
       }catch(_){}
+      if (c.includes('|')) return c.split('|').map(s=>s.trim()).filter(Boolean);
       if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
       return c.trim() ? [c.trim()] : [];
     }
+    // se arriva come oggetto {a:1}, ignora
     return [];
   }
-function normSubcats(raw){
-  // Accetta colonne: subcats | subcategories | sottocategorie
-  const c = (raw?.subcats ?? raw?.subcategories ?? raw?.sottocategorie ?? []);
-  if (Array.isArray(c)) return c.filter(Boolean).map(String);
-  if (c == null) return [];
-  if (typeof c === 'string'){
-    try{
-      const j = JSON.parse(c);
-      if (Array.isArray(j)) return j.filter(Boolean).map(String);
-    }catch(_){}
-    if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
-    return c.trim() ? [c.trim()] : [];
+
+  // 🔧 SOTTO-CATEGORIE: più robusto (legge anche da metadata e gestisce "|", ",", JSON stringa)
+  function normSubcats(raw){
+    // Possibili chiavi: subcats | subcategories | sottocategorie (anche dentro metadata)
+    let c = raw?.subcats ?? raw?.subcategories ?? raw?.sottocategorie ??
+            raw?.metadata?.subcats ?? raw?.metadata?.subcategories ?? raw?.metadata?.sottocategorie ?? [];
+    if (Array.isArray(c)) return c.filter(Boolean).map(x => String(x).trim()).filter(Boolean);
+    if (c == null) return [];
+    if (typeof c === 'string'){
+      const s = c.trim();
+      if (!s) return [];
+      // JSON stringa?
+      if (s.startsWith('[')){
+        try{
+          const j = JSON.parse(s);
+          if (Array.isArray(j)) return j.filter(Boolean).map(x => String(x).trim()).filter(Boolean);
+        }catch(_){}
+      }
+      // separatori comuni
+      if (s.includes('|')) return s.split('|').map(x=>x.trim()).filter(Boolean);
+      if (s.includes(',')) return s.split(',').map(x=>x.trim()).filter(Boolean);
+      return [s];
+    }
+    // se è oggetto {a:1} → niente
+    return [];
   }
-  return [];
-}  
+
   function safeUrl(u){
     if (u == null) return '';
     if (Array.isArray(u)){
@@ -681,203 +693,188 @@ function normSubcats(raw){
   }
 
   function lAddMarker(occ, ev){
-  const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
-    .map(s => (s||'').toString().trim()).filter(Boolean);
-  const where = whereParts.join(', ');
-  const cats  = (ev._cats||[]).join(', ');
+    const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
+      .map(s => (s||'').toString().trim()).filter(Boolean);
+    const where = whereParts.join(', ');
+    const cats  = (ev._cats||[]).join(', ');
     const subcatsTxt = (ev._subcats||[]).join(', ');
-    const theDescr = ev.description||ev.descrizione||'';
 
-  // ===== PREZZO/INGRESSO (robusto) =====
-  function getPrice(evObj){
-    const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso]
-      .map(v => (v ?? '').toString().trim())
-      .find(Boolean);
-    if (direct) return direct;
-    for (const [k,v] of Object.entries(evObj||{})){
-      if (/price|prezzo|ingresso/i.test(k)){
-        const s = (v ?? '').toString().trim();
-        if (s) return s;
-        if (typeof v === 'string' && v.trim().startsWith('{')) {
-          try {
-            const j = JSON.parse(v);
-            const inner = [j.price_text, j.prezzo, j.price, j.ingresso]
-              .map(x => (x ?? '').toString().trim()).find(Boolean);
-            if (inner) return inner;
-          } catch(_){}
+    // ======= DESCRIZIONE: prendi tutto quello che c'è, nessun taglio =======
+    const theDescr = firstNonEmpty(
+      ev.description, ev.descrizione, ev.descr,
+      ev?.metadata?.descr_long, ev?.metadata?.descr
+    );
+
+    // ===== PREZZO/INGRESSO (robusto, anche da metadata) =====
+    function getPrice(evObj){
+      const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso, evObj?.metadata?.prezzo, evObj?.metadata?.price_text]
+        .map(v => (v ?? '').toString().trim())
+        .find(Boolean);
+      if (direct) return direct;
+      for (const [k,v] of Object.entries(evObj||{})){
+        if (/price|prezzo|ingresso/i.test(k)){
+          const s = (v ?? '').toString().trim();
+          if (s) return s;
+          if (typeof v === 'string' && v.trim().startsWith('{')) {
+            try {
+              const j = JSON.parse(v);
+              const inner = [j.price_text, j.prezzo, j.price, j.ingresso]
+                .map(x => (x ?? '').toString().trim()).find(Boolean);
+              if (inner) return inner;
+            } catch(_){}
+          }
         }
       }
+      const m = (theDescr||'').match(/\b(gratis|€\s?\d{1,3}(?:[.,]\d{1,2})?|\d{1,3}(?:[.,]\d{1,2})?\s?€)\b/i);
+      return m ? m[0] : '';
     }
-    const m = (theDescr||'').match(/\b(gratis|€\s?\d{1,3}(?:[.,]\d{1,2})?|\d{1,3}(?:[.,]\d{1,2})?\s?€)\b/i);
-    return m ? m[0] : '';
-  }
-  const prezzoIngresso = getPrice(ev);
+    const prezzoIngresso = getPrice(ev);
 
-  // ===== URL utili =====
-  function safeUrl(u){
-    if (u == null) return '';
-    if (Array.isArray(u)){ for (const item of u){ const s = safeUrl(item); if (s) return s; } return ''; }
-    if (typeof u === 'object'){ for (const c of [u.url,u.href,u.link,u.src]){ const s=safeUrl(c); if (s) return s; } return ''; }
-    let s = String(u).trim();
-    if (!s) return '';
-    if (/^data:image\//i.test(s)) return s;
-    if (/^\/\//.test(s)) s = 'https:' + s;
-    if (/^\//.test(s)) return s;
-    if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
-    try { new URL(s); return s; } catch(_){ return ''; }
-  }
-  function pickFirstUrl(...fields){
-    for (const f of fields){
-      const s = safeUrl(f);
-      if (s) return s;
-      if (typeof f === 'string'){
-        try{ const j = JSON.parse(f); const s2 = safeUrl(j); if (s2) return s2; }catch(_){}
+    // ===== URL utili (anche da metadata) =====
+    const website = firstNonEmpty(
+      (ev.website_url||'').toString().trim(),
+      ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento,
+      ev?.metadata?.website, ev?.metadata?.sito, ev?.metadata?.sito_web
+    ) || pickFirstUrl(ev?.metadata?.website);
+
+    let locandinaUrl = firstNonEmpty((ev.locandina_url||ev.image_url||'').toString().trim());
+    if (!locandinaUrl) locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb, ev?.metadata?.locandina_url);
+    if (locandinaUrl && locandinaUrl.startsWith('/')) {
+      try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
+    }
+    const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
+    const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
+
+    // ===== REFERENTI — anche da metadata.contacts =====
+    function pickArray(val){
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string'){
+        const s = val.trim();
+        if (s.startsWith('[')){ try{ const j=JSON.parse(s); return Array.isArray(j)? j:[]; }catch(_){ return []; } }
       }
+      return [];
     }
-    return '';
-  }
-  const website = (ev.website_url || '').toString().trim() || pickFirstUrl(
-    ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento
-  );
-  let locandinaUrl = (ev.locandina_url || ev.image_url || '').toString().trim();
-  if (!locandinaUrl) locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb);
-  if (locandinaUrl && locandinaUrl.startsWith('/')) {
-    try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
-  }
-  const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
-  const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
+    function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
 
-  // ===== REFERENTI — scegli UNA sorgente + dedup =====
-  function pickArray(val){
-    if (Array.isArray(val)) return val;
-    if (typeof val === 'string' && val.trim().startsWith('[')){
-      try { const j=JSON.parse(val); return Array.isArray(j) ? j : []; } catch(_){ return []; }
+    let rawContacts = pickArray(ev.contacts) || pickArray(ev.referenti) || pickArray(ev.contatti);
+    if (!rawContacts.length){
+      rawContacts = pickArray(ev?.metadata?.contacts);
     }
-    return [];
-  }
-  function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
-
-  // 1) scegliamo una sola colonna array, in ordine di preferenza
-  let rawContacts = pickArray(ev.contacts);
-  if (!rawContacts.length) rawContacts = pickArray(ev.referenti);
-  if (!rawContacts.length) rawContacts = pickArray(ev.contatti);
-
-  // 2) se non c’è una colonna array, costruiamo da flat + numerati
-  if (!rawContacts.length){
-    const flat = [];
-    const push=(n,t,e)=>{ if (n||t||e) flat.push({nome:n||'', tel:t||'', email:e||''}); };
-    push(ev.nome_referente, ev.numero_referente, ev.email_referente);
-    for (let i=1;i<=10;i++){
-      push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
+    if (!rawContacts.length){
+      const flat = [];
+      const push=(n,t,e)=>{ if (n||t||e) flat.push({nome:n||'', tel:t||'', email:e||''}); };
+      // possibili colonne “flat”
+      push(ev.nome_referente, ev.numero_referente, ev.email_referente);
+      for (let i=1;i<=10;i++){
+        push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
+      }
+      rawContacts = flat;
     }
-    rawContacts = flat;
-  }
 
-  // 3) normalizza + dedup
-  const referenti = [];
-  const seen = new Set();
-  (rawContacts||[]).forEach(r=>{
-    const nome  = (r?.nome||r?.name||'').toString().trim();
-    const tel   = sanitizeTel(r?.tel||r?.telefono||r?.phone||'');
-    const email = (r?.email||'').toString().trim().toLowerCase();
-    if (!(nome||tel||email)) return;
-    const key = [nome.toLowerCase(), tel, email].join('|');
-    if (!seen.has(key)){ seen.add(key); referenti.push({nome, tel, email}); }
-  });
+    const referenti = [];
+    const seen = new Set();
+    (rawContacts||[]).forEach(r=>{
+      const nome  = (r?.nome||r?.name||'').toString().trim();
+      const tel   = sanitizeTel(r?.tel||r?.telefono||r?.phone||'');
+      const email = (r?.email||'').toString().trim().toLowerCase();
+      if (!(nome||tel||email)) return;
+      const key = [nome.toLowerCase(), tel, email].join('|');
+      if (!seen.has(key)){ seen.add(key); referenti.push({nome, tel, email}); }
+    });
 
-  const referentiHtml = referenti.length ? `
-    <div class="small sq-ref" style="margin-top:6px">
-      <b>Referenti:</b>
-      <ul style="margin:6px 0 0 18px">
-        ${referenti.map(r => {
-          const name   = r.nome ? `<b>${r.nome}</b>` : '';
-          const tel    = r.tel  ? ` · <a href="tel:${r.tel}">${r.tel}</a>` : '';
-          const email  = r.email? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
-          return `<li>${name}${tel}${email}</li>`;
-        }).join('')}
-      </ul>
-    </div>` : '';
+    const referentiHtml = referenti.length ? `
+      <div class="small sq-ref" style="margin-top:6px">
+        <b>Referenti:</b>
+        <ul style="margin:6px 0 0 18px">
+          ${referenti.map(r => {
+            const name   = r.nome ? `<b>${r.nome}</b>` : '';
+            const tel    = r.tel  ? ` · <a href="tel:${r.tel}">${r.tel}</a>` : '';
+            const email  = r.email? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
+            return `<li>${name}${tel}${email}</li>`;
+          }).join('')}
+        </ul>
+      </div>` : '';
 
-  // ===== Raggruppo date stessa posizione (future) =====
-  const today = todayISO();
-  const latKey = round5(occ.lat), lngKey = round5(occ.lng);
-  const allDates = OCCS
-    .filter(o => o.event_id === occ.event_id && o.data && o.data >= today &&
-                 round5(o.lat) === latKey && round5(o.lng) === lngKey)
-    .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora));
+    // ===== Raggruppo date stessa posizione (future) =====
+    const today = todayISO();
+    const latKey = round5(occ.lat), lngKey = round5(occ.lng);
+    const allDates = OCCS
+      .filter(o => o.event_id === occ.event_id && o.data && o.data >= today &&
+                  round5(o.lat) === latKey && round5(o.lng) === lngKey)
+      .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora));
 
-  let dateLine = '';
-  if (allDates.length > 1) {
-    const start = allDates[0], end = allDates[allDates.length - 1];
-    const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
-    const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
-    dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
-  } else {
-    const only = allDates[0] || occ;
-    dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
-  }
+    let dateLine = '';
+    if (allDates.length > 1) {
+      const start = allDates[0], end = allDates[allDates.length - 1];
+      const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
+      const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
+      dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
+    } else {
+      const only = allDates[0] || occ;
+      dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
+    }
 
-  const otherDates = allDates.filter(o => o.id !== occ.id);
-  const multiBadge = allDates.length > 1
-    ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
-    : '';
+    const otherDates = allDates.filter(o => o.id !== occ.id);
+    const multiBadge = allDates.length > 1
+      ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
+      : '';
 
-  const listHtml = otherDates.length
-    ? `<div style="margin-top:6px">
-         <b>Altre date:</b>
-         <ul style="margin:6px 0 0 18px">
-           ${otherDates.slice(0,8).map(o =>
-             `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
-           ).join('')}
-         </ul>
-         ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
-       </div>`
-    : '';
+    const listHtml = otherDates.length
+      ? `<div style="margin-top:6px">
+          <b>Altre date:</b>
+          <ul style="margin:6px 0 0 18px">
+            ${otherDates.slice(0,8).map(o =>
+              `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
+            ).join('')}
+          </ul>
+          ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
+        </div>`
+      : '';
 
-  // Marker + popup
-  const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
+    // Marker + popup (nessuna modifica al dimensionamento, nessun taglio testo)
+    const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
 
-  const prezzoHtml = prezzoIngresso
-    ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
-    : '';
+    const prezzoHtml = prezzoIngresso
+      ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
+      : '';
 
-  const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
-      <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
-      <small>${cats||''}</small><br>
-      ${subcatsTxt ? `<small><i>${subcatsTxt}</i></small><br>` : ``}
-      ${dateLine}<br>${where}
-      ${prezzoHtml}
-      ${referentiHtml}
-      ${theDescr ? `<br><br>${theDescr}` : ''}
-      ${listHtml}
-      <div class="popup-actions">
-        <button class="btn accent" data-calc="1">Calcola percorso</button>
-        ${btnSite}
-        ${btnPoster}
-      </div>
-    </div>`;
+    const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
+        <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
+        <small>${cats||''}</small><br>
+        ${subcatsTxt ? `<small><i>${subcatsTxt}</i></small><br>` : ``}
+        ${dateLine}<br>${where}
+        ${prezzoHtml}
+        ${referentiHtml}
+        ${theDescr ? `<br><br>${theDescr}` : ''}
+        ${listHtml}
+        <div class="popup-actions">
+          <button class="btn accent" data-calc="1">Calcola percorso</button>
+          ${btnSite}
+          ${btnPoster}
+        </div>
+      </div>`;
 
-  m.bindPopup(html).on('popupopen', ()=>{
-    const btn = document.querySelector('button[data-calc="1"]');
-    if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
+    m.bindPopup(html).on('popupopen', ()=>{
+      const btn = document.querySelector('button[data-calc="1"]');
+      if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
 
-    document.querySelectorAll('.sq-date').forEach(a=>{
-      a.addEventListener('click', (e)=>{
-        e.preventDefault();
-        const d = a.getAttribute('data-date');
-        state.customDate = d;
-        state.day = null;
-        allowAutoFit = false;
-        const badge = document.getElementById('dateBadge');
-        if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
-        LEAF.map.closePopup();
-        renderMarkers();
+      document.querySelectorAll('.sq-date').forEach(a=>{
+        a.addEventListener('click', (e)=>{
+          e.preventDefault();
+          const d = a.getAttribute('data-date');
+          state.customDate = d;
+          state.day = null;
+          allowAutoFit = false;
+          const badge = document.getElementById('dateBadge');
+          if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
+          LEAF.map.closePopup();
+          renderMarkers();
+        });
       });
     });
-  });
 
-  markers.push(m);
-}
+    markers.push(m);
+  }
   
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
@@ -945,127 +942,117 @@ function normSubcats(raw){
   })();
 
   (function setupChips(){
-  $$('#chips .chip').forEach(ch=>{
-    ch.addEventListener('click', ()=>{
-      ch.classList.toggle('active');
-      const c = ch.getAttribute('data-cat');
-      if (ch.classList.contains('active')) state.cats.add(c);
-      else state.cats.delete(c);
+    $$('#chips .chip').forEach(ch=>{
+      ch.addEventListener('click', ()=>{
+        ch.classList.toggle('active');
+        const c = ch.getAttribute('data-cat');
+        if (ch.classList.contains('active')) state.cats.add(c);
+        else state.cats.delete(c);
 
-      // Quando cambiano le categorie, ricostruiamo le sotto-categorie mostrate
-      if (window._rebuildSubchips){
-        // Se ho deselezionato tutte le categorie, svuoto anche subcats selezionate
-        if (state.cats.size === 0) state.subcats.clear();
-        window._rebuildSubchips();
-      }
+        // Ricostruisci le sotto-categorie quando cambiano le categorie
+        if (window._rebuildSubchips){
+          if (state.cats.size === 0) state.subcats.clear();
+          window._rebuildSubchips();
+        }
 
-      _refitTried = false;
-      renderMarkers();
+        _refitTried = false;
+        renderMarkers();
+      });
     });
-  });
 
-  // Prima costruzione all’avvio
-  if (window._rebuildSubchips) window._rebuildSubchips();
-})();
+    // Prima costruzione all’avvio
+    if (window._rebuildSubchips) window._rebuildSubchips();
+  })();
+
   // ===== RESET FILTRI =====
-(function setupResetButtons(){
-  const btnCats  = document.getElementById('resetCatsBtn');
-  const btnDates = document.getElementById('resetDatesBtn');
+  (function setupResetButtons(){
+    const btnCats  = document.getElementById('resetCatsBtn');
+    const btnDates = document.getElementById('resetDatesBtn');
 
-  if (btnCats){
-    btnCats.addEventListener('click', ()=>{
-      // Pulisci stato
-      state.cats.clear();
-      state.subcats.clear();
-
-      // UI: togli "active" da tutte le chip categoria
-      document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
-
-      // Ricostruisci/azzera subchips e nascondi box
-      if (window._rebuildSubchips) window._rebuildSubchips();
-      const subBox = document.getElementById('subchips');
-      if (subBox){ subBox.innerHTML=''; subBox.style.display='none'; }
-
-      _refitTried = false;
-      renderMarkers();
-    });
-  }
-
-  if (btnDates){
-    btnDates.addEventListener('click', ()=>{
-      // Pulisci stato date
-      state.day = null;
-      state.customDate = null;
-
-      // UI: togli "active" da oggi/domani/weekend e nascondi badge
-      document.querySelectorAll('#dayPills .pill.active').forEach(el=> el.classList.remove('active'));
-      const badge = document.getElementById('dateBadge');
-      if (badge){ badge.style.display='none'; badge.textContent=''; }
-
-      _refitTried = false;
-      renderMarkers();
-    });
-  }
-})();  
-  // ===== SOTTO-CATEGORIE: costruzione dinamica + handlers =====
-(function setupSubchips(){
-  const box = document.getElementById('subchips');
-  if (!box) return;
-
-  function renderSubchips(){
-    // Raccogli le sotto-categorie delle categorie selezionate
-    const catsSel = Array.from(state.cats);
-    const subSet = new Set();
-    if (catsSel.length){
-      catsSel.forEach(cat => (EB_TAXONOMY[cat]||[]).forEach(s => subSet.add(s)));
-    } else {
-      // Se nessuna categoria selezionata, mostriamo tutte (opzionale)
-      Object.values(EB_TAXONOMY).forEach(list => (list||[]).forEach(s => subSet.add(s)));
+    if (btnCats){
+      btnCats.addEventListener('click', ()=>{
+        state.cats.clear();
+        state.subcats.clear();
+        document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
+        if (window._rebuildSubchips) window._rebuildSubchips();
+        const subBox = document.getElementById('subchips');
+        if (subBox){ subBox.innerHTML=''; subBox.style.display='none'; }
+        _refitTried = false;
+        renderMarkers();
+      });
     }
 
-    const subs = Array.from(subSet).sort((a,b)=> a.localeCompare(b,'it'));
-    if (!subs.length){ box.style.display='none'; box.innerHTML=''; return; }
+    if (btnDates){
+      btnDates.addEventListener('click', ()=>{
+        state.day = null;
+        state.customDate = null;
+        document.querySelectorAll('#dayPills .pill.active').forEach(el=> el.classList.remove('active'));
+        const badge = document.getElementById('dateBadge');
+        if (badge){ badge.style.display='none'; badge.textContent=''; }
+        _refitTried = false;
+        renderMarkers();
+      });
+    }
+  })();
 
-    // (Facoltativo) piccoli label per gruppi
-    const subsByCat = {};
-    subs.forEach(s=>{
-      const p = SUBCAT_PARENT[s] || 'Altro';
-      (subsByCat[p] = subsByCat[p] || []).push(s);
+  // ===== SOTTO-CATEGORIE: costruzione dinamica + handlers =====
+  (function setupSubchips(){
+    const box = document.getElementById('subchips');
+    if (!box) return;
+
+    function renderSubchips(){
+      // Raccolta subcats per le categorie selezionate
+      const catsSel = Array.from(state.cats);
+      const subSet = new Set();
+      if (catsSel.length){
+        catsSel.forEach(cat => (EB_TAXONOMY[cat]||[]).forEach(s => subSet.add(s)));
+      } else {
+        // Se nessuna categoria selezionata, mostra tutte
+        Object.values(EB_TAXONOMY).forEach(list => (list||[]).forEach(s => subSet.add(s)));
+      }
+
+      const subs = Array.from(subSet).sort((a,b)=> a.localeCompare(b,'it'));
+      if (!subs.length){ box.style.display='none'; box.innerHTML=''; return; }
+
+      const subsByCat = {};
+      subs.forEach(s=>{
+        const p = SUBCAT_PARENT[s] || 'Altro';
+        (subsByCat[p] = subsByCat[p] || []).push(s);
+      });
+
+      const html = Object.entries(subsByCat)
+        .sort((a,b)=> EB_ORDER.indexOf(a[0]) - EB_ORDER.indexOf(b[0]))
+        .map(([parent, list])=>{
+          const chips = list.map(s=>{
+            const active = state.subcats.has(s) ? ' active' : '';
+            return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
+          }).join('');
+          return `
+            <div class="chip group-label" style="pointer-events:none">${parent}</div>
+            ${chips}
+          `;
+        }).join('');
+
+      box.innerHTML = html;
+      box.style.display='block';
+    }
+
+    // Delegation click
+    box.addEventListener('click', (e)=>{
+      const el = e.target.closest('.chip');
+      if (!el || el.classList.contains('group-label')) return;
+      el.classList.toggle('active');
+      const sub = el.getAttribute('data-sub');
+      if (!sub) return;
+      if (el.classList.contains('active')) state.subcats.add(sub);
+      else state.subcats.delete(sub);
+      _refitTried = false;
+      renderMarkers();
     });
 
-    const html = Object.entries(subsByCat)
-      .sort((a,b)=> EB_ORDER.indexOf(a[0]) - EB_ORDER.indexOf(b[0]))
-      .map(([parent, list])=>{
-        const chips = list.map(s=>{
-          const active = state.subcats.has(s) ? ' active' : '';
-          return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
-        }).join('');
-        return `
-          <div class="chip group-label" style="pointer-events:none">${parent}</div>
-          ${chips}
-        `;
-      }).join('');
-
-    box.innerHTML = html;
-    box.style.display='block';
-  }
-
-  // Delegation click
-  box.addEventListener('click', (e)=>{
-    const el = e.target.closest('.chip');
-    if (!el || el.classList.contains('group-label')) return;
-    el.classList.toggle('active');
-    const sub = el.getAttribute('data-sub');
-    if (!sub) return;
-    if (el.classList.contains('active')) state.subcats.add(sub);
-    else state.subcats.delete(sub);
-    _refitTried = false;
-    renderMarkers();
-  });
-
-  // Espone un hook per ricostruire quando cambiano le categorie
-  window._rebuildSubchips = renderSubchips;
-})();
+    // Espone un hook per ricostruire quando cambiano le categorie
+    window._rebuildSubchips = renderSubchips;
+  })();
   
   // ===== CERCA — centra mappa con geocoding ibrido + cache =====
   $('#searchBtn').addEventListener('click', async ()=>{
@@ -1142,14 +1129,14 @@ function normSubcats(raw){
     // Escludi passato
     if (occ.data && occ.data < today) return false;
 
-    // Se è stata scelta una data specifica, ha la precedenza
+    // Data specifica ha precedenza
     if (state.customDate && occ.data !== state.customDate) return false;
 
     // Giorni rapidi
     if (state.day === 'oggi'   && occ.data !== today) return false;
     if (state.day === 'domani' && occ.data !== addDays(today, 1)) return false;
 
-    // Weekend = SOLO il prossimo sabato/domenica (quelli mostrati nel badge)
+    // Weekend = prossimo sabato/domenica
     if (state.day === 'weekend'){
       const now = new Date();
       const sat = addDays(today, (6 - now.getDay() + 7) % 7);
@@ -1157,35 +1144,31 @@ function normSubcats(raw){
       if (occ.data !== sat && occ.data !== sun) return false;
     }
 
-    // Categorie (già esistente)
-if (state.cats.size > 0){
-  const ev = EVENTS_BY_ID.get(occ.event_id);
-  const evCats = (ev?._cats || []);
-  if (!evCats.some(c => state.cats.has(c))) return false;
-}
+    // Categorie
+    if (state.cats.size > 0){
+      const ev = EVENTS_BY_ID.get(occ.event_id);
+      const evCats = (ev?._cats || []);
+      if (!evCats.some(c => state.cats.has(c))) return false;
+    }
 
-// Sotto-categorie (nuovo)
-if (state.subcats.size > 0){
-  const ev = EVENTS_BY_ID.get(occ.event_id);
-  const evSubs = (ev?._subcats || []);
-  if (evSubs.length > 0){
-    // Richiede almeno un match con una subcat selezionata
-    const ok = evSubs.some(s => state.subcats.has(s));
-    if (!ok) return false;
-  } else {
-    // Fallback legacy: se l’evento NON ha subcats,
-    // lo includiamo SOLO se ha almeno una categoria padre
-    // coerente con una delle subcats selezionate.
-    const evCats = (ev?._cats || []);
-    const parentsOfSelected = new Set(Array.from(state.subcats).map(s => SUBCAT_PARENT[s]).filter(Boolean));
-    const okParent = evCats.some(c => parentsOfSelected.has(c));
-    if (!okParent) return false;
-  }
-}
+    // Sotto-categorie
+    if (state.subcats.size > 0){
+      const ev = EVENTS_BY_ID.get(occ.event_id);
+      const evSubs = (ev?._subcats || []);
+      if (evSubs.length > 0){
+        const ok = evSubs.some(s => state.subcats.has(s));
+        if (!ok) return false;
+      } else {
+        const evCats = (ev?._cats || []);
+        const parentsOfSelected = new Set(Array.from(state.subcats).map(s => SUBCAT_PARENT[s]).filter(Boolean));
+        const okParent = evCats.some(c => parentsOfSelected.has(c));
+        if (!okParent) return false;
+      }
+    }
     return true;
   }
 
-  // ✅ CONTATORE: numero di pin (evento+posizione) visibili, non occorrenze
+  // ✅ CONTATORE
   function updateCounter(){
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
@@ -1208,14 +1191,13 @@ if (state.subcats.size > 0){
     return L.latLngBounds(pts.map(o => [o.lat, o.lng]));
   }
 
-  // ✅ MARKER: deduplica per (evento + posizione)
+  // ✅ MARKER
   function renderMarkers(){
     lClearMarkers();
     const bounds = LEAF.map.getBounds();
     const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
     let rendered = 0;
 
-    // Ordina per data/ora DESC (non critico: scegliamo il primo occ del gruppo)
     const occsToScan = OCCS.slice().sort((a,b)=>{
       const ad = a.data || '', bd = b.data || '';
       if (ad !== bd) return ad > bd ? -1 : 1;
@@ -1223,17 +1205,15 @@ if (state.subcats.size > 0){
       return at > bt ? -1 : (at < bt ? 1 : 0);
     });
 
-    // Raggruppo occorrenze filtrate per chiave (evento+pos)
     const groups = new Map();
     occsToScan.forEach(occ=>{
       if (occ.lat==null || occ.lng==null) return;
       if (bounds && !contains(occ.lat,occ.lng)) return;
       if (!occPassesFilters(occ)) return;
       const key = `${occ.event_id}|${round5(occ.lat)},${round5(occ.lng)}`;
-      if (!groups.has(key)) groups.set(key, occ); // prendi il primo valido
+      if (!groups.has(key)) groups.set(key, occ);
     });
 
-    // Disegno un solo pin per gruppo
     for (const occ of groups.values()){
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
       lAddMarker(occ, ev);
@@ -1261,12 +1241,12 @@ if (state.subcats.size > 0){
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
     EVENTS = EVENTS_ALL
-  .filter(e => !('published' in e) || isTruthyPub(e.published))
-  .map(e => ({ 
-    ...e, 
-    _cats: normCats(e),
-    _subcats: normSubcats(e)
-  }));
+      .filter(e => !('published' in e) || isTruthyPub(e.published))
+      .map(e => ({ 
+        ...e, 
+        _cats: normCats(e),
+        _subcats: normSubcats(e)
+      }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
@@ -1296,41 +1276,37 @@ if (state.subcats.size > 0){
     renderMarkers();
   }
   
-// === AUTO-REFRESH dopo modifiche da admin ===
-(function setupAutoRefresh(){
-  let _lastChangeSeen = localStorage.getItem('sq-last-change') || '0';
+  // === AUTO-REFRESH ===
+  (function setupAutoRefresh(){
+    let _lastChangeSeen = localStorage.getItem('sq-last-change') || '0';
 
-  // Se un’altra tab/pagina (es. admin) scrive sq-last-change → ricarico i dati
-  window.addEventListener('storage', (e)=>{
-    if (e.key === 'sq-last-change') {
-      _lastChangeSeen = e.newValue || String(Date.now());
-      loadData();
-    }
-  });
+    window.addEventListener('storage', (e)=>{
+      if (e.key === 'sq-last-change') {
+        _lastChangeSeen = e.newValue || String(Date.now());
+        loadData();
+      }
+    });
 
-  // Se torno sulla tab e nel frattempo è cambiato qualcosa, ricarico
-  document.addEventListener('visibilitychange', ()=>{
-    if (document.visibilityState === 'visible') {
+    document.addEventListener('visibilitychange', ()=>{
+      if (document.visibilityState === 'visible') {
+        const v = localStorage.getItem('sq-last-change') || '0';
+        if (v !== _lastChangeSeen) {
+          _lastChangeSeen = v;
+          loadData();
+        }
+      }
+    });
+
+    setInterval(()=>{
       const v = localStorage.getItem('sq-last-change') || '0';
       if (v !== _lastChangeSeen) {
         _lastChangeSeen = v;
         loadData();
       }
-    }
-  });
+    }, 90000);
+  })();
 
-  // (facoltativo) piccolo polling “gentile” ogni 90s per sicurezza
-  setInterval(()=>{
-    const v = localStorage.getItem('sq-last-change') || '0';
-    if (v !== _lastChangeSeen) {
-      _lastChangeSeen = v;
-      loadData();
-    }
-  }, 90000);
-})();
-
-  
-  // ===== CONDIVIDI (solo bottone giallo) =====
+  // ===== CONDIVIDI =====
   (function(){
     const SHARE_URL  = 'https://www.staseraqui.it/';
     const SHARE_TEXT = 'Scopri cosa fare stasera vicino a te su Stasera Qui';
