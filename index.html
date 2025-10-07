@@ -680,7 +680,7 @@ function normSubcats(raw){
     loadData().then(requestInitialLocation);
   }
 
-  <script>
+  
 // --- SOSTITUISCI TUTTA LA FUNZIONE CON QUESTA ---
 function lAddMarker(occ, ev){
   const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
@@ -928,7 +928,7 @@ function lAddMarker(occ, ev){
 
   markers.push(m);
 }
-</script>  
+  
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
