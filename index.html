@@ -114,31 +114,6 @@
 #subchips { margin-top:8px }
 #subchips .chip { opacity:.95 }
 #subchips .chip.group-label { cursor:default; font-weight:700; opacity:.75; border-style:dashed }  
-
-/* Popup largo e leggibile (la classe è su .leaflet-popup, non sul wrapper) */
-.leaflet-popup.sq-popup-lg .leaflet-popup-content-wrapper {
-  /* larghezza responsive: fino a 900px, ma mai oltre il 92% dello schermo */
-  width: min(92vw, 900px);
-}
-
-/* Contenuto: niente tagli di testo, maiuscole rispettate, avvolgimento link lunghi */
-.leaflet-popup-content {
-  max-height: 78vh;            /* se il testo è lunghissimo, scorre senza tagliarlo */
-  overflow: auto;
-  white-space: normal !important;
-  word-break: normal !important;
-  overflow-wrap: anywhere;     /* evita overflow con URL lunghi */
-}
-
-/* Pulsanti nel popup: niente troncamenti */
-.leaflet-popup-content .popup-actions .btn {
-  display: inline-block;
-  white-space: normal;
-}
-
-/* (Opzionale) un po' di spazio verticale nel contenuto */
-.leaflet-popup-content p { margin: .5em 0; }  
-  
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -866,7 +841,7 @@ function normSubcats(raw){
     ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
     : '';
 
-const html = `<div class="sq-popup" style="color:#081421">    
+  const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
       <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
       <small>${cats||''}</small><br>
       ${subcatsTxt ? `<small><i>${subcatsTxt}</i></small><br>` : ``}
@@ -882,12 +857,7 @@ const html = `<div class="sq-popup" style="color:#081421">
       </div>
     </div>`;
 
-m.bindPopup(html, {
-  maxWidth: 1000,     // permette popup larghi
-  minWidth: 360,      // non troppo stretti su desktop
-  className: 'sq-popup-lg',
-  autoPanPadding: [20,20]
-}).on('popupopen', ()=>{    
+  m.bindPopup(html).on('popupopen', ()=>{
     const btn = document.querySelector('button[data-calc="1"]');
     if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
 
