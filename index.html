@@ -268,18 +268,28 @@
 
   let USE_GMAPS = false; // mappa principale = Leaflet
 
-// Leggi tassonomia da config centrale
-const CFG = window.SQ_CONFIG || {};
-const EB_TAXONOMY = CFG.EB_TAXONOMY || {};
-const EB_ORDER = (CFG.EB_CATEGORIES_ORDER && CFG.EB_CATEGORIES_ORDER.length)
-  ? CFG.EB_CATEGORIES_ORDER
-  : Object.keys(EB_TAXONOMY);
+  // Leggi tassonomia da config centrale + FALLBACK ROBUSTO
+  const CFG = window.SQ_CONFIG || {};
+  const TAX_FALLBACK = {
+    "Musica": ["Rock","Jazz & Blues","Classica","Elettronica","Hip-Hop / Rap","Indie / Alternative","Pop","Metal","Folk / Acustico","Country","Latina","R&B / Soul","DJ / Dance","Cantautori"],
+    "Food & Drink": ["Aperitivo","Street Food","Degustazioni","Birra","Vino","Distillati","Festival enogastronomici","Corsi di cucina","Cene sociali / Supper club","Caffè / Tea","Mixology / Cocktail"],
+    "Nightlife": ["Discoteca / Club","DJ set","Karaoke","Latin Night","Bar Crawl","Serata a tema"],
+    "Cultura/Spettacolo": ["Teatro","Arti visive / Mostre","Cinema / Proiezioni","Stand-up / Commedia","Danza","Letture / Presentazioni","Opera / Operetta"],
+    "Famiglie & Bambini": ["Spettacolo bambini","Laboratori","Letture animate","Giochi / Animazione","Feste di paese","Parchi / Outdoor"],
+    "Sport": ["Calcio","Ciclismo","Running / Corsa","Trekking / Escursioni","Fitness / Wellness","Tornei","Arti marziali"],
+    "Sagre & Fiere": ["Sagra","Fiera / Festival","Festa della birra","Festa del vino","Enogastronomia","Festival"],
+    "Mercatini": ["Antiquariato","Hobbisti / Handmade","Usato / Vintage","Km0 / Prodotti locali","Mercatino di Natale"]
+  };
+  const EB_TAXONOMY = (CFG.EB_TAXONOMY && Object.keys(CFG.EB_TAXONOMY).length) ? CFG.EB_TAXONOMY : TAX_FALLBACK;
+  const EB_ORDER = (CFG.EB_CATEGORIES_ORDER && CFG.EB_CATEGORIES_ORDER.length)
+    ? CFG.EB_CATEGORIES_ORDER
+    : Object.keys(EB_TAXONOMY);
 
-// Mappa inversa: sotto-cat -> categoria padre
-const SUBCAT_PARENT = {};
-Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
-  (subs||[]).forEach(s => { SUBCAT_PARENT[s] = cat; });
-});
+  // Mappa inversa: sotto-cat -> categoria padre
+  const SUBCAT_PARENT = {};
+  Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
+    (subs||[]).forEach(s => { SUBCAT_PARENT[s] = cat; });
+  });
   
   // Namespace utili
   let GMAPS = {
@@ -323,13 +333,11 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
       if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
       return c.trim() ? [c.trim()] : [];
     }
-    // se arriva come oggetto {a:1}, ignora
     return [];
   }
 
   // 🔧 SOTTO-CATEGORIE: più robusto (legge anche da metadata e gestisce "|", ",", JSON stringa)
   function normSubcats(raw){
-    // Possibili chiavi: subcats | subcategories | sottocategorie (anche dentro metadata)
     let c = raw?.subcats ?? raw?.subcategories ?? raw?.sottocategorie ??
             raw?.metadata?.subcats ?? raw?.metadata?.subcategories ?? raw?.metadata?.sottocategorie ?? [];
     if (Array.isArray(c)) return c.filter(Boolean).map(x => String(x).trim()).filter(Boolean);
@@ -337,19 +345,16 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
     if (typeof c === 'string'){
       const s = c.trim();
       if (!s) return [];
-      // JSON stringa?
       if (s.startsWith('[')){
         try{
           const j = JSON.parse(s);
           if (Array.isArray(j)) return j.filter(Boolean).map(x => String(x).trim()).filter(Boolean);
         }catch(_){}
       }
-      // separatori comuni
       if (s.includes('|')) return s.split('|').map(x=>x.trim()).filter(Boolean);
       if (s.includes(',')) return s.split(',').map(x=>x.trim()).filter(Boolean);
       return [s];
     }
-    // se è oggetto {a:1} → niente
     return [];
   }
 
@@ -941,60 +946,6 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
     });
   })();
 
-  (function setupChips(){
-    $$('#chips .chip').forEach(ch=>{
-      ch.addEventListener('click', ()=>{
-        ch.classList.toggle('active');
-        const c = ch.getAttribute('data-cat');
-        if (ch.classList.contains('active')) state.cats.add(c);
-        else state.cats.delete(c);
-
-        // Ricostruisci le sotto-categorie quando cambiano le categorie
-        if (window._rebuildSubchips){
-          if (state.cats.size === 0) state.subcats.clear();
-          window._rebuildSubchips();
-        }
-
-        _refitTried = false;
-        renderMarkers();
-      });
-    });
-
-    // Prima costruzione all’avvio
-    if (window._rebuildSubchips) window._rebuildSubchips();
-  })();
-
-  // ===== RESET FILTRI =====
-  (function setupResetButtons(){
-    const btnCats  = document.getElementById('resetCatsBtn');
-    const btnDates = document.getElementById('resetDatesBtn');
-
-    if (btnCats){
-      btnCats.addEventListener('click', ()=>{
-        state.cats.clear();
-        state.subcats.clear();
-        document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
-        if (window._rebuildSubchips) window._rebuildSubchips();
-        const subBox = document.getElementById('subchips');
-        if (subBox){ subBox.innerHTML=''; subBox.style.display='none'; }
-        _refitTried = false;
-        renderMarkers();
-      });
-    }
-
-    if (btnDates){
-      btnDates.addEventListener('click', ()=>{
-        state.day = null;
-        state.customDate = null;
-        document.querySelectorAll('#dayPills .pill.active').forEach(el=> el.classList.remove('active'));
-        const badge = document.getElementById('dateBadge');
-        if (badge){ badge.style.display='none'; badge.textContent=''; }
-        _refitTried = false;
-        renderMarkers();
-      });
-    }
-  })();
-
   // ===== SOTTO-CATEGORIE: costruzione dinamica + handlers =====
   (function setupSubchips(){
     const box = document.getElementById('subchips');
@@ -1052,6 +1003,63 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
 
     // Espone un hook per ricostruire quando cambiano le categorie
     window._rebuildSubchips = renderSubchips;
+
+    // 🔸 Render iniziale all’avvio
+    renderSubchips();
+  })();
+
+  (function setupChips(){
+    $$('#chips .chip').forEach(ch=>{
+      ch.addEventListener('click', ()=>{
+        ch.classList.toggle('active');
+        const c = ch.getAttribute('data-cat');
+        if (ch.classList.contains('active')) state.cats.add(c);
+        else state.cats.delete(c);
+
+        // Ricostruisci le sotto-categorie quando cambiano le categorie
+        if (window._rebuildSubchips){
+          if (state.cats.size === 0) state.subcats.clear();
+          window._rebuildSubchips();
+        }
+
+        _refitTried = false;
+        renderMarkers();
+      });
+    });
+
+    // Prima costruzione all’avvio (ora è già definito)
+    if (window._rebuildSubchips) window._rebuildSubchips();
+  })();
+
+  // ===== RESET FILTRI =====
+  (function setupResetButtons(){
+    const btnCats  = document.getElementById('resetCatsBtn');
+    const btnDates = document.getElementById('resetDatesBtn');
+
+    if (btnCats){
+      btnCats.addEventListener('click', ()=>{
+        state.cats.clear();
+        state.subcats.clear();
+        document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
+        if (window._rebuildSubchips) window._rebuildSubchips();
+        const subBox = document.getElementById('subchips');
+        if (subBox){ subBox.innerHTML=''; subBox.style.display='none'; }
+        _refitTried = false;
+        renderMarkers();
+      });
+    }
+
+    if (btnDates){
+      btnDates.addEventListener('click', ()=>{
+        state.day = null;
+        state.customDate = null;
+        document.querySelectorAll('#dayPills .pill.active').forEach(el=> el.classList.remove('active'));
+        const badge = document.getElementById('dateBadge');
+        if (badge){ badge.style.display='none'; badge.textContent=''; }
+        _refitTried = false;
+        renderMarkers();
+      });
+    }
   })();
   
   // ===== CERCA — centra mappa con geocoding ibrido + cache =====
