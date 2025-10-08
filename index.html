@@ -99,19 +99,25 @@
 
   /* Barra condividi */
   .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
-.leaflet-popup-content .popup-actions .btn{display:inline-block}
-.leaflet-popup-content a.btn{text-decoration:none}
+  .leaflet-popup-content .popup-actions .btn{display:inline-block}
+  .leaflet-popup-content a.btn{text-decoration:none}
 
-/* Mantieni maiuscole/minuscole nel popup */
-.leaflet-popup-content,
-.leaflet-popup-content *,
-.sq-popup,
-.sq-popup * { text-transform: none !important; }  
-/* Evita che prezzo/referenti vadano fuori o vengano troncati */
-.sq-price, .sq-ref { white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }  
-#subchips { margin-top:8px }
-#subchips .chip { opacity:.95 }
-#subchips .chip.group-label { cursor:default; font-weight:700; opacity:.75; border-style:dashed }  
+  /* Mantieni maiuscole/minuscole nel popup */
+  .leaflet-popup-content,
+  .leaflet-popup-content *,
+  .sq-popup,
+  .sq-popup * { text-transform: none !important; }  
+
+  /* Evita che prezzo/referenti vadano fuori o vengano troncati */
+  .sq-price, .sq-ref { white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }  
+
+  /* Subchips compatti */
+  #subchips { margin-top:8px; display:none }
+  #subchips .chip { opacity:.95 }
+  #subchips .chip.group-label { 
+    cursor:default; font-weight:700; opacity:.75; border-style:dashed; 
+    padding:6px 10px; margin-bottom:4px; 
+  }
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -208,16 +214,15 @@
     <div class="chip" data-cat="Mercatini">Mercatini</div>
   </div>
   <div style="margin-top:6px">
-  <button class="btn small" id="resetCatsBtn" type="button">Reset categorie</button>
-</div>
+    <button class="btn small" id="resetCatsBtn" type="button">Reset categorie</button>
+  </div>
   
-<!-- Filtri sotto-categorie (si popola dinamicamente) -->
-<div class="chips" id="subchips" style="display:none"></div>
+  <!-- Filtri sotto-categorie (si popola dinamicamente solo per la categoria selezionata) -->
+  <div class="chips" id="subchips"></div>
   
   <!-- Contatore + lista -->
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div id="counter" class="small">—</div>
-    
   </div>
 
   <!-- Mappa principale (Leaflet) -->
@@ -228,7 +233,6 @@
   <!-- CTA -->
   <div class="cta-row">
     <a class="cta primary" href="pubblica-evento.html">Pubblica evento</a>
-    
   </div>
 </main>
 
@@ -304,7 +308,7 @@
   let LEAF = { map:null, pinIcon:null, routeLayer:null, myPosMarker:null };
 
   let EVENTS=[], OCCS=[], EVENTS_BY_ID=new Map(), markers=[];
-  let state = { day:null, customDate:null, cats:new Set(), subcats:new Set(), query:'' };
+  let state = { day:null, customDate:null, cats:new Set(), subcats:new Set(), query:'', activeParent:null };
   let ORIGIN = null;
 
   // Auto-fit: consentito solo prima di geoloc o ricerca
@@ -836,7 +840,7 @@
         </div>`
       : '';
 
-    // Marker + popup (nessuna modifica al dimensionamento, nessun taglio testo)
+    // Marker + popup
     const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
 
     const prezzoHtml = prezzoIngresso
@@ -946,46 +950,33 @@
     });
   })();
 
-  // ===== SOTTO-CATEGORIE: costruzione dinamica + handlers =====
+  // ===== SOTTO-CATEGORIE: solo dentro la categoria “madre” selezionata =====
   (function setupSubchips(){
     const box = document.getElementById('subchips');
     if (!box) return;
 
     function renderSubchips(){
-      // Raccolta subcats per le categorie selezionate
-      const catsSel = Array.from(state.cats);
-      const subSet = new Set();
-      if (catsSel.length){
-        catsSel.forEach(cat => (EB_TAXONOMY[cat]||[]).forEach(s => subSet.add(s)));
-      } else {
-        // Se nessuna categoria selezionata, mostra tutte
-        Object.values(EB_TAXONOMY).forEach(list => (list||[]).forEach(s => subSet.add(s)));
+      // Se non c'è una categoria attiva, nascondi
+      if (!state.activeParent || !state.cats.has(state.activeParent)) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
       }
-
-      const subs = Array.from(subSet).sort((a,b)=> a.localeCompare(b,'it'));
-      if (!subs.length){ box.style.display='none'; box.innerHTML=''; return; }
-
-      const subsByCat = {};
-      subs.forEach(s=>{
-        const p = SUBCAT_PARENT[s] || 'Altro';
-        (subsByCat[p] = subsByCat[p] || []).push(s);
-      });
-
-      const html = Object.entries(subsByCat)
-        .sort((a,b)=> EB_ORDER.indexOf(a[0]) - EB_ORDER.indexOf(b[0]))
-        .map(([parent, list])=>{
-          const chips = list.map(s=>{
-            const active = state.subcats.has(s) ? ' active' : '';
-            return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
-          }).join('');
-          return `
-            <div class="chip group-label" style="pointer-events:none">${parent}</div>
-            ${chips}
-          `;
-        }).join('');
-
-      box.innerHTML = html;
-      box.style.display='block';
+      const list = (EB_TAXONOMY[state.activeParent] || []).slice().sort((a,b)=> a.localeCompare(b,'it'));
+      if (!list.length){
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+      }
+      const chips = list.map(s=>{
+        const active = state.subcats.has(s) ? ' active' : '';
+        return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
+      }).join('');
+      box.innerHTML = `
+        <div class="chip group-label" style="pointer-events:none">${state.activeParent}</div>
+        ${chips}
+      `;
+      box.style.display = 'block';
     }
 
     // Delegation click
@@ -1001,11 +992,8 @@
       renderMarkers();
     });
 
-    // Espone un hook per ricostruire quando cambiano le categorie
+    // Espone un hook per ricostruire dall’esterno
     window._rebuildSubchips = renderSubchips;
-
-    // 🔸 Render iniziale all’avvio
-    renderSubchips();
   })();
 
   (function setupChips(){
@@ -1013,21 +1001,32 @@
       ch.addEventListener('click', ()=>{
         ch.classList.toggle('active');
         const c = ch.getAttribute('data-cat');
-        if (ch.classList.contains('active')) state.cats.add(c);
-        else state.cats.delete(c);
 
-        // Ricostruisci le sotto-categorie quando cambiano le categorie
-        if (window._rebuildSubchips){
-          if (state.cats.size === 0) state.subcats.clear();
-          window._rebuildSubchips();
+        if (ch.classList.contains('active')) {
+          state.cats.add(c);
+          // Imposta questo come “madre” attiva (mostra i suoi sub)
+          state.activeParent = c;
+        } else {
+          state.cats.delete(c);
+          // Se abbiamo tolto proprio la madre attiva, scegline un'altra o nessuna
+          if (state.activeParent === c) {
+            const first = state.cats.values().next();
+            state.activeParent = first && !first.done ? first.value : null;
+          }
+          // Se non rimane nessuna categoria, svuota i subcats selezionati
+          if (state.cats.size === 0) {
+            state.subcats.clear();
+          }
         }
+
+        if (window._rebuildSubchips) window._rebuildSubchips();
 
         _refitTried = false;
         renderMarkers();
       });
     });
 
-    // Prima costruzione all’avvio (ora è già definito)
+    // All’avvio: non mostrare subchips finché non si seleziona una categoria
     if (window._rebuildSubchips) window._rebuildSubchips();
   })();
 
@@ -1040,6 +1039,7 @@
       btnCats.addEventListener('click', ()=>{
         state.cats.clear();
         state.subcats.clear();
+        state.activeParent = null;
         document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
         if (window._rebuildSubchips) window._rebuildSubchips();
         const subBox = document.getElementById('subchips');
