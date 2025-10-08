@@ -117,6 +117,22 @@
     font-size:12px; opacity:.85; user-select:none; pointer-events:auto;
   }
   .caret-btn{ background:transparent; border:0; color:inherit; cursor:pointer; padding:0; line-height:1 }
+/* === Fisarmonica sottocategorie (compatto) === */
+#chips .chip.cat { position:relative; padding-right:26px }
+#chips .chip .chev{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%) rotate(0deg);
+  opacity:.85; font-weight:700; transition:transform .2s
+}
+#chips .chip.expanded .chev{ transform:translateY(-50%) rotate(90deg) }
+
+.subwrap{
+  display:none; gap:6px; flex-wrap:wrap; margin:6px 0 10px 0
+}
+.subwrap .chip{
+  padding:6px 10px; font-size:12px; border-radius:999px; display:inline-block;
+  background:#0f1c2d; border:1px solid rgba(255,255,255,.25); cursor:pointer
+}
+.subwrap .chip.active{ outline:3px solid #ffd24d; box-shadow:0 0 0 3px rgba(255,210,77,.25) }  
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -1080,46 +1096,113 @@ const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
   })();
 
   // ===== SOTTO-CATEGORIE (fisarmonica: mostra SOLO quelle della madre aperta) =====
-  (function setupSubchips(){
-    const box = document.getElementById('subchips');
+  (function setupChips(){
+  // 1) prepara i chip “madre” con freccetta e crea le sub-wrap subito sotto
+  function buildSubwraps(){
+    $$('#chips .chip').forEach(ch=>{
+      ch.classList.add('cat');
+      // freccetta
+      if (!ch.querySelector('.chev')){
+        const chev = document.createElement('span');
+        chev.className = 'chev';
+        chev.textContent = '▸';
+        ch.appendChild(chev);
+      }
+      const cat = ch.getAttribute('data-cat');
+      // crea/ricrea wrap
+      let wrap = ch.nextElementSibling;
+      const needNew = !(wrap && wrap.classList && wrap.classList.contains('subwrap'));
+      if (needNew){
+        wrap = document.createElement('div');
+        wrap.className = 'subwrap';
+        wrap.setAttribute('data-parent', cat);
+        ch.insertAdjacentElement('afterend', wrap);
+      }
+      // popola sottocategorie
+      const subs = (EB_TAXONOMY[cat]||[]).slice().sort((a,b)=>a.localeCompare(b,'it'));
+      wrap.innerHTML = subs.map(s=>`<div class="chip" data-sub="${s}">${s}</div>`).join('');
+      wrap.style.display = 'none'; // chiuso di default
+      ch.classList.remove('expanded');
+    });
+  }
+
+  // 2) toggler chip madre: selezione categoria (click sul chip), espansione (click sulla freccetta)
+  function attachDelegates(){
+    const box = document.getElementById('chips');
     if (!box) return;
 
-    function renderSubchips(){
-      box.innerHTML = '';
-      // se non c'è una madre aperta → non mostrare nulla
-const key = expandedCat ? resolveCat(expandedCat) : null;
-if (!key || !EB_TAXONOMY[key] || !EB_TAXONOMY[key].length){
-  box.style.display='none';
-  return;
-}
-const list = EB_TAXONOMY[key].slice().sort((a,b)=> a.localeCompare(b,'it'));      
-      const chips = list.map(s=>{
-        const active = state.subcats.has(s) ? ' active' : '';
-        return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
-      }).join('');
-      // header opzionale (micro label)
-      const header = `<div class="chip" style="pointer-events:none;opacity:.7;font-weight:700">${expandedCat}</div>`;
-      box.innerHTML = header + chips;
-      box.style.display='block';
-    }
-
-    // Delegation click: subchips -> modifica filtro subcats
+    // click globale dentro #chips
     box.addEventListener('click', (e)=>{
-      const el = e.target.closest('.chip');
-      if (!el) return;
-      const sub = el.getAttribute('data-sub');
-      if (!sub) return;
-      el.classList.toggle('active');
-      if (el.classList.contains('active')) state.subcats.add(sub);
-      else state.subcats.delete(sub);
+      const chev = e.target.closest('.chev');
+      if (chev){
+        // solo espansione/chiusura
+        const chip = chev.parentElement;
+        const cat  = chip.getAttribute('data-cat');
+        const wrap = chip.nextElementSibling && chip.nextElementSibling.classList.contains('subwrap')
+          ? chip.nextElementSibling : null;
+        const expanded = chip.classList.toggle('expanded');
+        if (wrap) wrap.style.display = expanded ? 'flex' : 'none';
+        e.stopPropagation();
+        return;
+      }
+
+      // click su chip sottocategoria
+      const subChip = e.target.closest('.subwrap .chip');
+      if (subChip){
+        subChip.classList.toggle('active');
+        const s = subChip.getAttribute('data-sub');
+        if (subChip.classList.contains('active')) state.subcats.add(s);
+        else state.subcats.delete(s);
+        _refitTried = false;
+        renderMarkers();
+        return;
+      }
+
+      // click su chip categoria (selezione/deselezione)
+      const catChip = e.target.closest('#chips .chip.cat');
+      if (catChip){
+        catChip.classList.toggle('active');
+        const c = catChip.getAttribute('data-cat');
+        if (catChip.classList.contains('active')) state.cats.add(c);
+        else {
+          state.cats.delete(c);
+          // se deseleziono la madre, azzero anche le sue sub attive
+          const wrap = catChip.nextElementSibling && catChip.nextElementSibling.classList.contains('subwrap')
+            ? catChip.nextElementSibling : null;
+          if (wrap){
+            wrap.querySelectorAll('.chip.active').forEach(el=>{
+              el.classList.remove('active');
+              const s = el.getAttribute('data-sub');
+              state.subcats.delete(s);
+            });
+          }
+        }
+        _refitTried = false;
+        renderMarkers();
+        return;
+      }
+    });
+  }
+
+  // 3) bottone Reset categorie: pulisce tutto e richiude le fisarmoniche
+  const btnCats  = document.getElementById('resetCatsBtn');
+  if (btnCats){
+    btnCats.addEventListener('click', ()=>{
+      state.cats.clear();
+      state.subcats.clear();
+      document.querySelectorAll('#chips .chip.cat.active').forEach(el=> el.classList.remove('active'));
+      document.querySelectorAll('#chips .chip.cat.expanded').forEach(el=> el.classList.remove('expanded'));
+      document.querySelectorAll('#chips + .subwrap, #chips .subwrap').forEach(w=> w.style.display='none');
+      document.querySelectorAll('.subwrap .chip.active').forEach(el=> el.classList.remove('active'));
       _refitTried = false;
       renderMarkers();
     });
+  }
 
-    // Hook globale
-    window._rebuildSubchips = renderSubchips;
-  })();
-  
+  // build once
+  buildSubwraps();
+  attachDelegates();
+})();  
   // ===== CERCA — centra mappa con geocoding ibrido + cache =====
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
