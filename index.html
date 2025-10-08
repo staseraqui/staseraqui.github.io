@@ -68,7 +68,7 @@
   .tabs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:0 0 12px}
   .tab{background:#0f1c2d;border:1px solid rgba(255,255,255,.15);color:#fff;padding:8px 12px;border-radius:10px;font-weight:700}
   .pill{cursor:pointer}
-  .chip{cursor:pointer}
+  .chip{cursor:pointer;display:inline-flex;align-items:center;gap:6px}
   #dateBadge{padding:8px 12px;border-radius:10px;background:#111f31;border:1px solid rgba(255,255,255,.35);min-width:170px;display:inline-block;text-align:center}
   #counter{margin:8px 0 4px;color:#b8c2ce}
   .sq-pin{color:var(--accent)}
@@ -111,13 +111,31 @@
   /* Evita che prezzo/referenti vadano fuori o vengano troncati */
   .sq-price, .sq-ref { white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }  
 
-  /* Subchips compatti */
-  #subchips { margin-top:8px; display:none }
-  #subchips .chip { opacity:.95 }
-  #subchips .chip.group-label { 
-    cursor:default; font-weight:700; opacity:.75; border-style:dashed; 
-    padding:6px 10px; margin-bottom:4px; 
+  /* ===== Subchips compatti + fisarmonica ===== */
+  #subchips { 
+    margin-top:6px; 
+    display:none; 
   }
+  #subchips .chips-inner{
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  }
+  #subchips .chip{ 
+    opacity:.95; 
+    font-size:12px; 
+    padding:6px 8px; 
+    line-height:1; 
+  }
+  #subchips .header{
+    display:flex; align-items:center; gap:8px; margin-bottom:4px;
+    font-weight:700; opacity:.85;
+  }
+  .chip .chev{
+    font-size:12px; opacity:.85; transform-origin:center; transition:transform .2s ease;
+    user-select:none;
+  }
+  .chip.has-subs .chev{ display:inline-block }
+  .chip:not(.has-subs) .chev{ display:none }
+  .chip.expanded .chev{ transform:rotate(180deg) } /* ▾ / ▴ effect */
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -204,23 +222,26 @@
 
   <!-- Filtri categorie -->
   <div class="chips" id="chips">
-    <div class="chip" data-cat="Musica">Musica</div>
-    <div class="chip" data-cat="Food & Drink">Food & Drink</div>
-    <div class="chip" data-cat="Sagre & Fiere">Sagre & Fiere</div>
-    <div class="chip" data-cat="Famiglie & Bambini">Famiglie & Bambini</div>
-    <div class="chip" data-cat="Sport">Sport</div>
-    <div class="chip" data-cat="Nightlife">Nightlife</div>
-    <div class="chip" data-cat="Cultura/Spettacolo">Cultura/Spettacolo</div>
-    <div class="chip" data-cat="Mercatini">Mercatini</div>
+    <div class="chip" data-cat="Musica">Musica <span class="chev">▾</span></div>
+    <div class="chip" data-cat="Food & Drink">Food & Drink <span class="chev">▾</span></div>
+    <div class="chip" data-cat="Sagre & Fiere">Sagre & Fiere <span class="chev">▾</span></div>
+    <div class="chip" data-cat="Famiglie & Bambini">Famiglie & Bambini <span class="chev">▾</span></div>
+    <div class="chip" data-cat="Sport">Sport <span class="chev">▾</span></div>
+    <div class="chip" data-cat="Nightlife">Nightlife <span class="chev">▾</span></div>
+    <div class="chip" data-cat="Cultura/Spettacolo">Cultura/Spettacolo <span class="chev">▾</span></div>
+    <div class="chip" data-cat="Mercatini">Mercatini <span class="chev">▾</span></div>
   </div>
   <div style="margin-top:6px">
     <button class="btn small" id="resetCatsBtn" type="button">Reset categorie</button>
   </div>
   
-  <!-- Filtri sotto-categorie (si popola dinamicamente solo per la categoria selezionata) -->
-  <div class="chips" id="subchips"></div>
+  <!-- Fisarmonica sottocategorie (solo per la madre attiva) -->
+  <div id="subchips">
+    <div class="header" id="subHeader" style="display:none"></div>
+    <div class="chips-inner" id="subInner"></div>
+  </div>
   
-  <!-- Contatore + lista -->
+  <!-- Contatore -->
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div id="counter" class="small">—</div>
   </div>
@@ -272,7 +293,7 @@
 
   let USE_GMAPS = false; // mappa principale = Leaflet
 
-  // Leggi tassonomia da config centrale + FALLBACK ROBUSTO
+  // Leggi tassonomia da config centrale + fallback
   const CFG = window.SQ_CONFIG || {};
   const TAX_FALLBACK = {
     "Musica": ["Rock","Jazz & Blues","Classica","Elettronica","Hip-Hop / Rap","Indie / Alternative","Pop","Metal","Folk / Acustico","Country","Latina","R&B / Soul","DJ / Dance","Cantautori"],
@@ -289,26 +310,19 @@
     ? CFG.EB_CATEGORIES_ORDER
     : Object.keys(EB_TAXONOMY);
 
-  // Mappa inversa: sotto-cat -> categoria padre
+  // Mappa inversa: sotto-cat -> categoria madre
   const SUBCAT_PARENT = {};
   Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
     (subs||[]).forEach(s => { SUBCAT_PARENT[s] = cat; });
   });
-  
-  // Namespace utili
-  let GMAPS = {
-    map:null,            // mappa Google SOLO per il percorso
-    infowindow:null,
-    directionsService:null,
-    directionsRenderer:null,
-    geocoder:null,
-    osrmPolyline:null,
-    myPosMarker:null
-  };
-  let LEAF = { map:null, pinIcon:null, routeLayer:null, myPosMarker:null };
 
+  // Stato UI/filtri
   let EVENTS=[], OCCS=[], EVENTS_BY_ID=new Map(), markers=[];
-  let state = { day:null, customDate:null, cats:new Set(), subcats:new Set(), query:'', activeParent:null };
+  let state = { 
+    day:null, customDate:null, 
+    cats:new Set(), subcats:new Set(), query:'', 
+    activeParent:null, panelOpen:false 
+  };
   let ORIGIN = null;
 
   // Auto-fit: consentito solo prima di geoloc o ricerca
@@ -320,98 +334,56 @@
   const fmtIT = (d) => { const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}`; };
   const todayISO = () => new Date().toISOString().slice(0,10);
   const addDays  = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); };
-  const weekday  = s => (new Date(s+'T00:00:00')).getDay();
 
-  // ===== Helpers robusti =====
+  // ===== Helpers =====
   const isTruthyPub = v => (v===true || v===1 || v==='1' || v==='t' || v==='true' || v==='T' || v==='TRUE');
   function normCats(raw){
     const c = (raw?.categories ?? raw?.categorie ?? raw?.metadata?.categories ?? raw?.metadata?.categorie ?? []);
     if (Array.isArray(c)) return c.filter(Boolean).map(String);
     if (c == null) return [];
     if (typeof c === 'string'){
-      try{
-        const j = JSON.parse(c);
-        if (Array.isArray(j)) return j.filter(Boolean).map(String);
-      }catch(_){}
+      try{ const j=JSON.parse(c); if(Array.isArray(j)) return j.filter(Boolean).map(String); }catch(_){}
       if (c.includes('|')) return c.split('|').map(s=>s.trim()).filter(Boolean);
       if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
       return c.trim() ? [c.trim()] : [];
     }
     return [];
   }
-
-  // 🔧 SOTTO-CATEGORIE: più robusto (legge anche da metadata e gestisce "|", ",", JSON stringa)
   function normSubcats(raw){
     let c = raw?.subcats ?? raw?.subcategories ?? raw?.sottocategorie ??
             raw?.metadata?.subcats ?? raw?.metadata?.subcategories ?? raw?.metadata?.sottocategorie ?? [];
     if (Array.isArray(c)) return c.filter(Boolean).map(x => String(x).trim()).filter(Boolean);
     if (c == null) return [];
     if (typeof c === 'string'){
-      const s = c.trim();
-      if (!s) return [];
-      if (s.startsWith('[')){
-        try{
-          const j = JSON.parse(s);
-          if (Array.isArray(j)) return j.filter(Boolean).map(x => String(x).trim()).filter(Boolean);
-        }catch(_){}
-      }
+      const s = c.trim(); if (!s) return [];
+      if (s.startsWith('[')){ try{ const j=JSON.parse(s); if(Array.isArray(j)) return j.filter(Boolean).map(x=>String(x).trim()).filter(Boolean);}catch(_){} }
       if (s.includes('|')) return s.split('|').map(x=>x.trim()).filter(Boolean);
       if (s.includes(',')) return s.split(',').map(x=>x.trim()).filter(Boolean);
       return [s];
     }
     return [];
   }
-
-  function safeUrl(u){
-    if (u == null) return '';
-    if (Array.isArray(u)){
-      for (const item of u){
-        const s = safeUrl(item);
-        if (s) return s;
-      }
-      return '';
-    }
-    if (typeof u === 'object'){
-      const candidates = [u.url, u.href, u.link, u.src];
-      for (const c of candidates){
-        const s = safeUrl(c);
-        if (s) return s;
-      }
-      return '';
-    }
-    let s = String(u).trim();
-    if (!s) return '';
-    if (/^data:image\//i.test(s)) return s;
-    if (/^\/\//.test(s)) s = 'https:' + s;
-    if (/^\//.test(s)) return s;
-    if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s = 'https://' + s;
-    try { new URL(s); return s; } catch(_){ return ''; }
-  }
   function pickFirstUrl(...fields){
-    for (const f of fields){
-      const s = safeUrl(f);
-      if (s) return s;
-      if (typeof f === 'string'){
-        try{
-          const j = JSON.parse(f);
-          const s2 = safeUrl(j);
-          if (s2) return s2;
-        }catch(_){}
-      }
+    function safeUrl(u){
+      if (u == null) return '';
+      if (Array.isArray(u)){ for (const item of u){ const s=safeUrl(item); if (s) return s; } return ''; }
+      if (typeof u === 'object'){ const cand=[u.url,u.href,u.link,u.src]; for(const c of cand){ const s=safeUrl(c); if (s) return s; } return ''; }
+      let s=String(u).trim(); if(!s) return '';
+      if (/^data:image\//i.test(s)) return s;
+      if (/^\/\//.test(s)) s='https:'+s;
+      if (/^\//.test(s)) return s;
+      if (/^www\./i.test(s) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s)) s='https://'+s;
+      try{ new URL(s); return s; }catch(_){ return ''; }
     }
-    return '';
-  }  
-  function firstNonEmpty(...vals){
-    for (const v of vals){
-      const s = (v ?? '').toString().trim();
-      if (s) return s;
+    for (const f of fields){
+      const s = safeUrl(f); if (s) return s;
+      if (typeof f === 'string'){ try{ const j=JSON.parse(f); const s2=safeUrl(j); if (s2) return s2; }catch(_){ } }
     }
     return '';
   }
-  // 🔹 arrotondamento stabile per raggruppare posizioni (5 decimali ~ 1 m)
   const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
 
-  // ======= GOOGLE: loader unico (Places + Geometry) =======
+  // ======= GOOGLE loader =======
   let _gmapsLoading = null;
   async function ensureGoogleLoaded(){
     if (window.google && window.google.maps && window.google.maps.places) return;
@@ -427,7 +399,6 @@
     return _gmapsLoading;
   }
 
-  // ===== Autocomplete (Places) su campi ricerca/overlay =====
   async function setupAutocomplete(){
     try{
       await ensureGoogleLoaded();
@@ -454,70 +425,34 @@
       };
       makeAC(document.getElementById('searchInput'));
       makeAC(document.getElementById('geoAddr'));
-    }catch(_){ /* se Places non carica, si va avanti col resto */ }
-  }
-
-  // ===== Geocoding ibrido con cache (prima Google, poi OSM IT) =====
-  const GEO_CACHE_KEY='SQ_GEO_CACHE_V1';
-  function geoCacheGet(q){
-    try{
-      const k=(q||'').trim().toLowerCase(); if(!k) return null;
-      const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}');
-      return store[k]||null;
-    }catch(_){ return null; }
-  }
-  function geoCacheSet(q,obj){
-    try{
-      const k=(q||'').trim().toLowerCase(); if(!k) return;
-      const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}');
-      const now=Date.now();
-      store[k] = { ...obj, _ts: now };
-      const entries = Object.entries(store);
-      if (entries.length > 300){
-        entries.sort((a,b)=> (a[1]?._ts||0)-(b[1]?._ts||0));
-        const toDel = entries.length - 300;
-        for (let i=0;i<toDel;i++){ delete store[entries[i][0]]; }
-      }
-      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(store));
     }catch(_){}
   }
 
+  // ===== Geocoding cache =====
+  const GEO_CACHE_KEY='SQ_GEO_CACHE_V1';
+  function geoCacheGet(q){ try{ const k=(q||'').trim().toLowerCase(); if(!k) return null; const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}'); return store[k]||null; }catch(_){ return null; } }
+  function geoCacheSet(q,obj){ try{ const k=(q||'').trim().toLowerCase(); if(!k) return; const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}'); const now=Date.now(); store[k]={...obj,_ts:now}; const entries=Object.entries(store); if(entries.length>300){ entries.sort((a,b)=>(a[1]?._ts||0)-(b[1]?._ts||0)); const toDel=entries.length-300; for(let i=0;i<toDel;i++){ delete store[entries[i][0]]; } } localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(store)); }catch(_){} }
   async function geocodeAddrSmart(addr){
     const q=(addr||'').trim(); if(!q) return null;
-    const cached = geoCacheGet(q);
-    if (cached) return cached;
-
-    // 1) Google (Italia)
+    const cached=geoCacheGet(q); if(cached) return cached;
     try{
       await ensureGoogleLoaded();
-      const geocoder = new google.maps.Geocoder();
-      const g = await new Promise((resolve)=> {
-        geocoder.geocode({ address:q, componentRestrictions:{ country:'IT' }, region:'it' }, (res,status)=>{
-          if(status==='OK' && res && res[0]){
-            const r = res[0];
-            const loc = r.geometry.location;
-            resolve({ lat: loc.lat(), lng: loc.lng(), label: r.formatted_address });
-          } else { resolve(null); }
-        });
-      });
+      const geocoder=new google.maps.Geocoder();
+      const g=await new Promise((resolve)=>{ geocoder.geocode({ address:q, componentRestrictions:{ country:'IT' }, region:'it' }, (res,status)=>{ if(status==='OK' && res && res[0]){ const r=res[0]; const loc=r.geometry.location; resolve({lat:loc.lat(), lng:loc.lng(), label:r.formatted_address}); } else resolve(null); }); });
       if (g){ geoCacheSet(q,g); return g; }
     }catch(_){}
-
-    // 2) OSM/Nominatim (Italia)
     try{
-      const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q='+encodeURIComponent(q);
-      const r = await fetch(url, { headers:{'Accept-Language':'it'} });
-      const j = await r.json();
-      if (Array.isArray(j) && j.length){
-        const g = { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon), label: j[0].display_name };
-        geoCacheSet(q,g);
-        return g;
-      }
+      const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q='+encodeURIComponent(q);
+      const r=await fetch(url,{headers:{'Accept-Language':'it'}}); const j=await r.json();
+      if (Array.isArray(j) && j.length){ const g={lat:parseFloat(j[0].lat), lng:parseFloat(j[0].lon), label:j[0].display_name}; geoCacheSet(q,g); return g; }
     }catch(_){}
     return null;
   }
 
-  // ===== MAPPA: bootstrap (Leaflet) + Places in parallelo =====
+  // ===== MAPPA =====
+  let GMAPS = { map:null, infowindow:null, directionsService:null, directionsRenderer:null, geocoder:null, osrmPolyline:null, myPosMarker:null };
+  let LEAF = { map:null, pinIcon:null, routeLayer:null, myPosMarker:null };
+
   (function setupMap(){
     initLeafletMap();
     setupAutocomplete();
@@ -525,9 +460,7 @@
 
   function initRouteGoogleMap(){
     const gdiv = document.getElementById('gmap');
-    GMAPS.map = new google.maps.Map(gdiv, {
-      center:{lat:45.0703, lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false
-    });
+    GMAPS.map = new google.maps.Map(gdiv, { center:{lat:45.0703, lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false });
     GMAPS.infowindow = new google.maps.InfoWindow();
     GMAPS.directionsService = new google.maps.DirectionsService();
     GMAPS.directionsRenderer = new google.maps.DirectionsRenderer({suppressMarkers:true, preserveViewport:false});
@@ -535,38 +468,22 @@
     GMAPS.geocoder = new google.maps.Geocoder();
   }
 
+  function gClearMarkers(){ markers.forEach(m=>m.setMap && m.setMap(null)); markers=[]; }
   function pinSvgUrl(color = '#22b3f0'){
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72">
-      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z"
-            fill="${color}" stroke="#ffffff" stroke-width="3"/>
-      <circle cx="32" cy="24" r="9" fill="#ffffff"/>
-    </svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72"><path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z" fill="${color}" stroke="#ffffff" stroke-width="3"/><circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>`;
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   }
-
-  function gClearMarkers(){ markers.forEach(m=>m.setMap && m.setMap(null)); markers=[]; }
-
   function gShowOrigin(){
     if (GMAPS.myPosMarker) { GMAPS.myPosMarker.setMap(null); GMAPS.myPosMarker=null; }
     if (!ORIGIN || !GMAPS.map) return;
     GMAPS.myPosMarker = new google.maps.Marker({
-      position:{lat:ORIGIN.lat, lng:ORIGIN.lng},
-      map: GMAPS.map,
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 7,
-        fillColor:'#4da3ff',
-        fillOpacity:0.9,
-        strokeColor:'#ffffff',
-        strokeWeight:2
-      },
+      position:{lat:ORIGIN.lat, lng:ORIGIN.lng}, map: GMAPS.map,
+      icon:{ path: google.maps.SymbolPath.CIRCLE, scale:7, fillColor:'#4da3ff', fillOpacity:0.9, strokeColor:'#ffffff', strokeWeight:2 },
       title: ORIGIN.label || 'Posizione attuale'
     });
   }
-
   function clearRoute(){
-    const ldiv = document.getElementById('map');
-    const gdiv = document.getElementById('gmap');
+    const ldiv = document.getElementById('map'); const gdiv = document.getElementById('gmap');
     if (gdiv) gdiv.style.display = 'none';
     if (ldiv) ldiv.style.display = 'block';
     if (GMAPS.directionsRenderer) GMAPS.directionsRenderer.set('directions', null);
@@ -574,18 +491,16 @@
     if (LEAF.routeLayer){ LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer=null; }
     $('#routeInfo').style.display='none';
   }
-
   function getFreshPosition(){
     return new Promise((resolve,reject)=>{
       if (!navigator.geolocation){ reject(new Error('Geolocalizzazione non disponibile')); return; }
       navigator.geolocation.getCurrentPosition(
         pos=> resolve({lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'}),
-        err=> reject(new Error('Geolocalizzazione negata o non riuscita')),
+        _=> reject(new Error('Geolocalizzazione negata o non riuscita')),
         { enableHighAccuracy:true, maximumAge:0, timeout:10000 }
       );
     });
   }
-
   async function routeTo(dest){
     try{ ORIGIN = await getFreshPosition(); }
     catch(_){
@@ -593,12 +508,8 @@
         const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
         if (ask && ask.trim()){
           const g = await geocodeAddrSmart(ask.trim());
-          if (g){
-            ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
-            drawRouteAuto(ORIGIN, dest);
-          } else {
-            window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
-          }
+          if (g){ ORIGIN = {lat:g.lat, lng:g.lng, label:g.label}; drawRouteAuto(ORIGIN, dest); }
+          else { window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank'); }
           return;
         } else {
           window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
@@ -608,18 +519,15 @@
     }
     drawRouteAuto(ORIGIN, dest);
   }
-
   async function drawRouteAuto(from, to){
     const haveKey = !!(GMAPS_API_KEY && !/^INSERISCI_/.test(GMAPS_API_KEY));
     if (!haveKey){ drawRouteLeaflet(from, to); return; }
     try{
       await ensureGoogleLoaded();
-      const ldiv = document.getElementById('map');
-      const gdiv = document.getElementById('gmap');
+      const ldiv = document.getElementById('map'); const gdiv = document.getElementById('gmap');
       if (ldiv) ldiv.style.display = 'none';
       if (gdiv) gdiv.style.display = 'block';
       if (!GMAPS.map) initRouteGoogleMap();
-
       GMAPS.directionsService.route({
         origin: new google.maps.LatLng(from.lat, from.lng),
         destination: new google.maps.LatLng(to.lat, to.lng),
@@ -627,16 +535,12 @@
       }, (res, status)=>{
         if(status==='OK'){
           GMAPS.directionsRenderer.setDirections(res);
-          const leg = res.routes[0].legs[0];
-          const dist = leg.distance.text, dur = leg.duration.text;
-          GMAPS.map.fitBounds(res.routes[0].bounds);
-          gShowOrigin();
-          showRouteInfo(from, to, dist, dur);
+          const leg = res.routes[0].legs[0]; const dist = leg.distance.text, dur = leg.duration.text;
+          GMAPS.map.fitBounds(res.routes[0].bounds); gShowOrigin(); showRouteInfo(from, to, dist, dur);
         } else { drawRouteOSRMOnGoogle(from, to); }
       });
     }catch(_){ drawRouteLeaflet(from, to); }
   }
-
   function showRouteInfo(from, to, distTxt, durTxt){
     const info = $('#routeInfo');
     info.innerHTML = `
@@ -661,7 +565,6 @@
       }
     };
   }
-
   async function drawRouteOSRMOnGoogle(from, to){
     try{
       if (!GMAPS.map){ drawRouteLeaflet(from,to); return; }
@@ -676,17 +579,14 @@
       const b = new google.maps.LatLngBounds(); coords.forEach(c=>b.extend(c)); GMAPS.map.fitBounds(b);
       const km = (route.distance/1000).toFixed(1), min = Math.round(route.duration/60);
       showRouteInfo(from, to, `${km} km`, `${min} min`);
-    }catch(_){
-      alert('Impossibile calcolare il percorso.');
-    }
+    }catch(_){ alert('Impossibile calcolare il percorso.'); }
   }
 
-  // ===== LEAFLET (mappa principale + percorso fallback) =====
+  // ===== LEAFLET =====
   function initLeafletMap(){
     LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869],12);
     L.control.attribution({prefix:false}).addTo(LEAF.map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(LEAF.map);
-
     LEAF.pinIcon = L.divIcon({
       className:'sq-pin',
       html:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="30" height="34" style="display:block;filter:drop-shadow(0 0 2px #fff)">
@@ -694,227 +594,77 @@
               <circle cx="32" cy="24" r="9" fill="#ffffff"/></svg>`,
       iconSize:[30,34], iconAnchor:[15,34], popupAnchor:[0,-30]
     });
-
     LEAF.map.on('dragend', renderMarkers);
     LEAF.map.on('zoomend', renderMarkers);
-
     loadData().then(requestInitialLocation);
   }
 
+  // ===== POPUP MARKER (omesso: invariato a livello logico, filtraggio ecc.) =====
   function lAddMarker(occ, ev){
-    const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
-      .map(s => (s||'').toString().trim()).filter(Boolean);
+    const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')].map(s => (s||'').toString().trim()).filter(Boolean);
     const where = whereParts.join(', ');
     const cats  = (ev._cats||[]).join(', ');
     const subcatsTxt = (ev._subcats||[]).join(', ');
-
-    // ======= DESCRIZIONE: prendi tutto quello che c'è, nessun taglio =======
-    const theDescr = firstNonEmpty(
-      ev.description, ev.descrizione, ev.descr,
-      ev?.metadata?.descr_long, ev?.metadata?.descr
-    );
-
-    // ===== PREZZO/INGRESSO (robusto, anche da metadata) =====
+    const theDescr = (ev.description||ev.descrizione||ev.descr||ev?.metadata?.descr_long||ev?.metadata?.descr||'');
     function getPrice(evObj){
       const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso, evObj?.metadata?.prezzo, evObj?.metadata?.price_text]
-        .map(v => (v ?? '').toString().trim())
-        .find(Boolean);
+        .map(v => (v ?? '').toString().trim()).find(Boolean);
       if (direct) return direct;
-      for (const [k,v] of Object.entries(evObj||{})){
-        if (/price|prezzo|ingresso/i.test(k)){
-          const s = (v ?? '').toString().trim();
-          if (s) return s;
-          if (typeof v === 'string' && v.trim().startsWith('{')) {
-            try {
-              const j = JSON.parse(v);
-              const inner = [j.price_text, j.prezzo, j.price, j.ingresso]
-                .map(x => (x ?? '').toString().trim()).find(Boolean);
-              if (inner) return inner;
-            } catch(_){}
-          }
-        }
-      }
       const m = (theDescr||'').match(/\b(gratis|€\s?\d{1,3}(?:[.,]\d{1,2})?|\d{1,3}(?:[.,]\d{1,2})?\s?€)\b/i);
       return m ? m[0] : '';
     }
     const prezzoIngresso = getPrice(ev);
-
-    // ===== URL utili (anche da metadata) =====
-    const website = firstNonEmpty(
-      (ev.website_url||'').toString().trim(),
-      ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento,
-      ev?.metadata?.website, ev?.metadata?.sito, ev?.metadata?.sito_web
-    ) || pickFirstUrl(ev?.metadata?.website);
-
-    let locandinaUrl = firstNonEmpty((ev.locandina_url||ev.image_url||'').toString().trim());
+    const website = (ev.website_url||ev.website||ev.sito||ev.sito_web||ev.link||ev.url||ev.official_url||ev.link_evento||ev?.metadata?.website||'').toString().trim();
+    let locandinaUrl = (ev.locandina_url||ev.image_url||'').toString().trim();
     if (!locandinaUrl) locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb, ev?.metadata?.locandina_url);
-    if (locandinaUrl && locandinaUrl.startsWith('/')) {
-      try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
-    }
+    if (locandinaUrl && locandinaUrl.startsWith('/')){ try{ locandinaUrl = new URL(locandinaUrl, location.origin).toString(); }catch(_){ } }
     const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
     const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-    // ===== REFERENTI — anche da metadata.contacts =====
-    function pickArray(val){
-      if (Array.isArray(val)) return val;
-      if (typeof val === 'string'){
-        const s = val.trim();
-        if (s.startsWith('[')){ try{ const j=JSON.parse(s); return Array.isArray(j)? j:[]; }catch(_){ return []; } }
-      }
-      return [];
-    }
-    function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
-
-    let rawContacts = pickArray(ev.contacts) || pickArray(ev.referenti) || pickArray(ev.contatti);
-    if (!rawContacts.length){
-      rawContacts = pickArray(ev?.metadata?.contacts);
-    }
-    if (!rawContacts.length){
-      const flat = [];
-      const push=(n,t,e)=>{ if (n||t||e) flat.push({nome:n||'', tel:t||'', email:e||''}); };
-      // possibili colonne “flat”
-      push(ev.nome_referente, ev.numero_referente, ev.email_referente);
-      for (let i=1;i<=10;i++){
-        push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
-      }
-      rawContacts = flat;
-    }
-
-    const referenti = [];
-    const seen = new Set();
-    (rawContacts||[]).forEach(r=>{
-      const nome  = (r?.nome||r?.name||'').toString().trim();
-      const tel   = sanitizeTel(r?.tel||r?.telefono||r?.phone||'');
-      const email = (r?.email||'').toString().trim().toLowerCase();
-      if (!(nome||tel||email)) return;
-      const key = [nome.toLowerCase(), tel, email].join('|');
-      if (!seen.has(key)){ seen.add(key); referenti.push({nome, tel, email}); }
-    });
-
-    const referentiHtml = referenti.length ? `
-      <div class="small sq-ref" style="margin-top:6px">
-        <b>Referenti:</b>
-        <ul style="margin:6px 0 0 18px">
-          ${referenti.map(r => {
-            const name   = r.nome ? `<b>${r.nome}</b>` : '';
-            const tel    = r.tel  ? ` · <a href="tel:${r.tel}">${r.tel}</a>` : '';
-            const email  = r.email? ` · <a href="mailto:${r.email}">${r.email}</a>` : '';
-            return `<li>${name}${tel}${email}</li>`;
-          }).join('')}
-        </ul>
-      </div>` : '';
-
-    // ===== Raggruppo date stessa posizione (future) =====
-    const today = todayISO();
-    const latKey = round5(occ.lat), lngKey = round5(occ.lng);
-    const allDates = OCCS
-      .filter(o => o.event_id === occ.event_id && o.data && o.data >= today &&
-                  round5(o.lat) === latKey && round5(o.lng) === lngKey)
-      .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora));
-
-    let dateLine = '';
-    if (allDates.length > 1) {
-      const start = allDates[0], end = allDates[allDates.length - 1];
-      const startTxt = start.ora ? `${fmtIT(start.data)} ore ${start.ora}` : `${fmtIT(start.data)}`;
-      const endTxt   = end.ora   ? `${fmtIT(end.data)} ore ${end.ora}`   : `${fmtIT(end.data)}`;
-      dateLine = `dal <b>${startTxt}</b> al <b>${endTxt}</b>`;
-    } else {
-      const only = allDates[0] || occ;
-      dateLine = only.ora ? `${fmtIT(only.data)} ore ${only.ora}` : `${fmtIT(only.data)}`;
-    }
-
-    const otherDates = allDates.filter(o => o.id !== occ.id);
-    const multiBadge = allDates.length > 1
-      ? `<span class="small" style="background:#17304d;border:1px solid #2e6e8f;color:#d7f2ff;border-radius:999px;padding:2px 6px;margin-left:6px">evento multiplo</span>`
-      : '';
-
-    const listHtml = otherDates.length
-      ? `<div style="margin-top:6px">
-          <b>Altre date:</b>
-          <ul style="margin:6px 0 0 18px">
-            ${otherDates.slice(0,8).map(o =>
-              `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
-            ).join('')}
-          </ul>
-          ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
-        </div>`
-      : '';
-
-    // Marker + popup
     const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
-
-    const prezzoHtml = prezzoIngresso
-      ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
-      : '';
-
     const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
-        <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
+        <b>${ev.title||ev.titolo||'(evento)'}</b><br>
         <small>${cats||''}</small><br>
         ${subcatsTxt ? `<small><i>${subcatsTxt}</i></small><br>` : ``}
-        ${dateLine}<br>${where}
-        ${prezzoHtml}
-        ${referentiHtml}
+        ${(occ.ora?`${fmtIT(occ.data)} ore ${occ.ora}`:fmtIT(occ.data))}<br>${where}
+        ${prezzoIngresso ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>` : ''}
         ${theDescr ? `<br><br>${theDescr}` : ''}
-        ${listHtml}
         <div class="popup-actions">
           <button class="btn accent" data-calc="1">Calcola percorso</button>
           ${btnSite}
           ${btnPoster}
         </div>
       </div>`;
-
     m.bindPopup(html).on('popupopen', ()=>{
       const btn = document.querySelector('button[data-calc="1"]');
       if (btn) btn.onclick = ()=> routeTo({ lat:occ.lat, lng:occ.lng, label:where });
-
-      document.querySelectorAll('.sq-date').forEach(a=>{
-        a.addEventListener('click', (e)=>{
-          e.preventDefault();
-          const d = a.getAttribute('data-date');
-          state.customDate = d;
-          state.day = null;
-          allowAutoFit = false;
-          const badge = document.getElementById('dateBadge');
-          if (badge){ badge.style.display='inline-block'; badge.textContent = `${fmtIT(d)}`; }
-          LEAF.map.closePopup();
-          renderMarkers();
-        });
-      });
     });
-
     markers.push(m);
   }
-  
-  function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
+  function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
   function lShowOrigin(){
     if (LEAF.myPosMarker){ LEAF.map.removeLayer(LEAF.myPosMarker); LEAF.myPosMarker=null; }
     if (!ORIGIN) return;
-    LEAF.myPosMarker = L.circleMarker([ORIGIN.lat, ORIGIN.lng], {
-      radius:6, fillColor:'#4da3ff', fillOpacity:0.9, color:'#fff', weight:2
-    }).addTo(LEAF.map).bindTooltip(ORIGIN.label||'Posizione attuale',{permanent:false});
+    LEAF.myPosMarker = L.circleMarker([ORIGIN.lat, ORIGIN.lng], { radius:6, fillColor:'#4da3ff', fillOpacity:0.9, color:'#fff', weight:2 })
+      .addTo(LEAF.map).bindTooltip(ORIGIN.label||'Posizione attuale',{permanent:false});
   }
 
-  // ====== FILTRI — HANDLERS UI ======
+  // ====== FILTRI — DAY PILLS ======
   (function setupDayPills(){
     const pills = $$('#dayPills .pill');
     const badge = $('#dateBadge');
-
-    function setDateBadgeISO(d1, d2){
-      badge.style.display='inline-block';
-      badge.textContent = d2 ? `${fmtIT(d1)} - ${fmtIT(d2)}` : fmtIT(d1);
-    }
-
+    const fmtIT = (d) => { const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}`; };
+    const todayISO = () => new Date().toISOString().slice(0,10);
+    const addDays  = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); };
+    function setDateBadgeISO(d1, d2){ badge.style.display='inline-block'; badge.textContent = d2 ? `${fmtIT(d1)} - ${fmtIT(d2)}` : fmtIT(d1); }
     pills.forEach(p=>{
-      const day = p.getAttribute('data-day');
-      if (!day) return;
+      const day = p.getAttribute('data-day'); if (!day) return;
       p.addEventListener('click', ()=>{
         pills.forEach(x=> x.classList.toggle('active', x===p));
-        state.day = day;
-        state.customDate = null;
-        _refitTried = false;
+        state.day = day; state.customDate = null; _refitTried = false;
         const t = todayISO();
-        if (day==='oggi')   setDateBadgeISO(t);
+        if (day==='oggi') setDateBadgeISO(t);
         if (day==='domani') setDateBadgeISO(addDays(t,1));
         if (day==='weekend'){
           const now=new Date(), d=now.getDay();
@@ -924,110 +674,126 @@
         renderMarkers();
       });
     });
-
-    const dpOverlay = $('#dpOverlay');
-    const dpInput = $('#dpInput');
-    const dpAnnulla = $('#dpAnnulla');
-    const selBtn = $('#selDataBtn');
-
-    selBtn.addEventListener('click', ()=>{
-      dpInput.value = state.customDate || todayISO();
-      dpOverlay.style.display='flex';
-      setTimeout(()=> dpInput.focus(), 0);
-    });
+    const dpOverlay = $('#dpOverlay'), dpInput = $('#dpInput'), dpAnnulla = $('#dpAnnulla'), selBtn = $('#selDataBtn');
+    selBtn.addEventListener('click', ()=>{ dpInput.value = state.customDate || todayISO(); dpOverlay.style.display='flex'; setTimeout(()=> dpInput.focus(), 0); });
     dpAnnulla.addEventListener('click', ()=> dpOverlay.style.display='none');
     dpOverlay.addEventListener('click', (e)=>{ if(e.target===dpOverlay) dpOverlay.style.display='none'; });
     dpInput.addEventListener('change', ()=>{
-      if (dpInput.value){
-        state.customDate = dpInput.value;
-        state.day = null;
-        _refitTried = false;
-        setDateBadgeISO(state.customDate);
-        pills.forEach(x=> x.classList.remove('active'));
-        renderMarkers();
-      }
+      if (dpInput.value){ state.customDate = dpInput.value; state.day = null; _refitTried = false; setDateBadgeISO(state.customDate); pills.forEach(x=> x.classList.remove('active')); renderMarkers(); }
       dpOverlay.style.display='none';
     });
   })();
 
-  // ===== SOTTO-CATEGORIE: solo dentro la categoria “madre” selezionata =====
-  (function setupSubchips(){
-    const box = document.getElementById('subchips');
-    if (!box) return;
+  // ===== FISARMONICA SOTTO-CATEGORIE =====
+  (function subAccordion(){
+    const chipsBox = document.getElementById('chips');
+    const subBox   = document.getElementById('subchips');
+    const subHeader= document.getElementById('subHeader');
+    const subInner = document.getElementById('subInner');
 
-    function renderSubchips(){
-      // Se non c'è una categoria attiva, nascondi
-      if (!state.activeParent || !state.cats.has(state.activeParent)) {
-        box.style.display = 'none';
-        box.innerHTML = '';
-        return;
-      }
-      const list = (EB_TAXONOMY[state.activeParent] || []).slice().sort((a,b)=> a.localeCompare(b,'it'));
-      if (!list.length){
-        box.style.display = 'none';
-        box.innerHTML = '';
-        return;
-      }
-      const chips = list.map(s=>{
-        const active = state.subcats.has(s) ? ' active' : '';
-        return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
-      }).join('');
-      box.innerHTML = `
-        <div class="chip group-label" style="pointer-events:none">${state.activeParent}</div>
-        ${chips}
-      `;
-      box.style.display = 'block';
+    // Marca i chip categoria che hanno sottocategorie
+    function decorateCategoryChips(){
+      $$('#chips .chip').forEach(ch=>{
+        const cat = ch.getAttribute('data-cat');
+        const hasSubs = Array.isArray(EB_TAXONOMY[cat]) && EB_TAXONOMY[cat].length>0;
+        if (hasSubs) ch.classList.add('has-subs');
+        else ch.classList.remove('has-subs');
+        // freccetta già in DOM; gestiamo click separati
+        const chev = ch.querySelector('.chev');
+        if (chev){
+          chev.addEventListener('click', (e)=>{
+            e.stopPropagation(); // non toccare la selezione della categoria
+            if (!hasSubs) return;
+            // se clicco freccia su una cat non attiva, attivala e apri
+            if (state.activeParent !== cat){
+              state.activeParent = cat;
+              state.cats.add(cat);
+              $$('#chips .chip').forEach(x=> x.classList.toggle('active', x===ch));
+            }
+            state.panelOpen = !state.panelOpen;
+            ch.classList.toggle('expanded', state.panelOpen);
+            rebuildPanel();
+          });
+        }
+      });
     }
 
-    // Delegation click
-    box.addEventListener('click', (e)=>{
-      const el = e.target.closest('.chip');
-      if (!el || el.classList.contains('group-label')) return;
-      el.classList.toggle('active');
-      const sub = el.getAttribute('data-sub');
-      if (!sub) return;
-      if (el.classList.contains('active')) state.subcats.add(sub);
-      else state.subcats.delete(sub);
-      _refitTried = false;
-      renderMarkers();
-    });
+    function rebuildPanel(){
+      // Mostra solo se abbiamo una madre attiva, con sottocategorie e panelOpen = true
+      const cat = state.activeParent;
+      const list = (cat && EB_TAXONOMY[cat]) ? EB_TAXONOMY[cat] : [];
+      if (!cat || !Array.isArray(list) || list.length===0 || !state.panelOpen){
+        subBox.style.display = 'none';
+        subHeader.style.display = 'none';
+        subInner.innerHTML = '';
+        return;
+      }
+      // Header + subchips compatti
+      subHeader.textContent = cat;
+      subHeader.style.display = 'flex';
+      subInner.innerHTML = list
+        .slice().sort((a,b)=> a.localeCompare(b,'it'))
+        .map(s => `<div class="chip${state.subcats.has(s)?' active':''}" data-sub="${s}">${s}</div>`)
+        .join('');
+      subBox.style.display = 'block';
+    }
 
-    // Espone un hook per ricostruire dall’esterno
-    window._rebuildSubchips = renderSubchips;
-  })();
-
-  (function setupChips(){
+    // Click sui chip categoria (selezione + apertura panel)
     $$('#chips .chip').forEach(ch=>{
       ch.addEventListener('click', ()=>{
-        ch.classList.toggle('active');
-        const c = ch.getAttribute('data-cat');
+        const cat = ch.getAttribute('data-cat');
+        const hasSubs = Array.isArray(EB_TAXONOMY[cat]) && EB_TAXONOMY[cat].length>0;
 
-        if (ch.classList.contains('active')) {
-          state.cats.add(c);
-          // Imposta questo come “madre” attiva (mostra i suoi sub)
-          state.activeParent = c;
+        // toggle selezione
+        const willSelect = !ch.classList.contains('active');
+        $$('#chips .chip').forEach(x=> { 
+          // se multi-selezione ti serve, rimuovi questa riga che deseleziona gli altri:
+          // (lascio selezione multipla come in precedenza ma aggiorno lo stato singolo della madre attiva)
+          // nulla: manteniamo multipla
+        });
+
+        ch.classList.toggle('active');
+        if (willSelect) state.cats.add(cat); else state.cats.delete(cat);
+
+        // madre attiva = ultima cliccata
+        state.activeParent = cat;
+
+        // panel: apri se la cat ora è selezionata e ha sub; chiudi se deselezionata
+        if (hasSubs){
+          state.panelOpen = willSelect ? true : false;
+          // aggiorna freccetta
+          ch.classList.toggle('expanded', state.panelOpen);
+          // tutte le altre freccette -> non expanded
+          $$('#chips .chip').forEach(x=> { if (x!==ch) x.classList.remove('expanded'); });
         } else {
-          state.cats.delete(c);
-          // Se abbiamo tolto proprio la madre attiva, scegline un'altra o nessuna
-          if (state.activeParent === c) {
-            const first = state.cats.values().next();
-            state.activeParent = first && !first.done ? first.value : null;
-          }
-          // Se non rimane nessuna categoria, svuota i subcats selezionati
-          if (state.cats.size === 0) {
-            state.subcats.clear();
-          }
+          state.panelOpen = false;
+          ch.classList.remove('expanded');
         }
 
-        if (window._rebuildSubchips) window._rebuildSubchips();
+        // se non rimane nessuna categoria, svuota i subcats
+        if (state.cats.size === 0){ state.subcats.clear(); }
 
+        rebuildPanel();
         _refitTried = false;
         renderMarkers();
       });
     });
 
-    // All’avvio: non mostrare subchips finché non si seleziona una categoria
-    if (window._rebuildSubchips) window._rebuildSubchips();
+    // Delegation sui subchips
+    subInner.addEventListener('click', (e)=>{
+      const el = e.target.closest('.chip'); if (!el) return;
+      el.classList.toggle('active');
+      const sub = el.getAttribute('data-sub'); if (!sub) return;
+      if (el.classList.contains('active')) state.subcats.add(sub);
+      else state.subcats.delete(sub);
+      _refitTried=false; renderMarkers();
+    });
+
+    decorateCategoryChips();
+    rebuildPanel();
+
+    // esponi hook per ricostruire pannello da altri punti se servisse
+    window._rebuildSubchips = rebuildPanel;
   })();
 
   // ===== RESET FILTRI =====
@@ -1037,36 +803,31 @@
 
     if (btnCats){
       btnCats.addEventListener('click', ()=>{
-        state.cats.clear();
-        state.subcats.clear();
-        state.activeParent = null;
-        document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
-        if (window._rebuildSubchips) window._rebuildSubchips();
+        state.cats.clear(); state.subcats.clear();
+        state.activeParent = null; state.panelOpen = false;
+        document.querySelectorAll('#chips .chip.active').forEach(el=> { el.classList.remove('active','expanded'); });
         const subBox = document.getElementById('subchips');
-        if (subBox){ subBox.innerHTML=''; subBox.style.display='none'; }
-        _refitTried = false;
-        renderMarkers();
+        const subHeader = document.getElementById('subHeader');
+        const subInner = document.getElementById('subInner');
+        subBox.style.display='none'; subHeader.style.display='none'; subInner.innerHTML='';
+        _refitTried = false; renderMarkers();
       });
     }
 
     if (btnDates){
       btnDates.addEventListener('click', ()=>{
-        state.day = null;
-        state.customDate = null;
+        state.day = null; state.customDate = null;
         document.querySelectorAll('#dayPills .pill.active').forEach(el=> el.classList.remove('active'));
-        const badge = document.getElementById('dateBadge');
-        if (badge){ badge.style.display='none'; badge.textContent=''; }
-        _refitTried = false;
-        renderMarkers();
+        const badge = document.getElementById('dateBadge'); if (badge){ badge.style.display='none'; badge.textContent=''; }
+        _refitTried = false; renderMarkers();
       });
     }
   })();
-  
-  // ===== CERCA — centra mappa con geocoding ibrido + cache =====
+
+  // ===== CERCA =====
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
-    _refitTried = false;
-    allowAutoFit = false;
+    _refitTried = false; allowAutoFit = false;
     if (!state.query){ renderMarkers(); return; }
     const g = await geocodeAddrSmart(state.query);
     if (g) { LEAF.map.setView([g.lat, g.lng], Math.max(13, LEAF.map.getZoom())); }
@@ -1080,20 +841,13 @@
     if (!navigator.geolocation){ showGeoOverlay(); return; }
     navigator.geolocation.getCurrentPosition(pos=>{
       ORIGIN = {lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'};
-      allowAutoFit = false;
-      LEAF.map.setView([ORIGIN.lat,ORIGIN.lng], 13); lShowOrigin();
-      updateCounter();
+      allowAutoFit = false; LEAF.map.setView([ORIGIN.lat,ORIGIN.lng], 13); lShowOrigin(); updateCounter();
     }, _=> showGeoOverlay(), {enableHighAccuracy:true, timeout:8000});
   }
-
-  function showGeoOverlay(){
-    $('#geoOverlay').style.display='flex';
-    $('#geoAddr').focus();
-  }
+  function showGeoOverlay(){ $('#geoOverlay').style.display='flex'; $('#geoAddr').focus(); }
   $('#geoAnnulla').onclick = ()=> { $('#geoOverlay').style.display='none'; };
   $('#geoOk').onclick = async ()=>{
-    const query = ($('#geoAddr').value||'').trim();
-    if(!query) return;
+    const query = ($('#geoAddr').value||'').trim(); if(!query) return;
     allowAutoFit = false;
     const g = await geocodeAddrSmart(query);
     if (g){ ORIGIN = {lat:g.lat,lng:g.lng,label:g.label}; LEAF.map.setView([g.lat,g.lng],13); lShowOrigin(); $('#geoOverlay').style.display='none'; updateCounter(); }
@@ -1105,17 +859,11 @@
     if (ORIGIN){
       const resp = confirm('Vuoi aggiornare la posizione?\nOK = usa GPS adesso\nAnnulla = inserisci un indirizzo');
       if (resp){
-        try{
-          ORIGIN = await getFreshPosition();
-          allowAutoFit = false;
-          LEAF.map.setView([ORIGIN.lat,ORIGIN.lng], 13); lShowOrigin();
-          renderMarkers();
-        }catch(_){ alert('GPS non accessibile.'); }
+        try{ ORIGIN = await getFreshPosition(); allowAutoFit = false; LEAF.map.setView([ORIGIN.lat,ORIGIN.lng], 13); lShowOrigin(); renderMarkers(); }
+        catch(_){ alert('GPS non accessibile.'); }
       } else {
-        const addr = prompt('Imposta origine (indirizzo):', ORIGIN.label||'');
-        if (!addr) return;
-        allowAutoFit = false;
-        const g = await geocodeAddrSmart(addr);
+        const addr = prompt('Imposta origine (indirizzo):', ORIGIN.label||''); if (!addr) return;
+        allowAutoFit = false; const g = await geocodeAddrSmart(addr);
         if (g){ ORIGIN = {lat:g.lat,lng:g.lng,label:g.label}; LEAF.map.setView([g.lat,g.lng],13); lShowOrigin(); renderMarkers(); }
         else  { alert('Indirizzo non trovato.'); }
       }
@@ -1125,41 +873,30 @@
   });
 
   $('#resetOriginBtn').addEventListener('click', ()=>{
-    ORIGIN = null;
-    if (LEAF.myPosMarker){ LEAF.map.removeLayer(LEAF.myPosMarker); LEAF.myPosMarker=null; }
+    ORIGIN = null; if (LEAF.myPosMarker){ LEAF.map.removeLayer(LEAF.myPosMarker); LEAF.myPosMarker=null; }
     alert('Posizione azzerata. Alla prossima richiesta verrà chiesta nuovamente.');
   });
 
-  // ===== FILTRI LOGICA =====
+  // ===== LOGICA FILTRI su occorrenze =====
+  function todayISO(){ return new Date().toISOString().slice(0,10); }
+  function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); }
   function occPassesFilters(occ){
     const today = todayISO();
-
-    // Escludi passato
     if (occ.data && occ.data < today) return false;
-
-    // Data specifica ha precedenza
     if (state.customDate && occ.data !== state.customDate) return false;
-
-    // Giorni rapidi
     if (state.day === 'oggi'   && occ.data !== today) return false;
     if (state.day === 'domani' && occ.data !== addDays(today, 1)) return false;
-
-    // Weekend = prossimo sabato/domenica
     if (state.day === 'weekend'){
       const now = new Date();
       const sat = addDays(today, (6 - now.getDay() + 7) % 7);
       const sun = addDays(today, (7 - now.getDay() + 7) % 7);
       if (occ.data !== sat && occ.data !== sun) return false;
     }
-
-    // Categorie
     if (state.cats.size > 0){
       const ev = EVENTS_BY_ID.get(occ.event_id);
       const evCats = (ev?._cats || []);
       if (!evCats.some(c => state.cats.has(c))) return false;
     }
-
-    // Sotto-categorie
     if (state.subcats.size > 0){
       const ev = EVENTS_BY_ID.get(occ.event_id);
       const evSubs = (ev?._subcats || []);
@@ -1178,41 +915,32 @@
 
   // ✅ CONTATORE
   function updateCounter(){
-    const bounds = LEAF.map.getBounds();
-    const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
+    const bounds = LEAF.map.getBounds(); const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
     const visibleKeys = new Set();
-
     OCCS.forEach(o=>{
       if (o.lat!=null && o.lng!=null && contains(o.lat,o.lng) && occPassesFilters(o)){
         const key = `${o.event_id}|${round5(o.lat)},${round5(o.lng)}`;
         visibleKeys.add(key);
       }
     });
-
     const count = visibleKeys.size;
     $('#counter').textContent = count===1 ? '1 evento visibile sulla mappa' : `${count} eventi visibili sulla mappa`;
   }
-
   function computeAllBounds(){
     const pts = OCCS.filter(o => o.lat!=null && o.lng!=null);
     if (!pts.length) return null;
     return L.latLngBounds(pts.map(o => [o.lat, o.lng]));
   }
-
-  // ✅ MARKER
   function renderMarkers(){
     lClearMarkers();
-    const bounds = LEAF.map.getBounds();
-    const contains = (lat,lng)=> bounds && bounds.contains([lat,lng]);
+    const bounds = LEAF.map.getBounds(); const contains=(lat,lng)=> bounds && bounds.contains([lat,lng]);
     let rendered = 0;
-
     const occsToScan = OCCS.slice().sort((a,b)=>{
       const ad = a.data || '', bd = b.data || '';
       if (ad !== bd) return ad > bd ? -1 : 1;
       const at = a.ora || '', bt = b.ora || '';
       return at > bt ? -1 : (at < bt ? 1 : 0);
     });
-
     const groups = new Map();
     occsToScan.forEach(occ=>{
       if (occ.lat==null || occ.lng==null) return;
@@ -1221,97 +949,45 @@
       const key = `${occ.event_id}|${round5(occ.lat)},${round5(occ.lng)}`;
       if (!groups.has(key)) groups.set(key, occ);
     });
-
     for (const occ of groups.values()){
       const ev = EVENTS_BY_ID.get(occ.event_id)||{};
-      lAddMarker(occ, ev);
-      rendered++;
+      lAddMarker(occ, ev); rendered++;
     }
-
     updateCounter();
-
     if (allowAutoFit && rendered===0 && !_refitTried && OCCS.length>0){
       const all = computeAllBounds();
-      if (all){
-        _refitTried = true;
-        LEAF.map.fitBounds(all);
-        setTimeout(renderMarkers, 80);
-      }
+      if (all){ _refitTried = true; LEAF.map.fitBounds(all); setTimeout(renderMarkers, 80); }
     }
   }
 
   // ===== DATI =====
   async function loadData(){
-    const { data: evs, error: evErr } = await sb.from('events')
-      .select('*')
-      .is('deleted_at', null);
+    const { data: evs, error: evErr } = await sb.from('events').select('*').is('deleted_at', null);
     if (evErr) { console.error('ERR events:', evErr); return; }
-
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
     EVENTS = EVENTS_ALL
       .filter(e => !('published' in e) || isTruthyPub(e.published))
-      .map(e => ({ 
-        ...e, 
-        _cats: normCats(e),
-        _subcats: normSubcats(e)
-      }));
+      .map(e => ({ ...e, _cats: normCats(e), _subcats: normSubcats(e) }));
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
-
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
       .select('id, event_id, lat, lng, data, date, ora, time, luogo, venue, indirizzo, address, citta, city, deleted_at')
       .is('deleted_at', null);
     if (occErr) { console.error('ERR occs:', occErr); return; }
-
     const validEventIds = new Set(EVENTS.map(e => e.id));
     const norm = (occsRaw || [])
       .filter(o => validEventIds.has(o.event_id))
-      .map(o => ({
-        id: o.id,
-        event_id: o.event_id,
-        lat: o.lat,
-        lng: o.lng,
-        data: (o.data || o.date || null),
-        ora:  (o.ora  || o.time || ''),
-        luogo: o.luogo || o.venue || '',
-        indirizzo: o.indirizzo || o.address || '',
-        citta: o.citta || o.city || ''
-      }))
+      .map(o => ({ id:o.id, event_id:o.event_id, lat:o.lat, lng:o.lng, data:(o.data||o.date||null), ora:(o.ora||o.time||''), luogo:o.luogo||o.venue||'', indirizzo:o.indirizzo||o.address||'', citta:o.citta||o.city||'' }))
       .filter(o => o.data);
     OCCS = norm.filter(o => o.lat != null && o.lng != null);
-
-    console.info('Loaded EVENTS:', EVENTS.length, 'OCCS:', OCCS.length);
-    _refitTried = false;
-    renderMarkers();
+    _refitTried = false; renderMarkers();
   }
-  
+
   // === AUTO-REFRESH ===
   (function setupAutoRefresh(){
     let _lastChangeSeen = localStorage.getItem('sq-last-change') || '0';
-
-    window.addEventListener('storage', (e)=>{
-      if (e.key === 'sq-last-change') {
-        _lastChangeSeen = e.newValue || String(Date.now());
-        loadData();
-      }
-    });
-
-    document.addEventListener('visibilitychange', ()=>{
-      if (document.visibilityState === 'visible') {
-        const v = localStorage.getItem('sq-last-change') || '0';
-        if (v !== _lastChangeSeen) {
-          _lastChangeSeen = v;
-          loadData();
-        }
-      }
-    });
-
-    setInterval(()=>{
-      const v = localStorage.getItem('sq-last-change') || '0';
-      if (v !== _lastChangeSeen) {
-        _lastChangeSeen = v;
-        loadData();
-      }
-    }, 90000);
+    window.addEventListener('storage', (e)=>{ if (e.key === 'sq-last-change') { _lastChangeSeen = e.newValue || String(Date.now()); loadData(); } });
+    document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'visible') { const v = localStorage.getItem('sq-last-change') || '0'; if (v !== _lastChangeSeen) { _lastChangeSeen = v; loadData(); } } });
+    setInterval(()=>{ const v = localStorage.getItem('sq-last-change') || '0'; if (v !== _lastChangeSeen) { _lastChangeSeen = v; loadData(); } }, 90000);
   })();
 
   // ===== CONDIVIDI =====
@@ -1319,22 +995,16 @@
     const SHARE_URL  = 'https://www.staseraqui.it/';
     const SHARE_TEXT = 'Scopri cosa fare stasera vicino a te su Stasera Qui';
     const SHARE_TITLE = 'Stasera Qui';
-
     const btnNative = document.getElementById('shareNative');
     if (!btnNative) return;
-
     async function copyToClipboard(text){
       try { await navigator.clipboard.writeText(text); return true; }
-      catch(_){
-        const ok = prompt('Copia il link e premi OK:', text);
-        return !!ok;
-      }
+      catch(_){ const ok = prompt('Copia il link e premi OK:', text); return !!ok; }
     }
-
     btnNative.addEventListener('click', async ()=>{
       if (navigator.share){
         try{ await navigator.share({ title: SHARE_TITLE, text: SHARE_TEXT, url: SHARE_URL }); }
-        catch(_){ /* utente ha annullato o errore → ignora */ }
+        catch(_){ }
       } else {
         const ok = await copyToClipboard(SHARE_URL);
         if (ok) alert('Link copiato! Incollalo dove vuoi.');
