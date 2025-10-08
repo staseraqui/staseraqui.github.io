@@ -582,6 +582,41 @@
     }catch(_){ alert('Impossibile calcolare il percorso.'); }
   }
 
+  
+  async function drawRouteLeaflet(from, to){
+    const ldiv = document.getElementById('map');
+    const gdiv = document.getElementById('gmap');
+    if (gdiv) gdiv.style.display = 'none';
+    if (ldiv) ldiv.style.display = 'block';
+    if (!LEAF.map) return;
+
+    // pulizia eventuale percorso precedente
+    if (LEAF.routeLayer){ LEAF.map.removeLayer(LEAF.routeLayer); LEAF.routeLayer = null; }
+
+    try{
+      const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+      const r = await fetch(url);
+      const j = await r.json();
+      if (!j || !j.routes || !j.routes.length) throw new Error('no-route');
+
+      const route = j.routes[0];
+      const coords = route.geometry.coordinates.map(([lng,lat])=> [lat,lng]);
+      LEAF.routeLayer = L.polyline(coords, { weight:5, opacity:0.95 });
+      LEAF.routeLayer.addTo(LEAF.map);
+      LEAF.map.fitBounds(LEAF.routeLayer.getBounds(), { padding:[30,30] });
+
+      // mostra info + origine
+      const km  = (route.distance/1000).toFixed(1);
+      const min = Math.round(route.duration/60);
+      showRouteInfo(from, to, `${km} km`, `${min} min`);
+      lShowOrigin();
+    }catch(_){
+      alert('Impossibile calcolare il percorso (Leaflet).');
+    }
+  }
+  
+
+  
   // ===== LEAFLET =====
   function initLeafletMap(){
     LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869],12);
