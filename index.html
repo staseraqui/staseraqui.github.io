@@ -278,12 +278,31 @@
     ? CFG.EB_CATEGORIES_ORDER
     : Object.keys(EB_TAXONOMY);
 
-  // Mappa inversa: sotto-cat -> categoria padre
-  const SUBCAT_PARENT = {};
-  Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
-    (subs||[]).forEach(s => { SUBCAT_PARENT[s] = cat; });
+  // Normalizzatore per confronti robusti (slash, &, spazi, accenti, case)
+const N = s => (s||'')
+  .toString()
+  .toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')  // rimuove accenti
+  .replace(/&/g,'e')                               // & -> e
+  .replace(/\//g,'')                                // rimuovi slash
+  .replace(/\s+/g,'')                               // rimuovi spazi
+  .replace(/[^\p{L}\p{N}]/gu,'');                   // rimuovi punteggiatura
+
+// Mappa per trovare la chiave tassonomica reale a partire dall’etichetta mostrata
+const TAX_KEYS = Object.keys(EB_TAXONOMY||{});
+const CAT_KEY_MAP = new Map(TAX_KEYS.map(k => [N(k), k]));
+function resolveCat(label){ return CAT_KEY_MAP.get(N(label)) || label; }
+
+// Mappe: sotto-cat → padre (sia forma originale che normalizzata)
+const SUBCAT_PARENT = {};
+const PARENT_BY_SUB_N = new Map();
+Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
+  const catN = N(cat);
+  (subs||[]).forEach(s => {
+    SUBCAT_PARENT[s] = cat;
+    PARENT_BY_SUB_N.set(N(s), catN);
   });
-  
+});  
   // Namespace utili
   let GMAPS = {
     map:null,            // mappa Google SOLO per il percorso
@@ -825,6 +844,8 @@
 
     // ===== Raggruppo date stessa posizione (future) =====
     const today = todayISO();
+    const selectedCatsNorm = new Set(Array.from(state.cats).map(N));
+const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
     const latKey = round5(occ.lat), lngKey = round5(occ.lng);
     const allDates = OCCS
       .filter(o => o.event_id === occ.event_id && o.data && o.data >= today &&
@@ -1052,11 +1073,12 @@
     function renderSubchips(){
       box.innerHTML = '';
       // se non c'è una madre aperta → non mostrare nulla
-      if (!expandedCat || !EB_TAXONOMY[expandedCat] || !EB_TAXONOMY[expandedCat].length){
-        box.style.display='none';
-        return;
-      }
-      const list = EB_TAXONOMY[expandedCat].slice().sort((a,b)=> a.localeCompare(b,'it'));
+const key = expandedCat ? resolveCat(expandedCat) : null;
+if (!key || !EB_TAXONOMY[key] || !EB_TAXONOMY[key].length){
+  box.style.display='none';
+  return;
+}
+const list = EB_TAXONOMY[key].slice().sort((a,b)=> a.localeCompare(b,'it'));      
       const chips = list.map(s=>{
         const active = state.subcats.has(s) ? ' active' : '';
         return `<div class="chip${active}" data-sub="${s}">${s}</div>`;
@@ -1174,27 +1196,28 @@
       if (occ.data !== sat && occ.data !== sun) return false;
     }
 
-    // Categorie
-    if (state.cats.size > 0){
-      const ev = EVENTS_BY_ID.get(occ.event_id);
-      const evCats = (ev?._cats || []);
-      if (!evCats.some(c => state.cats.has(c))) return false;
-    }
-
-    // Sotto-categorie
-    if (state.subcats.size > 0){
-      const ev = EVENTS_BY_ID.get(occ.event_id);
-      const evSubs = (ev?._subcats || []);
-      if (evSubs.length > 0){
-        const ok = evSubs.some(s => state.subcats.has(s));
-        if (!ok) return false;
-      } else {
-        const evCats = (ev?._cats || []);
-        const parentsOfSelected = new Set(Array.from(state.subcats).map(s => SUBCAT_PARENT[s]).filter(Boolean));
-        const okParent = evCats.some(c => parentsOfSelected.has(c));
-        if (!okParent) return false;
-      }
-    }
+    // Categorie (match normalizzato)
+if (state.cats.size > 0){
+  const ev = EVENTS_BY_ID.get(occ.event_id);
+  const evCatsNorm = (ev?._cats_norm || []);
+  if (!evCatsNorm.some(cn => selectedCatsNorm.has(cn))) return false;
+}
+// Sotto-categorie (match normalizzato + fallback sul padre)
+if (state.subcats.size > 0){
+  const ev = EVENTS_BY_ID.get(occ.event_id);
+  const evSubsNorm = (ev?._subcats_norm || []);
+  if (evSubsNorm.length > 0){
+    const ok = evSubsNorm.some(sn => selectedSubsNorm.has(sn));
+    if (!ok) return false;
+  } else {
+    // se l'evento non ha sub, accetta se la sua categoria madre coincide con
+    // il padre di una sub selezionata
+    const evCatsNorm = (ev?._cats_norm || []);
+    const parentsOfSelected = new Set(Array.from(selectedSubsNorm).map(sn => PARENT_BY_SUB_N.get(sn)).filter(Boolean));
+    const okParent = evCatsNorm.some(cn => parentsOfSelected.has(cn));
+    if (!okParent) return false;
+  }
+}    
     return true;
   }
 
@@ -1270,13 +1293,19 @@
     if (evErr) { console.error('ERR events:', evErr); return; }
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
-    EVENTS = EVENTS_ALL
-      .filter(e => !('published' in e) || isTruthyPub(e.published))
-      .map(e => ({ 
-        ...e, 
-        _cats: normCats(e),
-        _subcats: normSubcats(e)
-      }));
+EVENTS = EVENTS_ALL
+  .filter(e => !('published' in e) || isTruthyPub(e.published))
+  .map(e => {
+    const cats = normCats(e);
+    const subs = normSubcats(e);
+    return {
+      ...e,
+      _cats: cats,
+      _subcats: subs,
+      _cats_norm: cats.map(N),
+      _subcats_norm: subs.map(N)
+    };
+  });    
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
