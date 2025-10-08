@@ -282,12 +282,12 @@
 const N = s => (s||'')
   .toString()
   .toLowerCase()
-  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')  // rimuove accenti
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // accenti
   .replace(/&/g,'e')                               // & -> e
-  .replace(/\//g,'')                                // rimuovi slash
-  .replace(/\s+/g,'')                               // rimuovi spazi
-  .replace(/[^\p{L}\p{N}]/gu,'');                   // rimuovi punteggiatura
-
+  .replace(/\//g,'')                                // slash
+  .replace(/\s+/g,'')                               // spazi
+  .replace(/[^a-z0-9]/g,'');                        // solo a-z0-9
+  
 // Mappa per trovare la chiave tassonomica reale a partire dall’etichetta mostrata
 const TAX_KEYS = Object.keys(EB_TAXONOMY||{});
 const CAT_KEY_MAP = new Map(TAX_KEYS.map(k => [N(k), k]));
@@ -844,6 +844,20 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
 
     // ===== Raggruppo date stessa posizione (future) =====
     const today = todayISO();
+// Se la normalizzazione dovesse dare rogne, non bloccare i risultati
+try {
+  const _ = N('test'); // no-op, ma intercetta eventuali errori di N()
+} catch(_) {
+  return (
+    (!state.customDate || occ.data === state.customDate) &&
+    (state.day !== 'oggi'   || occ.data === today) &&
+    (state.day !== 'domani' || occ.data === addDays(today,1)) &&
+    (state.day !== 'weekend' || (() => {
+      const now=new Date(); const sat=addDays(today,(6-now.getDay()+7)%7); const sun=addDays(today,(7-now.getDay()+7)%7);
+      return (occ.data===sat || occ.data===sun);
+    })())
+  );
+}    
     const selectedCatsNorm = new Set(Array.from(state.cats).map(N));
 const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
     const latKey = round5(occ.lat), lngKey = round5(occ.lng);
