@@ -107,32 +107,22 @@
   /* Evita che prezzo/referenti vadano fuori o vengano troncati */
   .sq-price, .sq-ref { white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }  
 
-  /* ====== Subcat fisarmonica ====== */
-  #subchips { margin-top:8px; display:none; }
-  #subchips .chip { opacity:.95; display:inline-block } /* chip compatti */
-  /* caret dentro i chip madre */
-  #chips .chip{ position:relative; padding-right:28px }
-  .caret{
-    position:absolute; right:8px; top:50%; transform:translateY(-50%);
-    font-size:12px; opacity:.85; user-select:none; pointer-events:auto;
+  /* ====== Fisarmonica sottocategorie compatta ====== */
+  #chips .chip.cat{ position:relative; padding-right:28px }
+  #chips .chip .chev{
+    position:absolute; right:8px; top:50%; transform:translateY(-50%) rotate(0deg);
+    opacity:.85; font-weight:700; transition:transform .2s
   }
-  .caret-btn{ background:transparent; border:0; color:inherit; cursor:pointer; padding:0; line-height:1 }
-/* === Fisarmonica sottocategorie (compatto) === */
-#chips .chip.cat { position:relative; padding-right:26px }
-#chips .chip .chev{
-  position:absolute; right:8px; top:50%; transform:translateY(-50%) rotate(0deg);
-  opacity:.85; font-weight:700; transition:transform .2s
-}
-#chips .chip.expanded .chev{ transform:translateY(-50%) rotate(90deg) }
+  #chips .chip.cat.expanded .chev{ transform:translateY(-50%) rotate(90deg) }
 
-.subwrap{
-  display:none; gap:6px; flex-wrap:wrap; margin:6px 0 10px 0
-}
-.subwrap .chip{
-  padding:6px 10px; font-size:12px; border-radius:999px; display:inline-block;
-  background:#0f1c2d; border:1px solid rgba(255,255,255,.25); cursor:pointer
-}
-.subwrap .chip.active{ outline:3px solid #ffd24d; box-shadow:0 0 0 3px rgba(255,210,77,.25) }  
+  .subwrap{
+    display:none; gap:6px; flex-wrap:wrap; margin:6px 0 10px 0
+  }
+  .subwrap .chip{
+    padding:6px 10px; font-size:12px; border-radius:999px; display:inline-block;
+    background:#0f1c2d; border:1px solid rgba(255,255,255,.25); cursor:pointer
+  }
+  .subwrap .chip.active{ outline:3px solid #ffd24d; box-shadow:0 0 0 3px rgba(255,210,77,.25) }
 </style>
 
 <!-- Dati strutturati: Organization -->
@@ -219,23 +209,22 @@
 
   <!-- Filtri categorie -->
   <div class="chips" id="chips">
-    <div class="chip" data-cat="Musica">Musica <span class="caret"><button class="caret-btn" aria-label="Apri/chiudi">▶</button></span></div>
-    <div class="chip" data-cat="Food & Drink">Food & Drink <span class="caret"><button class="caret-btn" aria-label="Apri/chiudi">▶</button></span></div>
-    <div class="chip" data-cat="Sagre & Fiere">Sagre & Fiere <span class="caret"><button class="caret-btn" aria-label="Apri/chiudi">▶</button></span></div>
-    <div class="chip" data-cat="Famiglie & Bambini">Famiglie & Bambini <span class="caret"><button class="caret-btn" aria-label="Apri/chiudi">▶</button></span></div>
-    <div class="chip" data-cat="Sport">Sport <span class="caret"><button class="caret-btn" aria-label="Apri/chiudi">▶</button></span></div>
-    <div class="chip" data-cat="Nightlife">Nightlife <span class="caret"><button class="caret-btn" aria-label="Apri/chiudi">▶</button></span></div>
-    <div class="chip" data-cat="Cultura/Spettacolo">Cultura/Spettacolo <span class="caret"><button class="caret-btn" aria-label="Apri/chiudi">▶</button></span></div>
-    <div class="chip" data-cat="Mercatini">Mercatini <span class="caret"><button class="caret-btn" aria-label="Apri/chiudi">▶</button></span></div>
+    <div class="chip" data-cat="Musica">Musica</div>
+    <div class="chip" data-cat="Food & Drink">Food & Drink</div>
+    <div class="chip" data-cat="Sagre & Fiere">Sagre & Fiere</div>
+    <div class="chip" data-cat="Famiglie & Bambini">Famiglie & Bambini</div>
+    <div class="chip" data-cat="Sport">Sport</div>
+    <div class="chip" data-cat="Nightlife">Nightlife</div>
+    <div class="chip" data-cat="Cultura/Spettacolo">Cultura/Spettacolo</div>
+    <div class="chip" data-cat="Mercatini">Mercatini</div>
   </div>
   <div style="margin-top:6px">
     <button class="btn small" id="resetCatsBtn" type="button">Reset categorie</button>
   </div>
-  
-  <!-- Filtri sotto-categorie (fisarmonica: si popola SOLO della madre aperta) -->
-  <div class="chips" id="subchips" style="display:none"></div>
-  
-  <!-- Contatore + lista -->
+
+  <!-- (Niente lista sub separata: le sub stanno sotto la madre) -->
+
+  <!-- Contatore -->
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div id="counter" class="small">—</div>
   </div>
@@ -294,70 +283,50 @@
     ? CFG.EB_CATEGORIES_ORDER
     : Object.keys(EB_TAXONOMY);
 
-  // Normalizzatore per confronti robusti (slash, &, spazi, accenti, case)
-const N = s => (s||'')
-  .toString()
-  .toLowerCase()
-  .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // accenti
-  .replace(/&/g,'e')                               // & -> e
-  .replace(/\//g,'')                                // slash
-  .replace(/\s+/g,'')                               // spazi
-  .replace(/[^a-z0-9]/g,'');                        // solo a-z0-9
-  
-// Mappa per trovare la chiave tassonomica reale a partire dall’etichetta mostrata
-const TAX_KEYS = Object.keys(EB_TAXONOMY||{});
-const CAT_KEY_MAP = new Map(TAX_KEYS.map(k => [N(k), k]));
-function resolveCat(label){ return CAT_KEY_MAP.get(N(label)) || label; }
+  // Normalizzatore coerente
+  const N = s => (s||'')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/&/g,'e')
+    .replace(/\//g,'')
+    .replace(/\s+/g,'')
+    .replace(/[^a-z0-9]/g,'');
 
-// Mappe: sotto-cat → padre (sia forma originale che normalizzata)
-const SUBCAT_PARENT = {};
-const PARENT_BY_SUB_N = new Map();
-Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
-  const catN = N(cat);
-  (subs||[]).forEach(s => {
-    SUBCAT_PARENT[s] = cat;
-    PARENT_BY_SUB_N.set(N(s), catN);
+  // Mappa sub -> parent (anche normalizzata)
+  const PARENT_BY_SUB_N = new Map();
+  Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
+    const catN = N(cat);
+    (subs||[]).forEach(s => PARENT_BY_SUB_N.set(N(s), catN));
   });
-});  
+
   // Namespace utili
-  let GMAPS = {
-    map:null,            // mappa Google SOLO per il percorso
-    infowindow:null,
-    directionsService:null,
-    directionsRenderer:null,
-    geocoder:null,
-    osrmPolyline:null,
-    myPosMarker:null
-  };
-  let LEAF = { map:null, pinIcon:null, routeLayer:null, myPosMarker:null };
+  let GMAPS = { map:null, infowindow:null, directionsService:null, directionsRenderer:null, geocoder:null, osrmPolyline:null, myPosMarker:null };
+  let LEAF  = { map:null, pinIcon:null, routeLayer:null, myPosMarker:null };
 
   let EVENTS=[], OCCS=[], EVENTS_BY_ID=new Map(), markers=[];
   let state = { day:null, customDate:null, cats:new Set(), subcats:new Set(), query:'' };
-  let expandedCat = null; // 👈 fisarmonica: quale madre è aperta
   let ORIGIN = null;
 
-  // Auto-fit: consentito solo prima di geoloc o ricerca
+  // Auto-fit
   let _refitTried = false;
   let allowAutoFit = true;
 
-  const $ = s => document.querySelector(s);
+  const $  = s => document.querySelector(s);
   const $$ = s => Array.from(document.querySelectorAll(s));
-  const fmtIT = (d) => { const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}`; };
-  const todayISO = () => new Date().toISOString().slice(0,10);
-  const addDays  = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); };
-  const weekday  = s => (new Date(s+'T00:00:00')).getDay();
+  const fmtIT   = (d) => { const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}`; };
+  const todayISO= () => new Date().toISOString().slice(0,10);
+  const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); };
 
-  // ===== Helpers robusti =====
+  // ===== Helpers dati =====
   const isTruthyPub = v => (v===true || v===1 || v==='1' || v==='t' || v==='true' || v==='T' || v==='TRUE');
+
   function normCats(raw){
     const c = (raw?.categories ?? raw?.categorie ?? raw?.metadata?.categories ?? raw?.metadata?.categorie ?? []);
     if (Array.isArray(c)) return c.filter(Boolean).map(String);
     if (c == null) return [];
     if (typeof c === 'string'){
-      try{
-        const j = JSON.parse(c);
-        if (Array.isArray(j)) return j.filter(Boolean).map(String);
-      }catch(_){}
+      try{ const j = JSON.parse(c); if (Array.isArray(j)) return j.filter(Boolean).map(String); }catch(_){}
       if (c.includes('|')) return c.split('|').map(s=>s.trim()).filter(Boolean);
       if (c.includes(',')) return c.split(',').map(s=>s.trim()).filter(Boolean);
       return c.trim() ? [c.trim()] : [];
@@ -365,7 +334,6 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
     return [];
   }
 
-  // 🔧 SOTTO-CATEGORIE
   function normSubcats(raw){
     let c = raw?.subcats ?? raw?.subcategories ?? raw?.sottocategorie ??
             raw?.metadata?.subcats ?? raw?.metadata?.subcategories ?? raw?.metadata?.sottocategorie ?? [];
@@ -374,12 +342,7 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
     if (typeof c === 'string'){
       const s = c.trim();
       if (!s) return [];
-      if (s.startsWith('[')){
-        try{
-          const j = JSON.parse(s);
-          if (Array.isArray(j)) return j.filter(Boolean).map(x => String(x).trim()).filter(Boolean);
-        }catch(_){}
-      }
+      if (s.startsWith('[')){ try{ const j=JSON.parse(s); if (Array.isArray(j)) return j.filter(Boolean).map(x => String(x).trim()).filter(Boolean); }catch(_){ } }
       if (s.includes('|')) return s.split('|').map(x=>x.trim()).filter(Boolean);
       if (s.includes(',')) return s.split(',').map(x=>x.trim()).filter(Boolean);
       return [s];
@@ -390,22 +353,15 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
   function safeUrl(u){
     if (u == null) return '';
     if (Array.isArray(u)){
-      for (const item of u){
-        const s = safeUrl(item);
-        if (s) return s;
-      }
+      for (const item of u){ const s = safeUrl(item); if (s) return s; }
       return '';
     }
     if (typeof u === 'object'){
       const candidates = [u.url, u.href, u.link, u.src];
-      for (const c of candidates){
-        const s = safeUrl(c);
-        if (s) return s;
-      }
+      for (const c of candidates){ const s = safeUrl(c); if (s) return s; }
       return '';
     }
-    let s = String(u).trim();
-    if (!s) return '';
+    let s = String(u).trim(); if (!s) return '';
     if (/^data:image\//i.test(s)) return s;
     if (/^\/\//.test(s)) s = 'https:' + s;
     if (/^\//.test(s)) return s;
@@ -414,29 +370,16 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
   }
   function pickFirstUrl(...fields){
     for (const f of fields){
-      const s = safeUrl(f);
-      if (s) return s;
-      if (typeof f === 'string'){
-        try{
-          const j = JSON.parse(f);
-          const s2 = safeUrl(j);
-          if (s2) return s2;
-        }catch(_){}
-      }
-    }
-    return '';
-  }  
-  function firstNonEmpty(...vals){
-    for (const v of vals){
-      const s = (v ?? '').toString().trim();
-      if (s) return s;
+      const s = safeUrl(f); if (s) return s;
+      if (typeof f === 'string'){ try{ const j=JSON.parse(f); const s2=safeUrl(j); if (s2) return s2; }catch(_){ } }
     }
     return '';
   }
-  // 🔹 arrotondamento stabile per raggruppare posizioni
+  function firstNonEmpty(...vals){ for (const v of vals){ const s=(v??'').toString().trim(); if (s) return s; } return ''; }
+
   const round5 = n => Math.round((+n + Number.EPSILON) * 1e5) / 1e5;
 
-  // ======= GOOGLE: loader unico (Places + Geometry) =======
+  // ======= GOOGLE =======
   let _gmapsLoading = null;
   async function ensureGoogleLoaded(){
     if (window.google && window.google.maps && window.google.maps.places) return;
@@ -452,7 +395,6 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
     return _gmapsLoading;
   }
 
-  // ===== Autocomplete (Places) su campi ricerca/overlay =====
   async function setupAutocomplete(){
     try{
       await ensureGoogleLoaded();
@@ -479,24 +421,17 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
       };
       makeAC(document.getElementById('searchInput'));
       makeAC(document.getElementById('geoAddr'));
-    }catch(_){ /* se Places non carica, si va avanti col resto */ }
+    }catch(_){ /* ok */ }
   }
 
-  // ===== Geocoding ibrido con cache (prima Google, poi OSM IT) =====
+  // ===== Geocoding cache =====
   const GEO_CACHE_KEY='SQ_GEO_CACHE_V1';
-  function geoCacheGet(q){
-    try{
-      const k=(q||'').trim().toLowerCase(); if(!k) return null;
-      const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}');
-      return store[k]||null;
-    }catch(_){ return null; }
-  }
+  function geoCacheGet(q){ try{ const k=(q||'').trim().toLowerCase(); if(!k) return null; const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}'); return store[k]||null; }catch(_){ return null; } }
   function geoCacheSet(q,obj){
     try{
       const k=(q||'').trim().toLowerCase(); if(!k) return;
       const store=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||'{}');
-      const now=Date.now();
-      store[k] = { ...obj, _ts: now };
+      const now=Date.now(); store[k] = { ...obj, _ts: now };
       const entries = Object.entries(store);
       if (entries.length > 300){
         entries.sort((a,b)=> (a[1]?._ts||0)-(b[1]?._ts||0));
@@ -509,40 +444,33 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
 
   async function geocodeAddrSmart(addr){
     const q=(addr||'').trim(); if(!q) return null;
-    const cached = geoCacheGet(q);
-    if (cached) return cached;
-
-    // 1) Google (Italia)
+    const cached = geoCacheGet(q); if (cached) return cached;
     try{
       await ensureGoogleLoaded();
       const geocoder = new google.maps.Geocoder();
       const g = await new Promise((resolve)=> {
         geocoder.geocode({ address:q, componentRestrictions:{ country:'IT' }, region:'it' }, (res,status)=>{
           if(status==='OK' && res && res[0]){
-            const r = res[0];
-            const loc = r.geometry.location;
+            const r = res[0]; const loc = r.geometry.location;
             resolve({ lat: loc.lat(), lng: loc.lng(), label: r.formatted_address });
           } else { resolve(null); }
         });
       });
       if (g){ geoCacheSet(q,g); return g; }
     }catch(_){}
-
-    // 2) OSM/Nominatim (Italia)
     try{
       const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q='+encodeURIComponent(q);
       const r = await fetch(url, { headers:{'Accept-Language':'it'} });
       const j = await r.json();
       if (Array.isArray(j) && j.length){
         const g = { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon), label: j[0].display_name };
-        geoCacheSet(q,g);
-        return g;
+        geoCacheSet(q,g); return g;
       }
     }catch(_){}
     return null;
   }
 
-  // ===== MAPPA: bootstrap (Leaflet) + Places in parallelo =====
+  // ===== MAPPA =====
   (function setupMap(){
     initLeafletMap();
     setupAutocomplete();
@@ -550,9 +478,7 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
 
   function initRouteGoogleMap(){
     const gdiv = document.getElementById('gmap');
-    GMAPS.map = new google.maps.Map(gdiv, {
-      center:{lat:45.0703, lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false
-    });
+    GMAPS.map = new google.maps.Map(gdiv, { center:{lat:45.0703, lng:7.6869}, zoom:12, mapTypeControl:false, streetViewControl:false });
     GMAPS.infowindow = new google.maps.InfoWindow();
     GMAPS.directionsService = new google.maps.DirectionsService();
     GMAPS.directionsRenderer = new google.maps.DirectionsRenderer({suppressMarkers:true, preserveViewport:false});
@@ -560,31 +486,13 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
     GMAPS.geocoder = new google.maps.Geocoder();
   }
 
-  function pinSvgUrl(color = '#22b3f0'){
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72">
-      <path d="M32 0c13.255 0 24 10.745 24 24 0 17.5-24 40-24 40S8 41.5 8 24C8 10.745 18.745 0 32 0z"
-            fill="${color}" stroke="#ffffff" stroke-width="3"/>
-      <circle cx="32" cy="24" r="9" fill="#ffffff"/>
-    </svg>`;
-    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
-  }
-
   function gClearMarkers(){ markers.forEach(m=>m.setMap && m.setMap(null)); markers=[]; }
-
   function gShowOrigin(){
     if (GMAPS.myPosMarker) { GMAPS.myPosMarker.setMap(null); GMAPS.myPosMarker=null; }
     if (!ORIGIN || !GMAPS.map) return;
     GMAPS.myPosMarker = new google.maps.Marker({
-      position:{lat:ORIGIN.lat, lng:ORIGIN.lng},
-      map: GMAPS.map,
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 7,
-        fillColor:'#4da3ff',
-        fillOpacity:0.9,
-        strokeColor:'#ffffff',
-        strokeWeight:2
-      },
+      position:{lat:ORIGIN.lat, lng:ORIGIN.lng}, map: GMAPS.map,
+      icon:{ path: google.maps.SymbolPath.CIRCLE, scale:7, fillColor:'#4da3ff', fillOpacity:0.9, strokeColor:'#ffffff', strokeWeight:2 },
       title: ORIGIN.label || 'Posizione attuale'
     });
   }
@@ -605,7 +513,7 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
       if (!navigator.geolocation){ reject(new Error('Geolocalizzazione non disponibile')); return; }
       navigator.geolocation.getCurrentPosition(
         pos=> resolve({lat:pos.coords.latitude, lng:pos.coords.longitude, label:'Posizione attuale'}),
-        err=> reject(new Error('Geolocalizzazione negata o non riuscita')),
+        _=> reject(new Error('Geolocalizzazione negata o non riuscita')),
         { enableHighAccuracy:true, maximumAge:0, timeout:10000 }
       );
     });
@@ -618,12 +526,8 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
         const ask = prompt('Origine non impostata. Scrivi un indirizzo di partenza (oppure lascia vuoto per aprire Google Maps):','');
         if (ask && ask.trim()){
           const g = await geocodeAddrSmart(ask.trim());
-          if (g){
-            ORIGIN = {lat:g.lat, lng:g.lng, label:g.label};
-            drawRouteAuto(ORIGIN, dest);
-          } else {
-            window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
-          }
+          if (g){ ORIGIN = {lat:g.lat, lng:g.lng, label:g.label}; drawRouteAuto(ORIGIN, dest); }
+          else { window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank'); }
           return;
         } else {
           window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest.lat+','+dest.lng)}&travelmode=driving`,'_blank');
@@ -701,12 +605,10 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
       const b = new google.maps.LatLngBounds(); coords.forEach(c=>b.extend(c)); GMAPS.map.fitBounds(b);
       const km = (route.distance/1000).toFixed(1), min = Math.round(route.duration/60);
       showRouteInfo(from, to, `${km} km`, `${min} min`);
-    }catch(_){
-      alert('Impossibile calcolare il percorso.');
-    }
+    }catch(_){ alert('Impossibile calcolare il percorso.'); }
   }
 
-  /* ✅ Fallback Leaflet per il percorso: evita ReferenceError e blocchi */
+  // Fallback Leaflet per il percorso
   async function drawRouteLeaflet(from, to){
     const ldiv = document.getElementById('map');
     const gdiv = document.getElementById('gmap');
@@ -736,7 +638,8 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
       alert('Impossibile calcolare il percorso (Leaflet).');
     }
   }
-  // ===== LEAFLET (mappa principale + percorso fallback) =====
+
+  // ===== LEAFLET (mappa principale) =====
   function initLeafletMap(){
     LEAF.map = L.map('map', { attributionControl:false }).setView([45.0703,7.6869],12);
     L.control.attribution({prefix:false}).addTo(LEAF.map);
@@ -757,35 +660,23 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
   }
 
   function lAddMarker(occ, ev){
-    const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')]
-      .map(s => (s||'').toString().trim()).filter(Boolean);
+    const whereParts = [(occ.luogo||''), (occ.indirizzo||''), (occ.citta||'')].map(s => (s||'').toString().trim()).filter(Boolean);
     const where = whereParts.join(', ');
     const cats  = (ev._cats||[]).join(', ');
     const subcatsTxt = (ev._subcats||[]).join(', ');
 
-    // ======= DESCRIZIONE =======
-    const theDescr = firstNonEmpty(
-      ev.description, ev.descrizione, ev.descr,
-      ev?.metadata?.descr_long, ev?.metadata?.descr
-    );
+    const theDescr = firstNonEmpty(ev.description, ev.descrizione, ev.descr, ev?.metadata?.descr_long, ev?.metadata?.descr);
 
-    // ===== PREZZO/INGRESSO =====
     function getPrice(evObj){
       const direct = [evObj.price_text, evObj.prezzo, evObj.price, evObj.ingresso, evObj?.metadata?.prezzo, evObj?.metadata?.price_text]
-        .map(v => (v ?? '').toString().trim())
-        .find(Boolean);
+        .map(v => (v ?? '').toString().trim()).find(Boolean);
       if (direct) return direct;
       for (const [k,v] of Object.entries(evObj||{})){
         if (/price|prezzo|ingresso/i.test(k)){
-          const s = (v ?? '').toString().trim();
-          if (s) return s;
-          if (typeof v === 'string' && v.trim().startsWith('{')) {
-            try {
-              const j = JSON.parse(v);
-              const inner = [j.price_text, j.prezzo, j.price, j.ingresso]
-                .map(x => (x ?? '').toString().trim()).find(Boolean);
-              if (inner) return inner;
-            } catch(_){}
+          const s = (v ?? '').toString().trim(); if (s) return s;
+          if (typeof v === 'string' && v.trim().startsWith('{')) { try { const j = JSON.parse(v);
+            const inner = [j.price_text, j.prezzo, j.price, j.ingresso].map(x => (x ?? '').toString().trim()).find(Boolean);
+            if (inner) return inner; } catch(_){ }
           }
         }
       }
@@ -794,48 +685,31 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
     }
     const prezzoIngresso = getPrice(ev);
 
-    // ===== URL utili =====
-    const website = firstNonEmpty(
-      (ev.website_url||'').toString().trim(),
-      ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento,
-      ev?.metadata?.website, ev?.metadata?.sito, ev?.metadata?.sito_web
-    ) || pickFirstUrl(ev?.metadata?.website);
+    const website = firstNonEmpty((ev.website_url||'').toString().trim(), ev.website, ev.sito, ev.sito_web, ev.link, ev.url, ev.official_url, ev.link_evento, ev?.metadata?.website, ev?.metadata?.sito, ev?.metadata?.sito_web) || pickFirstUrl(ev?.metadata?.website);
 
     let locandinaUrl = firstNonEmpty((ev.locandina_url||ev.image_url||'').toString().trim());
     if (!locandinaUrl) locandinaUrl = pickFirstUrl(ev.poster_url, ev.cover_url, ev.image_url, ev.img, ev.cover, ev.thumbnail, ev.thumb, ev?.metadata?.locandina_url);
-    if (locandinaUrl && locandinaUrl.startsWith('/')) {
-      try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){}
-    }
+    if (locandinaUrl && locandinaUrl.startsWith('/')) { try { locandinaUrl = new URL(locandinaUrl, location.origin).toString(); } catch(_){} }
     const btnSite   = website     ? `<a class="btn primary" target="_blank" rel="noopener" href="${website}">Apri sito evento</a>` : '';
     const btnPoster = locandinaUrl? `<a class="btn primary" target="_blank" rel="noopener" href="${locandinaUrl}">Apri locandina</a>` : '';
 
-    // ===== REFERENTI =====
     function pickArray(val){
       if (Array.isArray(val)) return val;
-      if (typeof val === 'string'){
-        const s = val.trim();
-        if (s.startsWith('[')){ try{ const j=JSON.parse(s); return Array.isArray(j)? j:[]; }catch(_){ return []; } }
-      }
+      if (typeof val === 'string'){ const s = val.trim(); if (s.startsWith('[')){ try{ const j=JSON.parse(s); return Array.isArray(j)? j:[]; }catch(_){ } } }
       return [];
     }
     function sanitizeTel(s){ return (s||'').toString().replace(/[^\d+]/g,''); }
 
     let rawContacts = pickArray(ev.contacts) || pickArray(ev.referenti) || pickArray(ev.contatti);
+    if (!rawContacts.length) rawContacts = pickArray(ev?.metadata?.contacts);
     if (!rawContacts.length){
-      rawContacts = pickArray(ev?.metadata?.contacts);
-    }
-    if (!rawContacts.length){
-      const flat = [];
-      const push=(n,t,e)=>{ if (n||t||e) flat.push({nome:n||'', tel:t||'', email:e||''}); };
+      const flat = []; const push=(n,t,e)=>{ if (n||t||e) flat.push({nome:n||'', tel:t||'', email:e||''}); };
       push(ev.nome_referente, ev.numero_referente, ev.email_referente);
-      for (let i=1;i<=10;i++){
-        push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]);
-      }
+      for (let i=1;i<=10;i++){ push(ev[`nome_referente_${i}`], ev[`numero_referente_${i}`], ev[`email_referente_${i}`]); }
       rawContacts = flat;
     }
 
-    const referenti = [];
-    const seen = new Set();
+    const referenti = []; const seen = new Set();
     (rawContacts||[]).forEach(r=>{
       const nome  = (r?.nome||r?.name||'').toString().trim();
       const tel   = sanitizeTel(r?.tel||r?.telefono||r?.phone||'');
@@ -858,28 +732,10 @@ Object.entries(EB_TAXONOMY).forEach(([cat, subs])=>{
         </ul>
       </div>` : '';
 
-    // ===== Raggruppo date stessa posizione (future) =====
     const today = todayISO();
-// Se la normalizzazione dovesse dare rogne, non bloccare i risultati
-try {
-  const _ = N('test'); // no-op, ma intercetta eventuali errori di N()
-} catch(_) {
-  return (
-    (!state.customDate || occ.data === state.customDate) &&
-    (state.day !== 'oggi'   || occ.data === today) &&
-    (state.day !== 'domani' || occ.data === addDays(today,1)) &&
-    (state.day !== 'weekend' || (() => {
-      const now=new Date(); const sat=addDays(today,(6-now.getDay()+7)%7); const sun=addDays(today,(7-now.getDay()+7)%7);
-      return (occ.data===sat || occ.data===sun);
-    })())
-  );
-}    
-    const selectedCatsNorm = new Set(Array.from(state.cats).map(N));
-const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
     const latKey = round5(occ.lat), lngKey = round5(occ.lng);
     const allDates = OCCS
-      .filter(o => o.event_id === occ.event_id && o.data && o.data >= today &&
-                  round5(o.lat) === latKey && round5(o.lng) === lngKey)
+      .filter(o => o.event_id === occ.event_id && o.data && o.data >= today && round5(o.lat) === latKey && round5(o.lng) === lngKey)
       .sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora));
 
     let dateLine = '';
@@ -902,20 +758,15 @@ const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
       ? `<div style="margin-top:6px">
           <b>Altre date:</b>
           <ul style="margin:6px 0 0 18px">
-            ${otherDates.slice(0,8).map(o =>
-              `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`
-            ).join('')}
+            ${otherDates.slice(0,8).map(o => `<li><a href="#" class="sq-date" data-date="${o.data}">${fmtIT(o.data)}${o.ora?` ore ${o.ora}`:''}</a></li>`).join('')}
           </ul>
           ${otherDates.length>8 ? `<div class="small" style="opacity:.8">…e altre ${otherDates.length-8}</div>` : ``}
         </div>`
       : '';
 
-    // Marker + popup
     const m = L.marker([occ.lat,occ.lng], { icon: LEAF.pinIcon }).addTo(LEAF.map);
 
-    const prezzoHtml = prezzoIngresso
-      ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>`
-      : '';
+    const prezzoHtml = prezzoIngresso ? `<div class="small sq-price" style="margin-top:6px"><b>Prezzo/Ingresso:</b> ${prezzoIngresso}</div>` : '';
 
     const html = `<div class="sq-popup" style="color:#081421;max-width:460px">
         <b>${ev.title||ev.titolo||'(evento)'}</b>${multiBadge}<br>
@@ -954,18 +805,17 @@ const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
 
     markers.push(m);
   }
-  
+
   function lClearMarkers(){ markers.forEach(m=>LEAF.map.removeLayer(m)); markers=[]; }
 
   function lShowOrigin(){
     if (LEAF.myPosMarker){ LEAF.map.removeLayer(LEAF.myPosMarker); LEAF.myPosMarker=null; }
     if (!ORIGIN) return;
-    LEAF.myPosMarker = L.circleMarker([ORIGIN.lat, ORIGIN.lng], {
-      radius:6, fillColor:'#4da3ff', fillOpacity:0.9, color:'#fff', weight:2
-    }).addTo(LEAF.map).bindTooltip(ORIGIN.label||'Posizione attuale',{permanent:false});
+    LEAF.myPosMarker = L.circleMarker([ORIGIN.lat, ORIGIN.lng], { radius:6, fillColor:'#4da3ff', fillOpacity:0.9, color:'#fff', weight:2 })
+      .addTo(LEAF.map).bindTooltip(ORIGIN.label||'Posizione attuale',{permanent:false});
   }
 
-  // ====== FILTRI — HANDLERS UI ======
+  // ====== FILTRI — GIORNI ======
   (function setupDayPills(){
     const pills = $$('#dayPills .pill');
     const badge = $('#dateBadge');
@@ -1020,134 +870,50 @@ const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
     });
   })();
 
-  // ====== CATEGORIE (con caret a fisarmonica) ======
+  // ====== CATEGORIE + SOTTOCATEGORIE (fisarmonica) ======
   (function setupChips(){
-    // Selettore globale su #chips per distinguere: click chip vs click caret
-    const chipsBox = document.getElementById('chips');
-
-    chipsBox.addEventListener('click', (e)=>{
-      const caretBtn = e.target.closest('.caret-btn');
-      const chipEl   = e.target.closest('.chip');
-
-      if (!chipEl) return;
-      const cat = chipEl.getAttribute('data-cat');
-      if (!cat) return;
-
-      if (caretBtn){
-        // Toggle fisarmonica SOLO con la freccetta
-        expandedCat = (expandedCat === cat) ? null : cat;
-        // aggiorna caret simbolo
-        $$('#chips .chip .caret-btn').forEach(btn=>{
-          const parentCat = btn.closest('.chip')?.getAttribute('data-cat');
-          btn.textContent = (expandedCat && parentCat===expandedCat) ? '▼' : '▶';
-        });
-        if (window._rebuildSubchips) window._rebuildSubchips();
-        return;
-      }
-
-      // Click sul chip madre = selezione categoria (filtro), NON apre/chiude
-      chipEl.classList.toggle('active');
-      if (chipEl.classList.contains('active')) state.cats.add(cat);
-      else state.cats.delete(cat);
-
-      // se tutte le categorie deselezionate, deseleziona anche le sub
-      if (state.cats.size === 0) state.subcats.clear();
-
-      if (window._rebuildSubchips) window._rebuildSubchips();
-      _refitTried = false;
-      renderMarkers();
-    });
-
-    // Primo disegno subchips (saranno vuote finché non si apre una madre)
-    if (window._rebuildSubchips) window._rebuildSubchips();
-  })();
-
-  // ===== RESET FILTRI =====
-  (function setupResetButtons(){
-    const btnCats  = document.getElementById('resetCatsBtn');
-    const btnDates = document.getElementById('resetDatesBtn');
-
-    if (btnCats){
-      btnCats.addEventListener('click', ()=>{
-        state.cats.clear();
-        state.subcats.clear();
-        expandedCat = null;
-        document.querySelectorAll('#chips .chip.active').forEach(el=> el.classList.remove('active'));
-        $$('#chips .chip .caret-btn').forEach(btn=> btn.textContent='▶');
-        if (window._rebuildSubchips) window._rebuildSubchips();
-        const subBox = document.getElementById('subchips');
-        if (subBox){ subBox.innerHTML=''; subBox.style.display='none'; }
-        _refitTried = false;
-        renderMarkers();
-      });
-    }
-
-    if (btnDates){
-      btnDates.addEventListener('click', ()=>{
-        state.day = null;
-        state.customDate = null;
-        document.querySelectorAll('#dayPills .pill.active').forEach(el=> el.classList.remove('active'));
-        const badge = document.getElementById('dateBadge');
-        if (badge){ badge.style.display='none'; badge.textContent=''; }
-        _refitTried = false;
-        renderMarkers();
-      });
-    }
-  })();
-
-  // ===== SOTTO-CATEGORIE (fisarmonica: mostra SOLO quelle della madre aperta) =====
-  (function setupChips(){
-  // 1) prepara i chip “madre” con freccetta e crea le sub-wrap subito sotto
-  function buildSubwraps(){
-    $$('#chips .chip').forEach(ch=>{
-      ch.classList.add('cat');
-      // freccetta
-      if (!ch.querySelector('.chev')){
-        const chev = document.createElement('span');
-        chev.className = 'chev';
-        chev.textContent = '▸';
-        ch.appendChild(chev);
-      }
-      const cat = ch.getAttribute('data-cat');
-      // crea/ricrea wrap
-      let wrap = ch.nextElementSibling;
-      const needNew = !(wrap && wrap.classList && wrap.classList.contains('subwrap'));
-      if (needNew){
-        wrap = document.createElement('div');
-        wrap.className = 'subwrap';
-        wrap.setAttribute('data-parent', cat);
-        ch.insertAdjacentElement('afterend', wrap);
-      }
-      // popola sottocategorie
-      const subs = (EB_TAXONOMY[cat]||[]).slice().sort((a,b)=>a.localeCompare(b,'it'));
-      wrap.innerHTML = subs.map(s=>`<div class="chip" data-sub="${s}">${s}</div>`).join('');
-      wrap.style.display = 'none'; // chiuso di default
-      ch.classList.remove('expanded');
-    });
-  }
-
-  // 2) toggler chip madre: selezione categoria (click sul chip), espansione (click sulla freccetta)
-  function attachDelegates(){
     const box = document.getElementById('chips');
     if (!box) return;
 
-    // click globale dentro #chips
+    // Costruisco caret e subwrap per ciascuna categoria
+    function build(){
+      $$('#chips .chip').forEach(ch=>{
+        ch.classList.add('cat');
+        if (!ch.querySelector('.chev')){
+          const che = document.createElement('span');
+          che.className = 'chev';
+          che.textContent = '▸';
+          ch.appendChild(che);
+        }
+        const cat = ch.getAttribute('data-cat');
+        let wrap = ch.nextElementSibling;
+        if (!wrap || !wrap.classList || !wrap.classList.contains('subwrap')){
+          wrap = document.createElement('div');
+          wrap.className = 'subwrap';
+          wrap.setAttribute('data-parent', cat);
+          ch.insertAdjacentElement('afterend', wrap);
+        }
+        const subs = (EB_TAXONOMY[cat]||[]).slice().sort((a,b)=>a.localeCompare(b,'it'));
+        wrap.innerHTML = subs.map(s=>`<div class="chip" data-sub="${s}">${s}</div>`).join('');
+        wrap.style.display = 'none';
+        ch.classList.remove('expanded');
+      });
+    }
+
+    // Delegation: click su caret, su chip categoria, su chip sottocategoria
     box.addEventListener('click', (e)=>{
       const chev = e.target.closest('.chev');
+      const catChip = e.target.closest('#chips .chip.cat');
+      const subChip = e.target.closest('.subwrap .chip');
+
       if (chev){
-        // solo espansione/chiusura
         const chip = chev.parentElement;
-        const cat  = chip.getAttribute('data-cat');
-        const wrap = chip.nextElementSibling && chip.nextElementSibling.classList.contains('subwrap')
-          ? chip.nextElementSibling : null;
+        const wrap = chip.nextElementSibling && chip.nextElementSibling.classList.contains('subwrap') ? chip.nextElementSibling : null;
         const expanded = chip.classList.toggle('expanded');
         if (wrap) wrap.style.display = expanded ? 'flex' : 'none';
-        e.stopPropagation();
         return;
       }
 
-      // click su chip sottocategoria
-      const subChip = e.target.closest('.subwrap .chip');
       if (subChip){
         subChip.classList.toggle('active');
         const s = subChip.getAttribute('data-sub');
@@ -1158,52 +924,52 @@ const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
         return;
       }
 
-      // click su chip categoria (selezione/deselezione)
-      const catChip = e.target.closest('#chips .chip.cat');
       if (catChip){
+        // toggle filtro categoria
         catChip.classList.toggle('active');
         const c = catChip.getAttribute('data-cat');
         if (catChip.classList.contains('active')) state.cats.add(c);
         else {
           state.cats.delete(c);
-          // se deseleziono la madre, azzero anche le sue sub attive
-          const wrap = catChip.nextElementSibling && catChip.nextElementSibling.classList.contains('subwrap')
-            ? catChip.nextElementSibling : null;
+          // azzera sottocategorie della madre
+          const wrap = catChip.nextElementSibling && catChip.nextElementSibling.classList.contains('subwrap') ? catChip.nextElementSibling : null;
           if (wrap){
             wrap.querySelectorAll('.chip.active').forEach(el=>{
               el.classList.remove('active');
-              const s = el.getAttribute('data-sub');
-              state.subcats.delete(s);
+              state.subcats.delete(el.getAttribute('data-sub'));
             });
           }
         }
+        // apri/chiudi anche la fisarmonica con il click sul chip (UX richiesta)
+        const wrap = catChip.nextElementSibling && catChip.nextElementSibling.classList.contains('subwrap') ? catChip.nextElementSibling : null;
+        const expanded = catChip.classList.toggle('expanded', !(wrap && wrap.style.display==='flex'));
+        if (wrap) wrap.style.display = expanded ? 'flex' : 'none';
+
         _refitTried = false;
         renderMarkers();
         return;
       }
     });
-  }
 
-  // 3) bottone Reset categorie: pulisce tutto e richiude le fisarmoniche
-  const btnCats  = document.getElementById('resetCatsBtn');
-  if (btnCats){
-    btnCats.addEventListener('click', ()=>{
-      state.cats.clear();
-      state.subcats.clear();
-      document.querySelectorAll('#chips .chip.cat.active').forEach(el=> el.classList.remove('active'));
-      document.querySelectorAll('#chips .chip.cat.expanded').forEach(el=> el.classList.remove('expanded'));
-      document.querySelectorAll('#chips + .subwrap, #chips .subwrap').forEach(w=> w.style.display='none');
-      document.querySelectorAll('.subwrap .chip.active').forEach(el=> el.classList.remove('active'));
-      _refitTried = false;
-      renderMarkers();
-    });
-  }
+    // Reset categorie
+    const btnCats = document.getElementById('resetCatsBtn');
+    if (btnCats){
+      btnCats.addEventListener('click', ()=>{
+        state.cats.clear();
+        state.subcats.clear();
+        document.querySelectorAll('#chips .chip.cat.active').forEach(el=> el.classList.remove('active'));
+        document.querySelectorAll('#chips .chip.cat.expanded').forEach(el=> el.classList.remove('expanded'));
+        document.querySelectorAll('#chips .subwrap').forEach(w=> w.style.display='none');
+        document.querySelectorAll('#chips .subwrap .chip.active').forEach(el=> el.classList.remove('active'));
+        _refitTried = false;
+        renderMarkers();
+      });
+    }
 
-  // build once
-  buildSubwraps();
-  attachDelegates();
-})();  
-  // ===== CERCA — centra mappa con geocoding ibrido + cache =====
+    build();
+  })();
+
+  // ===== CERCA =====
   $('#searchBtn').addEventListener('click', async ()=>{
     state.query = ($('#searchInput').value||'').trim();
     _refitTried = false;
@@ -1275,17 +1041,12 @@ const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
   function occPassesFilters(occ){
     const today = todayISO();
 
-    // Escludi passato
     if (occ.data && occ.data < today) return false;
-
-    // Data specifica ha precedenza
     if (state.customDate && occ.data !== state.customDate) return false;
 
-    // Giorni rapidi
     if (state.day === 'oggi'   && occ.data !== today) return false;
     if (state.day === 'domani' && occ.data !== addDays(today, 1)) return false;
 
-    // Weekend = prossimo sabato/domenica
     if (state.day === 'weekend'){
       const now = new Date();
       const sat = addDays(today, (6 - now.getDay() + 7) % 7);
@@ -1293,28 +1054,28 @@ const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
       if (occ.data !== sat && occ.data !== sun) return false;
     }
 
-    // Categorie (match normalizzato)
-if (state.cats.size > 0){
-  const ev = EVENTS_BY_ID.get(occ.event_id);
-  const evCatsNorm = (ev?._cats_norm || []);
-  if (!evCatsNorm.some(cn => selectedCatsNorm.has(cn))) return false;
-}
-// Sotto-categorie (match normalizzato + fallback sul padre)
-if (state.subcats.size > 0){
-  const ev = EVENTS_BY_ID.get(occ.event_id);
-  const evSubsNorm = (ev?._subcats_norm || []);
-  if (evSubsNorm.length > 0){
-    const ok = evSubsNorm.some(sn => selectedSubsNorm.has(sn));
-    if (!ok) return false;
-  } else {
-    // se l'evento non ha sub, accetta se la sua categoria madre coincide con
-    // il padre di una sub selezionata
-    const evCatsNorm = (ev?._cats_norm || []);
-    const parentsOfSelected = new Set(Array.from(selectedSubsNorm).map(sn => PARENT_BY_SUB_N.get(sn)).filter(Boolean));
-    const okParent = evCatsNorm.some(cn => parentsOfSelected.has(cn));
-    if (!okParent) return false;
-  }
-}    
+    const selectedCatsNorm = new Set(Array.from(state.cats).map(N));
+    const selectedSubsNorm = new Set(Array.from(state.subcats).map(N));
+
+    if (state.cats.size > 0){
+      const ev = EVENTS_BY_ID.get(occ.event_id);
+      const evCatsNorm = (ev?._cats_norm || []);
+      if (!evCatsNorm.some(cn => selectedCatsNorm.has(cn))) return false;
+    }
+
+    if (state.subcats.size > 0){
+      const ev = EVENTS_BY_ID.get(occ.event_id);
+      const evSubsNorm = (ev?._subcats_norm || []);
+      if (evSubsNorm.length > 0){
+        const ok = evSubsNorm.some(sn => selectedSubsNorm.has(sn));
+        if (!ok) return false;
+      } else {
+        const evCatsNorm = (ev?._cats_norm || []);
+        const parentsOfSelected = new Set(Array.from(selectedSubsNorm).map(sn => PARENT_BY_SUB_N.get(sn)).filter(Boolean));
+        const okParent = evCatsNorm.some(cn => parentsOfSelected.has(cn));
+        if (!okParent) return false;
+      }
+    }
     return true;
   }
 
@@ -1390,19 +1151,19 @@ if (state.subcats.size > 0){
     if (evErr) { console.error('ERR events:', evErr); return; }
 
     const EVENTS_ALL = Array.isArray(evs) ? evs : [];
-EVENTS = EVENTS_ALL
-  .filter(e => !('published' in e) || isTruthyPub(e.published))
-  .map(e => {
-    const cats = normCats(e);
-    const subs = normSubcats(e);
-    return {
-      ...e,
-      _cats: cats,
-      _subcats: subs,
-      _cats_norm: cats.map(N),
-      _subcats_norm: subs.map(N)
-    };
-  });    
+    EVENTS = EVENTS_ALL
+      .filter(e => !('published' in e) || isTruthyPub(e.published))
+      .map(e => {
+        const cats = normCats(e);
+        const subs = normSubcats(e);
+        return {
+          ...e,
+          _cats: cats,
+          _subcats: subs,
+          _cats_norm: cats.map(N),
+          _subcats_norm: subs.map(N)
+        };
+      });
     EVENTS_BY_ID = new Map(EVENTS.map(e => [e.id, e]));
 
     const { data: occsRaw, error: occErr } = await sb.from('occurrences')
