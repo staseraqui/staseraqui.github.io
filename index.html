@@ -1194,35 +1194,20 @@
   }
   
   // === AUTO-REFRESH ===
-  (function setupAutoRefresh(){
-    let _lastChangeSeen = localStorage.getItem('sq-last-change') || '0';
+(function setupAutoRefresh(){
+  // Ricarica SEMPRE quando la scheda torna visibile
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.visibilityState === 'visible') {
+      loadData();
+    }
+  });
 
-    window.addEventListener('storage', (e)=>{
-      if (e.key === 'sq-last-change') {
-        _lastChangeSeen = e.newValue || String(Date.now());
-        loadData();
-      }
-    });
-
-    document.addEventListener('visibilitychange', ()=>{
-      if (document.visibilityState === 'visible') {
-        const v = localStorage.getItem('sq-last-change') || '0';
-        if (v !== _lastChangeSeen) {
-          _lastChangeSeen = v;
-          loadData();
-        }
-      }
-    });
-
-    setInterval(()=>{
-      const v = localStorage.getItem('sq-last-change') || '0';
-      if (v !== _lastChangeSeen) {
-        _lastChangeSeen = v;
-        loadData();
-      }
-    }, 90000);
-  })();
-
+  // Polling leggero: ogni 45 secondi ricarica da Supabase
+  // (è idempotente: re-render solo se i dati cambiano)
+  setInterval(()=>{
+    loadData();
+  }, 45000);
+})();
   // ===== CONDIVIDI =====
   (function(){
     const SHARE_URL  = 'https://www.staseraqui.it/';
